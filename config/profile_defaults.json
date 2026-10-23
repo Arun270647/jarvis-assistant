@@ -1,0 +1,29 @@
+{
+  "apps": {
+    "notepad": { "path": "notepad.exe", "aliases": ["text editor", "editor"] },
+    "explorer": { "path": "explorer.exe", "aliases": ["file explorer", "files"] },
+    "calculator": { "path": "calc.exe", "aliases": ["calc"] },
+    "chrome": { "path": "%ProgramFiles%/Google/Chrome/Application/chrome.exe",
+                "aliases": ["browser", "google chrome", "web browser"] },
+    "edge": { "path": "%ProgramFiles(x86)%/Microsoft/Edge/Application/msedge.exe",
+              "aliases": ["microsoft edge"] }
+  },
+  "media": {
+    "play": { "key": "play_pause" },
+    "pause": { "key": "play_pause" },
+    "stop": { "key": "stop" },
+    "next": { "key": "next_track" },
+    "previous": { "key": "prev_track" },
+    "volume_up": { "key": "volume_up" },
+    "volume_down": { "key": "volume_down" },
+    "mute": { "key": "volume_mute" }
+  },
+  "system": {
+    "lock": { "command": "rundll32.exe user32.dll,LockWorkStation" },
+    "sleep": { "command": "rundll32.exe powrprof.dll,SetSuspendState 0,1,0", "confirm": true },
+    "shutdown": { "command": "shutdown /s /t 60", "confirm": true },
+    "restart": { "command": "shutdown /r /t 60", "confirm": true },
+    "cancel_shutdown": { "command": "shutdown /a" },
+    "screenshot": { "command": "snippingtool" }
+  }
+}

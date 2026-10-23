@@ -1,0 +1,36 @@
+# private planning notes: they name the author and must never be committed
+planning/
+
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+.env.*
+
+# user data (should live in %JARVIS_HOME%, but never commit it if a portable dir is used)
+userdata/
+data/
+.cache/
+*.db
+*.db-wal
+*.db-shm
+*.log
+config/config.json
+config/user_profile.json
+
+# local agent settings
+.claude/settings.local.json
+
+# build output
+build/
+dist/
+*.egg-info/
+
+# phone app
+mobile/node_modules/
+mobile/android/
+mobile/ios/
+mobile/.expo/
+*.keystore
+*.jks

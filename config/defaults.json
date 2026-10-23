@@ -1,0 +1,155 @@
+{
+  "config_version": 1,
+  "audio": {
+    "input_device_index": null,
+    "sample_rate": 16000,
+    "channels": 1,
+    "dtype": "int16",
+    "chunk_size": 512,
+    "test_recording_seconds": 5
+  },
+  "stt": {
+    "model_path": "small",
+    "device": "cpu",
+    "compute_type": "int8",
+    "beam_size": 1
+  },
+  "llm": {
+    "claude": {
+      "model": "claude-sonnet-5-5",
+      "effort": "medium",
+      "cli_path": "claude",
+      "timeout_seconds": 30,
+      "session_reset_after": 100,
+      "model_options": [
+        "claude-sonnet-5-5",
+        "claude-opus-5-5",
+        "claude-haiku-5-5",
+        "claude-fable-5-1"
+      ]
+    }
+  },
+  "vad": {
+    "hub_dir": "torch-hub"
+  },
+  "pipeline": {
+    "silence_timeout_ms": 400,
+    "max_recording_ms": 20000,
+    "early_bail_ms": 3000,
+    "vad_threshold": 0.5
+  },
+  "tts": {
+    "enabled": true,
+    "engine": "piper",
+    "piper": {
+      "voice": "en_US-amy-medium",
+      "model_dir": "piper",
+      "speaker_id": 0,
+      "huggingface_base_url": "https://huggingface.co/rhasspy/piper-voices/resolve/main"
+    },
+    "chatterbox": {
+      "python": "",
+      "hf_home": "",
+      "torch_home": "",
+      "device": "cpu",
+      "temperature": 0.8,
+      "threads": 0,
+      "startup_timeout_s": 600,
+      "sentence_timeout_s": 90,
+      "fallback": "piper",
+      "cache_phrases": [
+        "Jarvis is back."
+      ]
+    }
+  },
+  "claude_code": {
+    "enabled": true,
+    "cli_path": "claude",
+    "default_project": "",
+    "timeout_seconds": 300,
+    "capture_output": true,
+    "summarize_for_tts": true,
+    "require_confirmation": true,
+    "confirmation_window_ms": 5000,
+    "confirm_affirmative": ["yes", "yeah", "yep", "yup", "sure", "confirm", "go ahead", "do it", "go", "correct",
+                            "affirmative", "proceed"],
+    "confirm_negative": ["no", "nope", "nah", "cancel", "stop", "abort", "don't", "negative", "wait"]
+  },
+  "dry_run": false,
+  "agent": {
+    "max_turns": 120,
+    "max_seconds": 600,
+    "memory_context_items": 5,
+    "max_tool_calls_per_request": 80,
+    "full_access": false,
+    "workspace_roots": [],
+    "allowed_commands": [],
+    "fault_injection": [],
+    "task": {
+      "max_tool_calls": 80,
+      "max_seconds": 1800,
+      "max_verify_attempts": 3,
+      "max_nudges": 3,
+      "idle_timeout_seconds": 180,
+      "speak_progress": true
+    }
+  },
+  "tools": {
+    "approval_timeout_ms": 15000,
+    "default_timeout_s": 20,
+    "permissions": {},
+    "extensions": []
+  },
+  "memory": {
+    "history_in_ui": 60,
+    "approval_required_kinds": ["preference", "convention"]
+  },
+  "gui": {
+    "orb_style": "hud",
+    "start_minimized": false,
+    "close_to_tray": true,
+    "autostart_pipeline": true,
+    "startup_view": "orb"
+  },
+  "email": {
+    "enabled": true,
+    "preset": "custom",
+    "smtp_host": "",
+    "smtp_port": 465,
+    "security": "ssl",
+    "username": "",
+    "from_address": "",
+    "from_name": "",
+    "trusted_recipients": [],
+    "signature": ""
+  },
+  "chrome": {
+    "default_profile": "",
+    "user_data_dir": "",
+    "blocked_domains": []
+  },
+  "greeting": {
+    "enabled": true,
+    "prefix": "Jarvis is back.",
+    "model": "claude-haiku-5-5",
+    "batch_size": 25,
+    "min_pool": 8,
+    "prepare_after_idle_s": 20
+  },
+  "desktop": {
+    "enabled": true,
+    "screenshot_max_side": 1400
+  },
+  "phone": {
+    "enabled": false,
+    "port": 8765,
+    "bind": "tailscale",
+    "speak_replies": false,
+    "allow_screenshot": true,
+    "approval_timeout_s": 180,
+    "max_upload_mb": 10
+  },
+  "terminal": {
+    "font": "Cascadia Mono"
+  }
+}

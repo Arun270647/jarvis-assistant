@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Jarvis orb</title>
+<link rel="stylesheet" href="ds/styles.css">
+<link rel="stylesheet" href="app.css">
+<style>
+  html, body { background: transparent !important; overflow: hidden; }
+  .compact { position: fixed; right: 14px; bottom: 10px; display: flex; flex-direction: column; align-items: flex-end; gap: 10px; animation: jPop .25s ease-out; }
+  .caption { max-width: 300px; padding: 8px 12px; font-size: 13px; line-height: 1.4; background: var(--color-surface); box-shadow: var(--shadow-md); animation: jIn .2s ease-out; }
+  .caption .acts { display: flex; gap: 6px; margin-top: 8px; justify-content: flex-end; }
+  .orb-col { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  .mini { width: 64px; height: 64px; padding: 0; border: 0; border-radius: 50%; background: color-mix(in srgb, var(--color-accent-900) 70%, #000);
+    box-shadow: 0 10px 30px rgba(0,0,0,.55), 0 0 0 1px color-mix(in srgb, var(--color-neutral-100) 14%, transparent); cursor: pointer; display: block; transition: transform .2s; }
+  .mini:hover { transform: scale(1.06); }
+  .mini canvas { width: 100%; height: 100%; display: block; border-radius: 50%; }
+  .mini-label { font-family: var(--font-heading); font-weight: 600; font-size: 11px; letter-spacing: .14em; text-transform: uppercase;
+    color: var(--state-color); text-shadow: 0 1px 6px rgba(0,0,0,.8); }
+</style>
+<script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+<script src="orb.js"></script>
+</head>
+<body>
+<div class="compact" data-screen-label="Compact orb">
+  <div id="caption-slot"></div>
+  <div class="orb-col">
+    <button type="button" class="mini" id="mini" title="Jarvis — click to open, drag to move" aria-label="Open Jarvis"><canvas id="orb" width="144" height="144"></canvas></button>
+    <span class="mini-label" id="mini-label" hidden></span>
+  </div>
+</div>
+<script src="compact.js"></script>
+</body>
+</html>

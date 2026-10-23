@@ -1,0 +1,17 @@
+sounddevice==0.5.1
+numpy>=1.24
+faster-whisper>=1.1.0
+silero-vad>=5.1
+torch>=2.0
+claude-agent-sdk>=0.2.165
+jsonschema>=4.20          # tool argument validation (PolicyExecutor)
+platformdirs>=4.2         # per-user data / models / cache folders (src/platform)
+piper-tts>=1.2            # in-process TTS
+# Desktop app (jarvis_gui.pyw)
+PySide6>=6.10             # Qt 6 + Qt WebEngine: main window, floating orb, tray (abi3 wheels support Python 3.14)
+pywin32>=306              # startup/desktop shortcuts via COM (no powershell console)
+uiautomation>=2.0.29      # desktop control: UI Automation tree of any window (incl. Chrome pages)
+pillow>=10                # desktop screenshots
+# Phone app server (src/remote/phone_server.py)
+aiohttp>=3.13             # WebSocket server on the Tailscale address (websockets 10 is pinned by pyppeteer)
+segno>=1.6                # pairing QR code (SVG)

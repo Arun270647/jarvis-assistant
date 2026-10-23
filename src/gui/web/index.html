@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Jarvis</title>
+<link rel="stylesheet" href="ds/styles.css">
+<link rel="stylesheet" href="app.css">
+<script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+<script src="orb.js"></script>
+</head>
+<body>
+<div class="app" id="app">
+
+  <!-- top bar: brand, views, window controls -->
+  <header class="topbar">
+    <div class="brand"><span class="brand-mark">J</span><span>Jarvis</span></div>
+    <nav class="tabs" role="tablist" aria-label="Views">
+      <button class="tab" role="tab" data-view="assistant" aria-selected="true">Assistant</button>
+      <button class="tab" role="tab" data-view="agent" aria-selected="false">Agent<span class="count" id="agent-count" hidden></span></button>
+      <button class="tab" role="tab" data-view="activity" aria-selected="false">Activity<span class="count" id="activity-count" hidden></span></button>
+      <button class="tab" role="tab" data-view="memory" aria-selected="false">Memory</button>
+      <button class="tab" role="tab" data-view="settings" aria-selected="false">Settings</button>
+    </nav>
+    <div class="topbar-right">
+      <button class="icon-btn" id="btn-collapse" title="Collapse to the floating orb (Ctrl+Shift+J)" aria-label="Collapse to the floating orb">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="17" cy="17" r="4"></circle><path d="M3 3h12v6"></path><path d="M3 3v12h6"></path></svg>
+      </button>
+    </div>
+  </header>
+
+  <main style="min-height:0; display:grid">
+
+    <!-- ░░ ASSISTANT ░░ -->
+    <section class="view active" id="view-assistant" role="tabpanel" aria-label="Assistant">
+      <div class="orb-stage">
+        <div class="stage-tools">
+          <button type="button" class="btn btn-ghost btn-icon" id="btn-mute" title="Mute microphone (Ctrl+M)" aria-label="Mute microphone" aria-pressed="false" style="color:var(--color-neutral-100)">
+            <svg id="ico-mic" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><path d="M12 19v3"></path></svg>
+            <svg id="ico-mic-off" style="display:none" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 2l20 20"></path><path d="M18.89 13.23A7.12 7.12 0 0 0 19 12v-2"></path><path d="M5 10v2a7 7 0 0 0 12 5"></path><path d="M15 9.34V5a3 3 0 0 0-5.68-1.33"></path><path d="M9 9v3a3 3 0 0 0 5.12 2.12"></path><path d="M12 19v3"></path></svg>
+          </button>
+        </div>
+        <div class="blueprint orb-frame">
+          <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+          <button type="button" class="orb-button" id="orb-button" aria-label="Start Jarvis" title="Start Jarvis"><canvas id="orb" width="760" height="760"></canvas></button>
+        </div>
+        <div class="state-label" id="state-label">Offline</div>
+        <div class="captions" id="captions" aria-live="polite">
+          <div class="cap-you" id="cap-you"></div>
+          <div class="cap-jarvis" id="cap-jarvis"></div>
+        </div>
+      </div>
+
+
+      <div class="composer">
+        <div class="composer-row">
+          <button type="button" class="btn btn-secondary btn-icon ptt" id="btn-ptt" title="Hold to talk (Space)" aria-label="Hold to talk" disabled style="color:var(--color-neutral-100)">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><path d="M12 19v3"></path></svg>
+          </button>
+          <input id="input" class="input" type="text" placeholder="Start the assistant to send commands" aria-label="Command" autocomplete="off" spellcheck="false">
+          <div style="display:flex">
+            <button type="button" class="btn btn-secondary btn-icon blueprint" id="btn-stop" title="Stop (Esc)" aria-label="Stop" hidden style="color:var(--color-neutral-100)"><i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.5"><rect x="5" y="5" width="14" height="14"></rect></svg></button>
+            <button type="button" class="btn btn-primary btn-icon blueprint" id="btn-send" title="Send (Enter)" aria-label="Send"><i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"></path><path d="M13 6l6 6-6 6"></path></svg></button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ░░ AGENT WORKSPACE ░░ -->
+    <section class="view" id="view-agent" role="tabpanel" aria-label="Agent workspace">
+      <div class="agent-layout">
+        <aside class="task-list">
+          <div class="task-list-head"><span class="section-title">Tasks</span><button class="btn btn-ghost btn-sm" id="tasks-refresh">Refresh</button></div>
+          <div id="task-items"><div class="empty" style="padding:14px">Loading…</div></div>
+        </aside>
+        <div class="agent-detail page" id="task-detail">
+          <div class="page-inner"><div class="empty">Give Jarvis an objective, for example “prepare the demo shop for deployment, test it and fix what you can”. Multi-step work appears here with its plan, actions, verification and outcome.</div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ░░ ACTIVITY ░░ -->
+    <section class="view page" id="view-activity" role="tabpanel" aria-label="Activity">
+      <div class="page-inner">
+        <div class="page-head">
+          <div><h2>Activity</h2><div class="sub">Every tool Jarvis ran for you, with its real result. Live while a task runs.</div></div>
+          <div class="actions"><button class="btn btn-secondary" id="act-refresh">Refresh</button></div>
+        </div>
+        <div id="act-now"></div>
+        <div class="card blueprint section">
+          <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+          <div class="section-title">Tool runs</div>
+          <div id="act-table"><div class="empty">Loading…</div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ░░ MEMORY ░░ -->
+    <section class="view page" id="view-memory" role="tabpanel" aria-label="Memory">
+      <div class="page-inner">
+        <div class="page-head">
+          <div><h2>Memory</h2><div class="sub">What Jarvis remembers about you. Claude sees the relevant items with each request.</div></div>
+        </div>
+        <div class="card blueprint section">
+          <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+          <div class="section-title">Stored memories <span id="mem-count" class="tag tag-neutral" style="margin-left:6px"></span></div>
+          <form class="mem-form" id="mem-form" autocomplete="off">
+            <input class="input" id="mem-new" placeholder="Add something to remember, e.g. “My car is parked on level 3”" maxlength="1000">
+            <select class="input" id="mem-kind" aria-label="Kind"><option>fact</option><option>preference</option><option>note</option><option>person</option><option>task</option></select>
+            <label class="check" title="Pinned memories are always given to Claude"><input type="checkbox" id="mem-pin">Pin</label>
+            <button class="btn btn-primary" type="submit">Add</button>
+          </form>
+          <div class="toolbar"><input class="input" id="mem-search" placeholder="Search memories" type="search"></div>
+          <div id="mem-table"></div>
+        </div>
+        <div class="card blueprint section">
+          <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+          <div class="section-title">Conversation history</div>
+          <div class="toolbar"><input class="input" id="hist-search" placeholder="Search conversation" type="search"><span style="margin-left:auto"></span><button class="btn btn-secondary btn-sm" id="hist-clear">Clear history…</button></div>
+          <div id="hist-table"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ░░ SETTINGS ░░ -->
+    <section class="view page" id="view-settings" role="tabpanel" aria-label="Settings">
+      <div class="page-inner" id="settings-root"><div class="empty">Loading settings…</div></div>
+    </section>
+  </main>
+
+  <!-- status bar -->
+  <footer class="statusbar">
+    <span class="status-dot"></span>
+    <span class="status-label" id="status-label">Offline</span>
+    <button type="button" class="btn btn-ghost power" id="btn-power">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v10"></path><path d="M18.4 6.6a9 9 0 1 1-12.77.04"></path></svg><span id="power-label">Start</span>
+    </button>
+  </footer>
+</div>
+
+<div id="dialog-root"></div>
+<script src="app.js"></script>
+<script src="agent.js"></script>
+</body>
+</html>

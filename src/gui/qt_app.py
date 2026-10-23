@@ -1,0 +1,526 @@
+"""Jarvis desktop application (PySide6 + Qt WebEngine).
+
+Windows:
+  MainWindow   native Windows 11 frame (dark caption), hosts web/index.html
+  OrbWindow    frameless, translucent, always-on-top floating orb (web/compact.html)
+  Tray         QSystemTrayIcon coloured by state, with Show / Start / Stop / Mute / Quit
+
+All long-running work (microphone, Whisper, Claude, tools, voice) lives on the
+pipeline thread owned by AssistantController; this module only renders and
+forwards clicks, so the UI thread never blocks on the assistant.
+"""
+import ctypes
+import os
+import sys
+import threading
+from pathlib import Path
+
+from PySide6.QtCore import QAbstractNativeEventFilter, QByteArray, QPoint, QRect, Qt, QTimer, QUrl
+from PySide6.QtGui import QAction, QColor, QGuiApplication, QIcon, QPainter, QPen
+from PySide6.QtNetwork import QLocalServer, QLocalSocket
+from PySide6.QtWebChannel import QWebChannel
+from PySide6.QtWebEngineCore import QWebEnginePage, QWebEngineSettings
+from PySide6.QtWebEngineWidgets import QWebEngineView
+from PySide6.QtWidgets import QApplication, QMainWindow, QMenu, QSystemTrayIcon, QWidget
+
+from src.app.controller import AssistantController
+from src.core import config_store, logging_setup, paths
+from src.gui.bridge import Bridge, EventHub
+
+WEB = Path(__file__).resolve().parent / "web"
+INSTANCE_KEY = "jarvis-assistant-single-instance"
+APP_ID = "Jarvis.Assistant.Desktop"
+
+STATE_COLORS = {
+    "stopped": "#7a7a7d", "loading": "#749dc4", "idle": "#94bce3", "paused": "#b7b7ba",
+    "listening": "#d6ebff", "transcribing": "#b5d9fd", "thinking": "#b5d9fd",
+    "executing": "#d6ebff", "approval": "#eef6ff", "speaking": "#eef6ff", "error": "#d4d4d7",
+}
+STATE_LABELS = {
+    "stopped": "Offline", "loading": "Starting up", "idle": "Awaiting command", "paused": "Microphone paused",
+    "listening": "Listening", "transcribing": "Transcribing", "thinking": "Thinking",
+    "executing": "Executing", "approval": "Awaiting your approval", "speaking": "Speaking", "error": "Error",
+}
+
+HOTKEY_ID = 0x4A41  # 'JA'
+MOD_CONTROL, MOD_SHIFT, MOD_NOREPEAT = 0x0002, 0x0004, 0x4000
+WM_HOTKEY = 0x0312
+
+
+LOGO_ICO = Path(__file__).resolve().parent / "assets" / "jarvis.ico"   # scripts/make_logo.py
+
+
+def make_icon(color: str = "#94bce3", size: int = 64) -> QIcon:
+    """The Jarvis logo (crescent in the HUD ring); a non-default colour adds a state dot (tray)."""
+    if color == "#94bce3":
+        return QIcon(str(LOGO_ICO))
+    pm = QIcon(str(LOGO_ICO)).pixmap(size, size)
+    p = QPainter(pm)
+    p.setRenderHint(QPainter.Antialiasing)
+    d = size * 3 // 8
+    p.setPen(QPen(QColor("#03111e"), max(2, size // 20)))
+    p.setBrush(QColor(color))
+    p.drawEllipse(QRect(size - d - 1, size - d - 1, d, d))
+    p.end()
+    return QIcon(pm)
+
+
+def force_foreground(widget: QWidget) -> None:
+    """Bring a window to the front even when Jarvis is a background (tray) process.
+
+    Windows' focus-stealing rules normally only flash the taskbar button for
+    SetForegroundWindow from a background process; a synthetic ALT key press
+    plus AttachThreadInput is the documented-in-practice way around it.
+    """
+    try:
+        user32 = ctypes.windll.user32
+        hwnd = int(widget.winId())
+        if user32.IsIconic(hwnd):
+            user32.ShowWindow(hwnd, 9)                      # SW_RESTORE
+        fg = user32.GetForegroundWindow()
+        fg_thread = user32.GetWindowThreadProcessId(fg, None)
+        me = ctypes.windll.kernel32.GetCurrentThreadId()
+        user32.keybd_event(0x12, 0, 0, 0)                   # ALT down
+        user32.keybd_event(0x12, 0, 2, 0)                   # ALT up
+        if fg_thread and fg_thread != me:
+            user32.AttachThreadInput(me, fg_thread, True)
+        user32.BringWindowToTop(hwnd)
+        user32.SetForegroundWindow(hwnd)
+        if fg_thread and fg_thread != me:
+            user32.AttachThreadInput(me, fg_thread, False)
+    except Exception as e:
+        print(f"[GUI] Could not bring the window to the front: {e}")
+
+
+def _dark_title_bar(widget: QWidget) -> None:
+    try:
+        hwnd = int(widget.winId())
+        value = ctypes.c_int(1)
+        for attr in (20, 19):  # DWMWA_USE_IMMERSIVE_DARK_MODE (new / pre-20H1)
+            if ctypes.windll.dwmapi.DwmSetWindowAttribute(hwnd, attr, ctypes.byref(value), ctypes.sizeof(value)) == 0:
+                break
+        caption = ctypes.c_int(0x003D2D1D)  # COLORREF 0x00BBGGRR of #1d2d3d
+        ctypes.windll.dwmapi.DwmSetWindowAttribute(hwnd, 35, ctypes.byref(caption), ctypes.sizeof(caption))
+    except Exception:
+        pass
+
+
+class WebPage(QWebEnginePage):
+    """Routes page console messages to the log so UI errors are diagnosable."""
+
+    def javaScriptConsoleMessage(self, level, message, line, source):
+        tag = {0: "INFO", 1: "WARN", 2: "ERROR"}.get(int(level.value) if hasattr(level, "value") else int(level), "INFO")
+        print(f"[UI {tag}] {Path(source).name}:{line} {message}")
+
+
+def make_view(parent, bridge: Bridge, page_file: str, transparent: bool = False) -> QWebEngineView:
+    view = QWebEngineView(parent)
+    page = WebPage(view)
+    view.setPage(page)
+    s = page.settings()
+    s.setAttribute(QWebEngineSettings.LocalContentCanAccessFileUrls, True)
+    s.setAttribute(QWebEngineSettings.LocalContentCanAccessRemoteUrls, False)
+    view.setContextMenuPolicy(Qt.NoContextMenu)
+    if transparent:
+        page.setBackgroundColor(Qt.transparent)
+    else:
+        page.setBackgroundColor(QColor("#1d2d3d"))
+    channel = QWebChannel(page)
+    channel.registerObject("jarvis", bridge)
+    page.setWebChannel(channel)
+    view.setUrl(QUrl.fromLocalFile(str(WEB / page_file)))
+    return view
+
+
+class MainWindow(QMainWindow):
+    def __init__(self, app: "JarvisQtApp"):
+        super().__init__()
+        self.app = app
+        self.setWindowTitle("Jarvis")
+        self.setWindowIcon(app.icon)
+        self.resize(1180, 780)
+        self.setMinimumSize(760, 560)
+        self.bridge = Bridge(app, "main")
+        self.view = make_view(self, self.bridge, "index.html")
+        self.setCentralWidget(self.view)
+        _dark_title_bar(self)
+
+    def closeEvent(self, event):
+        if self.app.quitting:
+            event.accept()
+            return
+        if config_store.load_config().get("gui", {}).get("close_to_tray", True):
+            event.ignore()
+            self.app.collapse_to_orb()
+        else:
+            event.ignore()
+            self.app.quit()
+
+
+class OrbWindow(QWidget):
+    """Compact always-available assistant: orb, caption and state, bottom-right of the screen."""
+
+    W, H = 340, 230
+
+    def __init__(self, app: "JarvisQtApp"):
+        super().__init__(None, Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool)
+        self.app = app
+        self.setAttribute(Qt.WA_TranslucentBackground)
+        self.setAttribute(Qt.WA_ShowWithoutActivating)
+        self.setWindowTitle("Jarvis orb")
+        self.resize(self.W, self.H)
+        self.bridge = Bridge(app, "compact")
+        self.view = make_view(self, self.bridge, "compact.html", transparent=True)
+        self.view.setGeometry(0, 0, self.W, self.H)
+        self.view.setAttribute(Qt.WA_TranslucentBackground)
+        self.view.setStyleSheet("background: transparent")
+        self._placed = False
+
+    def place(self):
+        screen = QGuiApplication.primaryScreen().availableGeometry()
+        self.move(screen.right() - self.W - 12, screen.bottom() - self.H - 12)
+        self._placed = True
+
+    def showEvent(self, event):
+        if not self._placed:
+            self.place()
+        super().showEvent(event)
+
+
+class HotkeyFilter(QAbstractNativeEventFilter):
+    def __init__(self, callback):
+        super().__init__()
+        self.callback = callback
+
+    def nativeEventFilter(self, event_type, message):
+        if event_type in (b"windows_generic_MSG", "windows_generic_MSG", QByteArray(b"windows_generic_MSG")):
+            try:
+                from ctypes import wintypes
+                msg = wintypes.MSG.from_address(int(message))
+                if msg.message == WM_HOTKEY and msg.wParam == HOTKEY_ID:
+                    self.callback()
+                    return True, 0
+            except Exception:
+                pass
+        return False, 0
+
+
+class JarvisQtApp:
+    def __init__(self, qapp: QApplication, start_minimized: bool = False):
+        self.qapp = qapp
+        self.quitting = False
+        self.icon = make_icon()
+        qapp.setWindowIcon(self.icon)
+        self.hub = EventHub()
+        self.hub.quit_requested.connect(qapp.quit)
+        self.controller = AssistantController()
+        self.controller.add_listener(self._on_controller_event)
+        logging_setup.add_listener(self.hub.emit_log)
+
+        self.main = MainWindow(self)
+        self.orb = OrbWindow(self)
+        self._build_tray()
+        self._register_hotkey()
+
+        cfg = config_store.load_config().get("gui", {})
+        self._announce_ready = False
+        if start_minimized or cfg.get("start_minimized", False):
+            # Started with Windows: the floating orb (click it to talk, Ctrl+Shift+J for the window), or tray only.
+            if cfg.get("startup_view", "tray") == "orb":
+                self.orb.show()
+            self._announce_ready = True
+        else:
+            self.main.show()
+        self.phone = None
+        self.phone_error = None
+        threading.Thread(target=self.restart_phone_server, name="phone-start", daemon=True).start()
+        if cfg.get("autostart_pipeline", True):
+            QTimer.singleShot(400, self.controller.start)
+
+    # ------------------------------------------------------------ phone app server
+
+    def restart_phone_server(self) -> None:
+        """(Re)start the phone app's server from the current settings; call it off the UI thread."""
+        from src.remote.phone_server import PhoneServer
+        old, self.phone = self.phone, None
+        if old is not None:
+            old.stop(wait=3.0)
+        self.phone_error = None
+        if config_store.load_config().get("phone", {}).get("enabled", False):
+            server = PhoneServer(self.controller, on_change=self.emit_phone_status)
+            if server.start():
+                self.phone = server
+            else:
+                self.phone_error = server.error
+        self.emit_phone_status()
+
+    def emit_phone_status(self) -> None:
+        self.hub.emit_event({"type": "phone_status"})
+
+    # ------------------------------------------------------------ events
+
+    def _on_controller_event(self, ev: dict) -> None:
+        # Pipeline thread -> Qt signal (queued to the UI thread).
+        # Widgets are only touched from _poll_ui on the UI thread.
+        self.hub.emit_event(ev)
+        t = ev.get("type")
+        if t in ("phase", "mute", "stopped"):
+            self._tray_dirty = True
+        elif t == "error":
+            self._pending_notice = (f"Jarvis · {ev.get('stage', 'error')}", str(ev.get("detail", ""))[:240])
+        elif t == "approval_request":
+            self._pending_approval = ev.get("title", "")
+        elif t == "ready":
+            self._pending_ready = ev
+
+    def _poll_ui(self):
+        """Runs on the UI thread: apply tray updates and notifications requested by worker threads."""
+        if getattr(self, "_tray_dirty", False):
+            self._tray_dirty = False
+            self.refresh_tray()
+        notice = getattr(self, "_pending_notice", None)
+        if notice:
+            self._pending_notice = None
+            if not self.main.isVisible():
+                self.tray.showMessage(notice[0], notice[1], QSystemTrayIcon.Warning, 6000)
+        ready = getattr(self, "_pending_ready", None)
+        if ready is not None:
+            self._pending_ready = None
+            if self._announce_ready and not self.main.isVisible():
+                self._announce_ready = False
+                hint = "Click the tray icon or press Ctrl+Shift+J to open it."
+                self.tray.showMessage("Jarvis is running", hint, QSystemTrayIcon.Information, 5000)
+        approval = getattr(self, "_pending_approval", None)
+        if approval is not None:
+            self._pending_approval = None
+            if not self.main.isVisible():
+                # Permission prompts must be seen: bring the main window up.
+                self.show_main(greet=False)
+
+    # ------------------------------------------------------------ tray
+
+    def _build_tray(self):
+        self.tray = QSystemTrayIcon(self.icon)
+        menu = QMenu()
+        self.act_show = QAction("Open Jarvis", menu, triggered=self.show_main)
+        self.act_orb = QAction("Show floating orb", menu, triggered=self.toggle_orb)
+        self.act_start = QAction("Start assistant", menu, triggered=self.controller.start)
+        self.act_stop = QAction("Stop assistant", menu,
+                                triggered=lambda: threading.Thread(target=self.controller.stop, daemon=True).start())
+        self.act_mute = QAction("Mute microphone", menu, checkable=True,
+                                triggered=lambda checked: self.controller.set_muted(checked))
+        self.act_log = QAction("Open log file", menu, triggered=lambda: __import__("os").startfile(str(logging_setup.LOG_FILE)))
+        self.act_quit = QAction("Quit", menu, triggered=self.quit)
+        for a in (self.act_show, self.act_orb, None, self.act_start, self.act_stop, self.act_mute, None, self.act_log, None, self.act_quit):
+            menu.addSeparator() if a is None else menu.addAction(a)
+        self._menu = menu
+        self.tray.setContextMenu(menu)
+        self.tray.activated.connect(self._tray_activated)
+        self.tray.setToolTip("Jarvis")
+        self.tray.show()
+        self._ui_timer = QTimer()
+        self._ui_timer.timeout.connect(self._poll_ui)
+        self._ui_timer.start(150)
+        self.refresh_tray()
+
+    def _tray_activated(self, reason):
+        if reason in (QSystemTrayIcon.Trigger, QSystemTrayIcon.DoubleClick):
+            if self.main.isVisible() and not self.main.isMinimized():
+                self.collapse_to_orb()
+            else:
+                self.show_main()
+
+    def refresh_tray(self):
+        c = self.controller
+        phase = c.phase
+        if phase == "idle" and c.muted:
+            phase = "paused"
+        self.tray.setIcon(make_icon(STATE_COLORS.get(phase, "#94bce3")))
+        self.tray.setToolTip(f"Jarvis — {STATE_LABELS.get(phase, phase)}")
+        self.act_start.setEnabled(not c.running)
+        self.act_stop.setEnabled(c.running)
+        self.act_mute.setChecked(c.muted)
+        self.act_orb.setText("Hide floating orb" if self.orb.isVisible() else "Show floating orb")
+
+    # ------------------------------------------------------------ windows
+
+    def show_main(self, force: bool = False, reason: str = "user", greet: bool = True):
+        """Open the main window. Opening it from the orb, tray or Ctrl+Shift+J (it was hidden or
+        minimized) gets a new spoken greeting."""
+        opening = not self.main.isVisible() or self.main.isMinimized()
+        self.main.showNormal() if self.main.isMinimized() else self.main.show()
+        self.main.raise_()
+        self.main.activateWindow()
+        if force:
+            force_foreground(self.main)
+        self.orb.hide()
+        self.hub.emit_event({"type": "window", "state": "expanded", "reason": reason})
+        if greet and opening:
+            self.controller.greet()
+        self.refresh_tray()
+
+    def collapse_to_orb(self):
+        self.main.hide()
+        self.orb.show()
+        self.hub.emit_event({"type": "window", "state": "collapsed"})
+        self.refresh_tray()
+
+    def toggle_orb(self):
+        self.orb.setVisible(not self.orb.isVisible())
+        self.refresh_tray()
+
+    def toggle_main(self):
+        if self.main.isVisible() and self.main.isActiveWindow():
+            self.collapse_to_orb()
+        else:
+            self.show_main()
+
+    def on_hotkey(self):
+        """Ctrl+Shift+J from any app: open Jarvis in front (or collapse it to the orb if it is already in front)."""
+        if self.main.isVisible() and self.main.isActiveWindow():
+            print("[GUI] Hotkey: collapsing to the orb")
+            self.collapse_to_orb()
+        else:
+            print("[GUI] Hotkey: opening the main window")
+            self.show_main(force=True, reason="hotkey")
+
+    def toggle_maximized(self):
+        self.main.showNormal() if self.main.isMaximized() else self.main.showMaximized()
+
+    def start_compact_move(self):
+        handle = self.orb.windowHandle()
+        if handle is not None:
+            handle.startSystemMove()
+
+    def save_screenshots(self, target: Path, view: str = "") -> None:
+        """Render the app's own windows to PNG (diagnostics; works while covered by other windows)."""
+        target.mkdir(parents=True, exist_ok=True)
+        if view:
+            self.main.view.page().runJavaScript(
+                f"document.querySelector('.tab[data-view=\"{view}\"]') && document.querySelector('.tab[data-view=\"{view}\"]').click()")
+
+        def grab():
+            name = view or "assistant"
+            self.main.view.grab().save(str(target / f"main-{name}.png"))
+            self.orb.view.grab().save(str(target / "orb.png"))
+            print(f"[GUI] Screenshots saved to {target}")
+
+        QTimer.singleShot(900 if view else 50, grab)
+
+    def apply_gui_settings(self):
+        self.hub.emit_event({"type": "settings_changed", "config": config_store.load_config().get("gui", {})})
+
+    def _register_hotkey(self):
+        """Ctrl+Shift+J anywhere in Windows toggles the main window / orb."""
+        self._hotkey_filter = HotkeyFilter(lambda: QTimer.singleShot(0, self.on_hotkey))
+        self.qapp.installNativeEventFilter(self._hotkey_filter)
+        try:
+            ok = ctypes.windll.user32.RegisterHotKey(None, HOTKEY_ID, MOD_CONTROL | MOD_SHIFT | MOD_NOREPEAT, ord("J"))
+            print("[GUI] Global hotkey Ctrl+Shift+J " + ("registered" if ok else "unavailable (in use by another app)"))
+        except Exception as e:
+            print(f"[GUI] Global hotkey failed: {e}")
+
+    # ------------------------------------------------------------ quit
+
+    def quit(self):
+        if self.quitting:
+            return
+        self.quitting = True
+        print("[GUI] Quit requested — stopping the assistant")
+        self.main.hide()
+        self.orb.hide()
+        self.tray.setToolTip("Jarvis — shutting down")
+        try:
+            ctypes.windll.user32.UnregisterHotKey(None, HOTKEY_ID)
+        except Exception:
+            pass
+
+        def _stop():
+            if self.phone is not None:
+                self.phone.stop(wait=3.0)
+            self.controller.shutdown()
+            self.hub.quit_requested.emit()   # queued to the UI thread
+
+        threading.Thread(target=_stop, name="jarvis-shutdown", daemon=True).start()
+        # Hard limit: never hang on exit.
+        QTimer.singleShot(25000, self.qapp.quit)
+
+
+def _another_instance_running(message: bytes = b"show") -> bool:
+    sock = QLocalSocket()
+    sock.connectToServer(INSTANCE_KEY)
+    if sock.waitForConnected(500):
+        sock.write(message)
+        sock.flush()
+        sock.waitForBytesWritten(500)
+        sock.disconnectFromServer()
+        return True
+    return False
+
+
+def run(argv=None) -> int:
+    argv = list(sys.argv if argv is None else argv)
+    logging_setup.setup_logging(capture_std=True)
+    print(f"[GUI] Starting Jarvis desktop (Python {sys.version.split()[0]}, pid {__import__('os').getpid()})")
+    try:
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(APP_ID)
+    except Exception:
+        pass
+    print(f"[GUI] Data folder: {paths.home()}")
+    config_store.migrate_user_config()
+
+    QApplication.setHighDpiScaleFactorRoundingPolicy(Qt.HighDpiScaleFactorRoundingPolicy.PassThrough)
+    qapp = QApplication(argv)
+    qapp.setApplicationName("Jarvis")
+    qapp.setQuitOnLastWindowClosed(False)
+
+    # Dev/diagnostics: `jarvis_gui.pyw --screenshot <dir> [view]` asks the running
+    # instance to save PNGs of its own windows (main + orb) without touching the screen.
+    message = b"show"
+    if "--screenshot" in argv:
+        i = argv.index("--screenshot")
+        target = argv[i + 1] if i + 1 < len(argv) else str(paths.cache_dir() / "screens")
+        view = argv[i + 2] if i + 2 < len(argv) else ""
+        message = f"screenshot|{target}|{view}".encode("utf-8")
+    elif "--quit" in argv:
+        message = b"quit"
+    elif "--eval" in argv:
+        # Dev only (honoured when the running instance was started with JARVIS_DEV=1):
+        # run JavaScript in the main page, e.g. to drive the real UI in end-to-end checks.
+        message = ("js|" + argv[argv.index("--eval") + 1]).encode("utf-8")
+    if _another_instance_running(message):
+        print("[GUI] Another Jarvis is already running — forwarded: " + message.decode("utf-8"))
+        return 0
+    if message != b"show":
+        print("[GUI] --screenshot needs a running Jarvis")
+        return 1
+    server = QLocalServer()
+    QLocalServer.removeServer(INSTANCE_KEY)
+    server.listen(INSTANCE_KEY)
+
+    app = JarvisQtApp(qapp, start_minimized="--minimized" in argv)
+
+    def _handle(data: bytes):
+        text = bytes(data).decode("utf-8", errors="replace")
+        if text.startswith("screenshot|"):
+            _, target, view = (text.split("|") + ["", ""])[:3]
+            app.save_screenshots(Path(target), view)
+        elif text == "quit":
+            app.quit()
+        elif text.startswith("js|"):
+            if os.environ.get("JARVIS_DEV") == "1":
+                app.main.view.page().runJavaScript(text[3:])
+            else:
+                print("[GUI] Ignored --eval: start Jarvis with JARVIS_DEV=1 to allow it")
+        else:
+            app.show_main()
+
+    def _on_connection():
+        conn = server.nextPendingConnection()
+        if conn is not None:
+            conn.readyRead.connect(lambda: _handle(conn.readAll()))
+
+    server.newConnection.connect(_on_connection)
+    code = qapp.exec()
+    print(f"[GUI] Exited ({code})")
+    return code

@@ -1,0 +1,40 @@
+{
+  "user": {
+    "name": "Alex Morgan",
+    "roles": ["software developer"],
+    "work": "Builds web shops for small businesses",
+    "emails": ["alex@example.com"],
+    "github": "alex-example",
+    "websites": ["alex.example.com"],
+    "collaborators": {"Sam": "designer"},
+    "preferences": ["Keep spoken replies short.", "Never git push without asking."]
+  },
+  "contacts": {
+    "me": {"email": "alex@example.com", "aliases": ["myself", "my email"]},
+    "acme": {"email": "info@acme.example", "aliases": ["acme corp"]}
+  },
+  "apps": {
+    "chrome": {"path": "chrome.exe", "aliases": ["browser", "google chrome"]}
+  },
+  "projects": {
+    "shop": {
+      "path": "{root}/shop",
+      "description": "Online shop",
+      "aliases": ["store"],
+      "commands": ["pytest", "npm run check"],
+      "deny_commands": ["docker"],
+      "protected": ["state/", "*.pkl"],
+      "rules": ["Run pytest before committing."]
+    },
+    "handbook": {
+      "path": "{root}/handbook",
+      "description": "Course material (reference only)",
+      "read_only": true
+    },
+    "landing": {
+      "path": "{root}/landing",
+      "description": "Landing page",
+      "commit_branches": ["alex/landing"]
+    }
+  }
+}
