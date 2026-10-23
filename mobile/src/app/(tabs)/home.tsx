@@ -10,12 +10,13 @@ import { Icon } from '@/components/Icon';
 import { LinkPill } from '@/components/LinkPill';
 import { MicButton } from '@/components/MicButton';
 import { Orb } from '@/components/Orb';
-import { useJarvis } from '@/state/JarvisProvider';
+import { useAssistantName, useJarvis } from '@/state/JarvisProvider';
 import { isBusy, PHASE_LABEL } from '@/state/reducer';
 import { colors, font } from '@/theme';
 
 export default function Home() {
   const { state, sendCommand, sendVoice, request } = useJarvis();
+  const name = useAssistantName();
   const [text, setText] = useState('');
   const [note, setNote] = useState('');
   const online = state.link === 'online';
@@ -31,7 +32,7 @@ export default function Home() {
     try {
       const r = await fn();
       if (r === 'queued') setNote('Queued behind the current command.');
-      else if (r === 'stopped') setNote('Jarvis is stopped on the PC. Start it below.');
+      else if (r === 'stopped') setNote(`${name} is stopped on the PC. Start it below.`);
       else if (okNote) setNote(okNote);
     } catch (e) {
       setNote((e as Error).message);
@@ -60,9 +61,9 @@ export default function Home() {
           {c?.error ? <Text style={styles.error}>{c.error}</Text> : null}
           {!!note && <Text style={styles.note}>{note}</Text>}
           {online && !running && (
-            <Pressable style={styles.start} onPress={() => run(() => request({ type: 'start' }), 'Starting Jarvis…')}>
+            <Pressable style={styles.start} onPress={() => run(() => request({ type: 'start' }), `Starting ${name}…`)}>
               <Icon name="power" color={colors.bg} />
-              <Text style={styles.startText}>Start Jarvis</Text>
+              <Text style={styles.startText}>Start {name}</Text>
             </Pressable>
           )}
         </ScrollView>

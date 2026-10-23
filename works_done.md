@@ -6,6 +6,115 @@ each entry names the phase it belongs to.
 
 ---
 
+## 2026-10-23 · Phase 3, part 1: setup wizard, the assistant's name, models and downloads
+
+### What changed
+
+**The assistant's name** (`assistant.name`, default "Jarvis")
+- `config_store.check_assistant_name()` (2–20 letters, with spaces, hyphens or apostrophes between them; a
+  warning for common words such as "Computer") and `assistant_name()`.
+- Used in the system prompt ("You are Nova…"; when renamed, one sentence tells the model that tool texts
+  call the app Jarvis), the greeting prefix ("{name} is back.", also Chatterbox's cached phrase), the
+  greeting prompt, the name stripped from commands ("Nova, open notepad"; the product name too), Whisper's
+  initial prompt, the tray, window titles and notifications (live on rename), the phone server and the
+  phone app (`assistant_name` in the status; the app shows it everywhere it used to say Jarvis).
+- Web UI: every user-facing text that names the assistant comes from `src/gui/web/strings.js` with a
+  `{name}` placeholder (also the start of translations); the orb's wordmark is the name. Settings › General
+  holds the name, with live hints, and "Run setup again".
+- Technical names (files, folders, logs, credentials, the MCP prefix) stay "Jarvis".
+
+**Models** (`config/models.json`, `src/core/models.py`)
+- The catalogue: speech detection (Silero VAD), speech recognition (Whisper base, small, medium, large-v3
+  turbo) and voices (the Windows voice, four Piper voices with hosted samples). Each option has a plain
+  description, maker, license and its link, official page, file URLs pinned to a commit, sizes and SHA-256
+  sums (taken from the hubs' metadata, or by hashing the small files), and the settings choosing it writes.
+- Recommendations come from ordered rules in the catalogue, evaluated by a small parser (never `eval`).
+  The speech recognition rules follow the hardware table, with one addition: CUDA is only recommended when
+  cuBLAS and cuDNN for CUDA 12 can be found, so a GPU without them gets the CPU instead of a failing load.
+- Correction to the plan: the large-v3 turbo repository it named doesn't exist; the catalogue uses
+  `deepdml/faster-whisper-large-v3-turbo-ct2`.
+
+**Hardware detection** (`src/core/hardware.py`): logical cores, RAM, NVIDIA GPU name and total/free memory
+(nvidia-smi), and whether the CUDA libraries are present.
+
+**Downloads** (`src/core/downloads.py`): one at a time on a worker thread; resumable with HTTP Range after an
+interruption or a restart; retried on network errors; every file checked against its SHA-256 before it is
+used (a mismatch deletes it); "I already have this file" imports a file after checking it; progress
+events with speed and time left.
+
+**Setup wizard** (`src/app/setup.py`, `src/gui/web/setup.js`)
+- Shown while `setup.complete` is false (a new install, or "Run setup again"); existing settings files are
+  migrated as already set up (config version 3). The assistant doesn't start until the last screen.
+- Preloader (the HUD orb fades in while hardware detection really runs, at least 1.5 s, fade only with
+  reduced motion) → Name your AI (ideas, live hints, "Hear it" with the Windows voice) → What {name} needs
+  (the catalogue table with the pick for this computer and why, Change, ⓘ details with license and official
+  page, Download manually, I already have this file, total size and folder) → Connect (Sign in with Claude,
+  or other ways to connect: provider, key, model, Fetch models, Check) → Microphone (device, live level, a
+  5-second test that transcribes when the speech model is there, a fix button when Windows privacy blocks the
+  microphone, a way on without one) → Voice (samples, "don't speak") → About you (your name, folders it may
+  work in; written to the profile) → What {name} may do (Everyday, Work, Full control, mapped to tool
+  permissions) → Start-up → Try it (the real assistant; typed or spoken). Back on every screen, progress
+  dots, and it resumes after the last saved screen.
+- A download bar shows the current download and offers Retry when one fails.
+
+**Sign in with Claude**: Jarvis finds the Claude Code CLI (settings, PATH, or the official installer's
+folder), reads `claude auth status --json` (signed in, account, plan; Jarvis never touches the
+credentials) and starts `claude auth login --claudeai` without a window, checking every 2 s for up to 5
+minutes. Installing Claude Code automatically waits for the spike on a clean machine; until then the
+screen links to the official setup page.
+
+**Voices and speech detection**
+- The Windows voice (`src/tts/system.py`, SAPI into memory, played like the other engines): `tts.engine:
+  system`, a voice and speed in Settings, and the fallback when the chosen voice can't start
+  (`tts.fallback`), so a fresh install can always speak.
+- Speech detection runs Silero VAD through ONNX Runtime (`src/stt/vad.py`), mirroring Silero's own wrapper.
+  torch and the silero-vad package are no longer needed by the core install (Chatterbox keeps its own
+  runtime).
+
+**Also**
+- Settings › Models: in use, recommended, downloaded or downloading; Use this, Download, Stop, Delete, and
+  each file's manual download or import.
+- Common apps found in the Start Menu (`src/core/app_discovery.py`, a curated list so the open_app tool
+  stays short; `apps.discover`); a shortcut opens like a double-click.
+- `python jarvis_gui.pyw --diagnose` and Settings › Save a report: a redacted report (system, packages,
+  hardware, audio devices, settings without keys, models on disk, Claude Code version, recent log) with the
+  user folder and email addresses masked, saved in the data folder.
+
+### Verified
+- 347 automated tests pass (47 new): the name rules and a static check that no web UI file outside
+  `strings.js` names the assistant, a renamed assistant in prompt, greetings, command stripping and speech
+  vocabulary; the catalogue's integrity (pinned URLs, checksums, sizes, every setting it writes is valid);
+  the hardware table; the downloader against a local server (resume with a Range request, checksum
+  mismatch, missing file, import, delete); the wizard's backend for every screen; the Claude status parsing;
+  the Windows voice and its fallback; speech detection on silence and on real synthesized speech without
+  importing torch; Start Menu discovery; the diagnostic report's masking.
+- Phone app: `npx tsc --noEmit` clean, 16 Jest tests pass.
+- Live on this machine: hardware detection (20 cores, a 4 GB RTX 3050 without cuDNN → Whisper small on the
+  CPU), `claude auth status --json` (signed in), the Windows voice, 13 common apps found in 22 ms.
+- GUI smoke runs in scratch data folders: the wizard's screens render and react to a rename; Settings ›
+  General and Settings › Models render. Two bugs found that way and fixed: texts kept the old name after a
+  rename, and the voice cards' play button wrapped onto its own row.
+- Personal-data scan over every changed or new file: 0 hits.
+
+### Decisions taken (review welcome)
+- The voice recommended by the catalogue stays Piper Amy (today's default) until the voice decision. Kokoro
+  is left out for now: `kokoro-onnx` depends on `phonemizer` (GPL-3.0-or-later) and `espeakng-loader`
+  (espeak-ng, GPL-3.0), the same licensing question as Piper.
+- The NVIDIA helper libraries are not in the catalogue yet (they are pip wheels); CUDA is recommended only
+  where they are already installed.
+
+### Not done yet (rest of Phase 3)
+- The Sign in with Claude spike on clean Windows and macOS machines (unattended install, fully hidden
+  login).
+- Error catalogue with fix buttons in the main window, signed-out and usage-limit banners; the name in
+  spoken approvals.
+- Auto-update, uninstall with "delete my data", Install for me (these come with the packaged app).
+- In-app help links, tooltips, keyboard navigation review; the end-user guide with screenshots; the
+  usability test with three non-technical people.
+- Kokoro (waits for the voice and license decision) and `scripts/setup_chatterbox.py`.
+
+---
+
 ## 2026-10-23 · Phase 2: several AI providers
 
 ### What changed

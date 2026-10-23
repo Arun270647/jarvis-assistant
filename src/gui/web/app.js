@@ -4,6 +4,7 @@
 (function () {
   "use strict";
   const { JarvisOrb, LABEL, COLOR, BUSY, connectBridge } = window.JarvisUI;
+  const t = window.JarvisStrings.t;
   const $ = id => document.getElementById(id);
   let J = null;
 
@@ -80,7 +81,7 @@
     const input = $("input");
     input.placeholder = !S.running ? "Start the assistant to send commands" : S.approval ? "Type yes or no to answer"
       : b ? "Type a command — it runs next" : S.voiceOk ? "Type a command, or click the orb to talk" : "Type a command (no microphone)";
-    const orbAria = !S.running ? "Start Jarvis" : (ph === "idle" || ph === "paused") && S.voiceOk ? "Talk to Jarvis" : (LABEL[ph] || ph);
+    const orbAria = !S.running ? t("orb.start") : (ph === "idle" || ph === "paused") && S.voiceOk ? t("orb.talk") : (LABEL[ph] || ph);
     $("orb-button").title = orbAria; $("orb-button").setAttribute("aria-label", orbAria);
   }
 
@@ -129,7 +130,7 @@
         h("span", { class: "countdown" }, ring, h("span", { id: "cd-text", text: (left / 1000).toFixed(1) + " s" }))),
       h("div", { class: "dialog-title", id: "ap-title", text: a.title }),
       h("div", { class: "kv" }, (a.rows || []).map(r => h("div", { class: "kv-row" }, h("span", { class: "k", text: r.k }), h("span", { class: "v" }, String(r.v), " ", h("span", { class: "sub", text: r.sub || "" }))))),
-      h("div", { class: "dialog-body", text: (a.source === "phone" ? "Asked in the phone app, where you can answer too. You can also press Y or N or choose below." : `Jarvis asked aloud: “${a.spoken}”. Answer by voice (yes / no), press Y or N, type it, or choose below.`) + ` Nothing runs until you allow it; the request is denied automatically when the timer runs out.` }),
+      h("div", { class: "dialog-body", text: (a.source === "phone" ? "Asked in the phone app, where you can answer too. You can also press Y or N or choose below." : t("approval.spoken", { spoken: a.spoken })) + ` Nothing runs until you allow it; the request is denied automatically when the timer runs out.` }),
       h("div", { class: "dialog-actions" },
         h("button", { type: "button", class: "btn btn-secondary blueprint", id: "ap-deny", onclick: () => answer(false) }, corners(), "Deny · N"),
         h("button", { type: "button", class: "btn btn-primary blueprint", onclick: () => answer(true) }, corners(), "Allow · Y")));
@@ -152,6 +153,7 @@
   // ───────────────────────────── events from the backend
   function onEvent(json) {
     let ev; try { ev = JSON.parse(json); } catch (e) { return; }
+    if (window.JarvisSetup && window.JarvisSetup.active) window.JarvisSetup.onEvent(ev);
     const at = ev.ts ? ev.ts * 1000 : Date.now();
     switch (ev.type) {
       case "phase":
@@ -200,6 +202,7 @@
       case "stopped": S.info = null; break;
       case "settings_test": Settings.onTest(ev); return;
       case "ai_models": Settings.onModels(ev); return;
+      case "download": if (S.view === "settings") Settings.onDownload(ev); return;
       case "usage": if (S.view === "activity") Activity.loadUsage(); return;
       case "email_test": { const l = $("email-line"); if (l) l.textContent = (ev.ok ? "✓ " : "✗ ") + ev.detail; return; }
       case "phone_status": Settings.renderPhone(); return;
@@ -229,7 +232,10 @@
           setTimeout(() => $("input").focus(), 50);
         }
         return;
-      case "settings_changed": if (ev.config && ev.config.orb_style) S.orbStyle = ev.config.orb_style; return;
+      case "settings_changed":
+        if (ev.config && ev.config.orb_style) S.orbStyle = ev.config.orb_style;
+        if (ev.assistant_name) window.JarvisStrings.setName(ev.assistant_name);
+        return;
       default: return;
     }
     renderState();
@@ -315,7 +321,7 @@
       const raw = await call("activityList"); if (raw == null) return;
       const rows = JSON.parse(raw);
       const box = $("act-table"); box.textContent = "";
-      if (!rows.length) { box.appendChild(h("div", { class: "empty", text: "No tool has run yet. Ask Jarvis to open an app, control media, or remember something." })); return; }
+      if (!rows.length) { box.appendChild(h("div", { class: "empty", text: t("activity.empty") })); return; }
       const statusTag = s => h("span", { class: "tag " + ({ done: "tag-accent", dry_run: "tag-neutral", running: "tag-accent" }[s] || "tag-outline"), style: "text-transform:uppercase; font-size:10px; letter-spacing:.08em", text: s.replace("_", " ") });
       box.appendChild(h("table", { class: "table" },
         h("thead", {}, h("tr", {}, h("th", { text: "When" }), h("th", { text: "Tool" }), h("th", { text: "Arguments" }), h("th", { text: "Status" }), h("th", { class: "num", text: "Time" }), h("th", { text: "Result" }))),
@@ -337,7 +343,7 @@
       const { items, count } = JSON.parse(raw);
       $("mem-count").textContent = count + (count === 1 ? " item" : " items");
       const box = $("mem-table"); box.textContent = "";
-      if (!items.length) { box.appendChild(h("div", { class: "empty", text: $("mem-search").value ? "No memories match." : "Nothing stored yet. Add one above, or tell Jarvis “remember that …”." })); }
+      if (!items.length) { box.appendChild(h("div", { class: "empty", text: $("mem-search").value ? "No memories match." : t("memory.empty") })); }
       else box.appendChild(h("table", { class: "table" },
         h("thead", {}, h("tr", {}, h("th", { text: "Kind" }), h("th", { text: "Memory" }), h("th", { text: "Source" }), h("th", { text: "Updated" }), h("th", {}))),
         h("tbody", {}, items.map(m => this.row(m)))));
@@ -463,7 +469,7 @@
       const svg = qr.querySelector("svg");
       if (svg) { svg.setAttribute("width", "260"); svg.setAttribute("height", "260"); svg.style.display = "block"; svg.setAttribute("shape-rendering", "crispEdges"); }
       box.appendChild(h("div", { class: "toolbar", style: "align-items:flex-start; gap:18px" }, qr,
-        h("div", {}, h("div", { text: "Scan this in the Jarvis app on your phone, or enter:" }),
+        h("div", {}, h("div", { text: t("phone.scan") }),
           h("div", { style: "font-family:var(--font-heading); font-size:18px; margin-top:8px", text: `Address ${r.host}   Port ${r.port}` }),
           h("div", { style: "font-family:var(--font-heading); font-size:28px; letter-spacing:4px; margin-top:6px", text: r.code }),
           h("div", { class: "help", text: "The code works once and expires in 10 minutes." }))));
@@ -475,6 +481,8 @@
       const o = this.data.options, root = $("settings-root"); root.textContent = "";
       root.appendChild(h("div", { class: "page-head" }, h("div", {}, h("h2", { text: "Settings" }), h("div", { class: "sub", text: "Saved to config.json in your data folder (only what you change). Voice and model changes apply when the assistant restarts." }))));
 
+      root.appendChild(this.section("General", t("settings.general"), h("div", { class: "grid-2" }, this.nameField()),
+        h("div", { class: "toolbar" }, h("button", { class: "btn btn-secondary btn-sm", onclick: () => call("setupRunAgain"), text: "Run setup again" }))));
       root.appendChild(this.section("AI", "The brain that understands requests and decides which tools to run. Claude uses your Claude account through Claude Code; the other providers use an API key, or a model running on this PC.",
         h("div", { id: "ai-body", class: "ai-body" })));
       this.renderAI();
@@ -498,8 +506,13 @@
       root.appendChild(this.section("Voice", null,
         h("div", { class: "grid-2" },
           this.toggle("tts.enabled", "Speak replies aloud"),
-          this.select("tts.engine", [["chatterbox", "Chatterbox-Turbo (natural, slower; Piper while it loads)"], ["piper", "Piper (instant)"]], "Voice engine"),
+          this.select("tts.engine", [["chatterbox", "Chatterbox-Turbo (natural, slower; Piper while it loads)"], ["piper", "Piper (instant)"], ["system", "Windows voice (built in, nothing to download)"]], "Voice engine"),
+          this.select("tts.system.voice", [["", "Windows default"]].concat((o.system_voices || []).map(v => [v, v])), "Windows voice", "Also used whenever the chosen voice can't start."),
           this.select("tts.piper.voice", o.voices || [], "Piper voice", "Voices in the piper folder of the models folder (python scripts/setup_piper.py adds more)."))));
+
+      root.appendChild(this.section("Models", "The AI models that hear and speak, on this computer. Changes apply when the assistant restarts.",
+        h("div", { id: "models-body" }, h("div", { class: "empty", text: "Loading…" }))));
+      this.renderModels();
 
       const perms = this.get("tools.permissions") || {};
       const permRows = (o.tools || []).map(t => {
@@ -534,9 +547,9 @@
         inp.addEventListener("input", () => this.set(path, inp.value.split(",").map(x => x.trim()).filter(Boolean)));
         return this.field(label, path, inp, help);
       };
-      root.appendChild(this.section("Email", "Jarvis sends mail from your account over SMTP. The password is stored in Windows Credential Manager, never in config files. Mail to anyone outside the trusted list asks you first.",
+      root.appendChild(this.section("Email", t("settings.email"),
         h("div", { class: "grid-2" },
-          this.toggle("email.enabled", "Let Jarvis send email"),
+          this.toggle("email.enabled", t("settings.email.toggle")),
           this.select("email.preset", [["zoho-in", "Zoho Mail (India, smtp.zoho.in)"], ["zoho", "Zoho Mail (smtp.zoho.com)"], ["gmail", "Gmail (app password)"], ["outlook", "Outlook / Microsoft 365"], ["custom", "Custom server"]], "Provider"),
           this.text("email.smtp_host", "SMTP server"),
           this.number("email.smtp_port", "Port"),
@@ -553,12 +566,12 @@
         emailLine));
       call("emailStatus").then(raw => { if (!raw) return; const s = JSON.parse(raw); const l = $("email-line"); if (l && !l.textContent) l.textContent = s.password_saved ? `Password saved for ${s.username}.` : `No password saved for ${s.username || "(no username)"} yet: email can only be drafted, not sent.`; });
 
-      root.appendChild(this.section("Chrome", "Jarvis opens your real Chrome in the profile you name (“open chrome in Marina and go to Gmail”). It does not click or type inside pages. To answer questions from the web it reads public pages in the background, without logins.",
+      root.appendChild(this.section("Chrome", t("settings.chrome"),
         h("div", { class: "grid-2" },
           this.text("chrome.default_profile", "Default profile", "Name or email used when you don't say one. Empty: the last used profile."),
           listField("chrome.blocked_domains", "Never open or read these sites"))));
 
-      root.appendChild(this.section("Phone app", "Control Jarvis from the Jarvis app on your Android phone: typed and spoken commands, approvals, live status, tasks and a view of the screen. The phone connects over Tailscale (install it on this PC and the phone, same account), so nothing is open to the internet; every phone must be paired.",
+      root.appendChild(this.section("Phone app", t("settings.phone"),
         h("div", { class: "grid-2" },
           this.toggle("phone.enabled", "Phone app"),
           this.select("phone.bind", [["tailscale", "Tailscale address (anywhere)"], ["lan", "Home network only"]], "Reachable on"),
@@ -576,9 +589,9 @@
 
       root.appendChild(this.section("Windows and tray", null,
         h("div", { class: "grid-2" },
-          this.toggle("__startup__", "Start Jarvis when I sign in to Windows", "Adds a shortcut to the Startup folder (starts as the floating orb)."),
+          this.toggle("__startup__", t("settings.startup"), "Adds a shortcut to the Startup folder (starts as the floating orb)."),
           this.toggle("gui.start_minimized", "Start as the floating orb"),
-          this.toggle("gui.close_to_tray", "Closing the window keeps Jarvis running (orb + tray)"),
+          this.toggle("gui.close_to_tray", t("settings.close_to_tray")),
           this.toggle("gui.autostart_pipeline", "Start listening as soon as the app opens"),
           this.select("gui.startup_view", [["tray", "Tray icon only"], ["orb", "Floating orb"]], "When Windows starts, show"),
           this.field("Orb style", "gui.orb_style", orbSeg))));
@@ -589,6 +602,7 @@
           h("button", { class: "btn btn-secondary btn-sm", onclick: () => call("openLog"), text: "Open log file" }),
           h("button", { class: "btn btn-secondary btn-sm", onclick: () => call("openLogFolder"), text: "Open log folder" }),
           h("button", { class: "btn btn-secondary btn-sm", onclick: () => call("openConfigFolder"), text: "Open data folder" }),
+          h("button", { class: "btn btn-secondary btn-sm", onclick: async () => { const r = JSON.parse(await call("saveReport")); toast(r.ok ? "Report saved: " + r.path : "Could not save the report: " + r.error); }, text: "Save a report" }),
           h("button", { class: "btn btn-secondary btn-sm", onclick: () => { call("restart"); toast("Restarting the assistant…"); }, text: "Restart assistant" })),
         logBox));
       call("logTail", 250).then(raw => { if (!raw) return; for (const line of JSON.parse(raw)) appendLog(levelOf(line), line); });
@@ -685,11 +699,78 @@
       }
       return h("div", { class: "facts" }, h("div", { class: "toolbar" }, tags.map(t => h("span", { class: "tag tag-outline", text: t }))), h("div", { class: "help", text: cost }));
     },
+    async renderModels() {
+      const box = $("models-body"); if (!box) return;
+      const raw = await call("modelsState"); if (!raw) return;
+      const m = JSON.parse(raw);
+      const jobs = {}; (m.jobs || []).forEach(j => { jobs[j.option] = j; });
+      box.textContent = "";
+      m.groups.forEach(g => box.appendChild(h("div", { class: "models-group" },
+        h("div", { class: "models-title" }, h("b", { text: g.title }), h("span", { class: "help", text: " · " + g.explain })),
+        h("table", { class: "table" }, h("tbody", {}, g.options.map(o => this.modelRow(g, o, jobs[o.id])))))));
+      box.appendChild(h("div", { class: "help", text: `Stored in ${m.models_dir}` }));
+    },
+    modelRow(g, o, job) {
+      const inUse = g.selected === o.id;
+      const active = job && ["queued", "downloading", "verifying"].includes(job.state);
+      const state = active ? (job.state === "verifying" ? "Checking…" : job.state === "queued" ? "Waiting…" : `Downloading ${job.total ? Math.round(job.done / job.total * 100) : 0}%`)
+        : job && job.state === "failed" ? "Download failed: " + (job.error || "")
+        : { installed: "Downloaded", builtin: "Built in", partial: "Partly downloaded" }[o.status] || "Not downloaded";
+      const btn = (text, onclick, kind) => h("button", { class: "btn btn-sm " + (kind || "btn-secondary"), onclick, text });
+      const files = h("div", { class: "help", hidden: true }, (o.files || []).map(f => h("div", { class: "toolbar" },
+        h("span", { text: `${f.name} · ${Math.round(f.size / 1e6) || "<1"} MB` }),
+        btn("Download manually", () => call("openUrl", f.url), "btn-ghost"),
+        btn("I already have this file", async () => {
+          const r = JSON.parse(await call("setupImportFile", o.id, f.name) || "{}");
+          if (!r.cancelled) toast(r.ok ? `${f.name} is ready.` : r.error);
+          this.renderModels();
+        }, "btn-ghost"))));
+      return h("tr", {},
+        h("td", { class: "wrap" }, h("b", { text: o.name }),
+          inUse ? h("span", { class: "tag tag-accent", style: "margin-left:6px", text: "in use" }) : null,
+          o.recommended ? h("span", { class: "tag tag-outline", style: "margin-left:6px", text: "recommended" }) : null,
+          h("div", { class: "help", text: o.summary }), files),
+        h("td", { class: "num muted", text: o.size_mb ? o.size_mb + " MB" : "—" }),
+        h("td", { class: "muted wrap", text: state }),
+        h("td", {}, h("div", { class: "row-actions" },
+          inUse ? null : btn("Use this", async () => {
+            const r = JSON.parse(await call("modelsUse", o.id) || "{}");
+            toast(r.ok ? `${o.name} is used after the assistant restarts.` : r.error); this.renderModels();
+          }),
+          (o.files || []).length && !active && o.status !== "installed" ? btn("Download", () => { call("setupDownload", o.id); }) : null,
+          active ? btn("Stop", () => call("setupCancelDownload", o.id)) : null,
+          (o.files || []).length && !active && o.status !== "missing" ? btn(o.status === "installed" ? "Delete" : "Remove", async e => {
+            const b = e.currentTarget;
+            if (!b.dataset.armed) { b.dataset.armed = "1"; b.textContent = inUse ? "In use: delete anyway?" : "Click again to delete"; setTimeout(() => { if (b.isConnected) { delete b.dataset.armed; b.textContent = "Delete"; } }, 3500); return; }
+            const r = JSON.parse(await call("modelsDelete", o.id) || "{}");
+            toast(r.ok ? `Deleted ${o.name} (${Math.round(r.freed / 1e6)} MB freed).` : r.error); this.renderModels();
+          }, "btn-ghost") : null,
+          (o.files || []).length ? btn("Files", () => { files.hidden = !files.hidden; }, "btn-ghost") : null)));
+    },
+    onDownload(ev) {
+      if (this._modelsTimer) return;                     // progress arrives 4× a second; redraw at most once a second
+      this._modelsTimer = setTimeout(() => { this._modelsTimer = null; this.renderModels(); }, ev.state === "downloading" ? 1000 : 50);
+    },
+    nameField() {
+      const path = "assistant.name";
+      const hint = h("div", { class: "help", text: t("settings.name.help") });
+      const inp = h("input", { class: "input", type: "text", value: this.cur(path) || "", maxlength: "20", spellcheck: "false" });
+      inp.addEventListener("input", () => {
+        const value = inp.value.trim();
+        call("checkAssistantName", value).then(raw => {
+          const r = JSON.parse(raw || "{}");
+          hint.textContent = r.error || r.warning || t("settings.name.help");
+          hint.classList.toggle("warn", !!(r.error || r.warning));
+          if (!r.error) { this.set(path, value); } else { delete this.changes[path]; this.renderSaveBar(); }
+        });
+      });
+      return h("div", { class: "field" + (path in this.changes ? " changed" : ""), "data-field": path }, h("label", { text: "Name" }), inp, hint);
+    },
     budgetField() {
       const path = "llm.daily_budget_usd", v = this.cur(path);
       const inp = h("input", { class: "input", type: "number", min: "0", step: "0.5", value: v == null ? "" : v, placeholder: "No limit" });
       inp.addEventListener("input", () => { const s = inp.value.trim(); if (s === "") this.set(path, null); else { const n = parseFloat(s); if (!isNaN(n)) this.set(path, n); } });
-      return this.field("Daily spending limit (USD)", path, inp, "API providers. When today's estimated cost reaches it, Jarvis pauses until tomorrow.");
+      return this.field("Daily spending limit (USD)", path, inp, t("settings.budget.help"));
     },
     onModels(ev) {
       if (ev.ok) { this.fetched = this.fetched || {}; this.fetched[ev.provider] = ev.models; if (this.provider().name === ev.provider) this.renderAI(); }
@@ -766,6 +847,8 @@
     J.snapshot(raw => {
       const s = JSON.parse(raw);
       S.phase = s.phase; S.running = s.running; S.voiceOk = s.voice_ok; S.muted = s.muted; S.orbStyle = s.orb_style; S.dryRun = s.dry_run;
+      window.JarvisStrings.setName(s.assistant_name);
+      if (s.setup_needed && window.JarvisSetup) window.JarvisSetup.open();
       if (s.ready && s.ready.type === "ready") S.info = s.ready;
       if (s.pending_approval) { S.approval = s.pending_approval; renderApproval(); }
       renderState();

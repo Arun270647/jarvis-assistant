@@ -1,5 +1,7 @@
 // The HUD orb, coloured by Jarvis's phase: rotating segmented rings and a pulsing core.
 import { useEffect, useRef } from 'react';
+
+import { useAssistantName } from '@/state/JarvisProvider';
 import { Animated, Easing, StyleSheet, View } from 'react-native';
 import Svg, { Circle, Defs, RadialGradient, Stop } from 'react-native-svg';
 
@@ -9,6 +11,7 @@ import { PHASE_COLOR } from '../theme';
 
 export function Orb({ phase, size = 240 }: { phase: Phase; size?: number }) {
   const spin = useRef(new Animated.Value(0)).current;
+  const name = useAssistantName();
   const pulse = useRef(new Animated.Value(0)).current;
   const busy = isBusy(phase);
   const color = PHASE_COLOR[phase];
@@ -39,7 +42,7 @@ export function Orb({ phase, size = 240 }: { phase: Phase; size?: number }) {
   const circ = (rad: number) => 2 * Math.PI * rad;
 
   return (
-    <View style={{ width: size, height: size }} accessibilityRole="image" accessibilityLabel={`Jarvis is ${phase}`}>
+    <View style={{ width: size, height: size }} accessibilityRole="image" accessibilityLabel={`${name} is ${phase}`}>
       <Animated.View style={[StyleSheet.absoluteFill, { transform: [{ rotate }] }]}>
         <Svg width={size} height={size}>
           <Circle cx={r} cy={r} r={r * 0.92} stroke={color} strokeWidth={3} fill="none"

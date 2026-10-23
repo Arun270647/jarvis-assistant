@@ -21,7 +21,6 @@ import datetime
 from pathlib import Path
 
 import numpy as np
-import torch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -42,10 +41,13 @@ stop_flag = False
 REMOTE_SOURCES = {"phone"}
 
 
-def strip_address(text: str) -> str:
-    """"Jarvis, open chrome" -> "open chrome" (addressing Jarvis is not part of the request)."""
+def strip_address(text: str, name: str = "") -> str:
+    """"Nova, open chrome" -> "open chrome": addressing the assistant (by its name, or the product name
+    Jarvis) is not part of the request."""
     import re
-    return re.sub(r"^\s*(?:(?:hey|hi|ok|okay)[\s,]+)?jarvis\b[\s,.!?:-]*", "", text, flags=re.I)
+    names = sorted({"jarvis", (name or "").lower()} - {""}, key=len, reverse=True)
+    alternatives = "|".join(re.escape(n) for n in names)
+    return re.sub(rf"^\s*(?:(?:hey|hi|ok|okay)[\s,]+)?(?:{alternatives})\b[\s,.!?:-]*", "", text, flags=re.I)
 
 
 def signal_handler(sig, frame):
@@ -77,6 +79,9 @@ def validate_config(cfg: dict) -> list:
 
 
 def report_vram(label: str):
+    torch = sys.modules.get("torch")            # only when something else loaded it (the core doesn't need torch)
+    if torch is None:
+        return
     try:
         if torch.cuda.is_available():
             alloc = torch.cuda.memory_allocated() / 1024**2
@@ -312,7 +317,7 @@ def main(state_callback=None, stop_event=None, duration=None,
     vad_threshold = pipe_cfg.get("vad_threshold", 0.5)
 
     print("=" * 70)
-    print("  Jarvis — Voice Assistant")
+    print(f"  {config_store.assistant_name(cfg)} — Voice Assistant")
     if duration > 0:
         print(f"  Duration: {duration}s | Press Ctrl+C to stop")
     else:
@@ -483,11 +488,8 @@ def main(state_callback=None, stop_event=None, duration=None,
         if vad_fn is not None:
             return vad_fn(audio_int16)
         audio_float = audio_int16.astype(np.float32) / 32768.0
-        tensor = torch.from_numpy(audio_float)
-        for start in range(0, len(tensor) - vad_window + 1, vad_window):
-            window = tensor[start:start + vad_window]
-            prob = vad_model(window, sample_rate).item()
-            if prob > vad_threshold:
+        for start in range(0, len(audio_float) - vad_window + 1, vad_window):
+            if vad_model(audio_float[start:start + vad_window], sample_rate) > vad_threshold:
                 return True
         return False
 
@@ -737,7 +739,7 @@ def main(state_callback=None, stop_event=None, duration=None,
         stt_ms = (time.time() - t_stt_start) * 1000
         rtf = (stt_ms / 1000.0) / speech_duration if speech_duration > 0 else 0
         print(f"[STT] '{text}' ({stt_ms:.0f}ms, RTF={rtf:.2f}x)")
-        text = strip_address(text)
+        text = strip_address(text, config_store.assistant_name(cfg))
         if not text.strip():
             print("[STT] Empty transcript")
             emit(type="info", detail="Heard speech but the transcript was empty")
@@ -758,7 +760,8 @@ def main(state_callback=None, stop_event=None, duration=None,
                 if transcriber is None:
                     raise RuntimeError("speech recognition is not loaded")
                 from src.stt.transcriber import load_audio_file
-                text = strip_address(transcriber.transcribe_audio(load_audio_file(cmd["audio"]))).strip()
+                text = strip_address(transcriber.transcribe_audio(load_audio_file(cmd["audio"])),
+                                     config_store.assistant_name(cfg)).strip()
             except Exception as e:
                 print(f"[ERROR] Voice note STT failed: {e}")
                 emit(type="error", stage="stt", detail=f"Could not transcribe the voice note: {e}", source=source, ref=ref)

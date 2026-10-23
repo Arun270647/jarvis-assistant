@@ -1,0 +1,58 @@
+/* Texts that mention the assistant, in one place. {name} is what the user calls the assistant
+   (Settings › General › Name, or the setup wizard); until they pick one it is the product name, Jarvis.
+   Other placeholders ({state}, {spoken}, ...) are filled by the caller. This file is also where
+   translations will start, so new user-facing text that names the assistant belongs here.
+
+   JarvisStrings.t(key, vars)   the text for key, placeholders filled
+   JarvisStrings.setName(name)  rename: refreshes every element marked data-s / data-s-title / data-s-aria
+   JarvisStrings.name           the current name */
+(() => {
+  const PRODUCT = "Jarvis";
+  const STRINGS = {
+    "window.title": "{name}",
+    "orb.title": "{name} orb",
+    "orb.start": "Start {name}",
+    "orb.talk": "Talk to {name}",
+    "orb.open": "Open {name}",
+    "orb.mini": "{name} — click to open, drag to move",
+    "orb.mini.state": "{name} — {state} · click to open, drag to move",
+    "approval.spoken": "{name} asked aloud: “{spoken}”. Answer by voice (yes / no), press Y or N, type it, or choose below.",
+    "agent.empty": "Give {name} an objective, for example “prepare the demo shop for deployment, test it and fix what you can”. Multi-step work appears here with its plan, actions, verification and outcome.",
+    "activity.sub": "Every tool {name} ran for you, with its real result, and what the AI used. Live while a task runs.",
+    "activity.empty": "No tool has run yet. Ask {name} to open an app, control media, or remember something.",
+    "memory.sub": "What {name} remembers about you. The AI sees the relevant items with each request.",
+    "memory.empty": "Nothing stored yet. Add one above, or tell {name} “remember that …”.",
+    "phone.scan": "Scan this in the {name} app on your phone, or enter:",
+    "settings.general": "What you call your assistant. It answers to this name and uses it to introduce itself.",
+    "settings.name.help": "Short names with two or three syllables are easiest to recognise.",
+    "settings.email": "{name} sends mail from your account over SMTP. The password is stored in Windows Credential Manager, never in config files. Mail to anyone outside the trusted list asks you first.",
+    "settings.email.toggle": "Let {name} send email",
+    "settings.chrome": "{name} opens your real Chrome in the profile you name (“open chrome in Marina and go to Gmail”). It does not click or type inside pages. To answer questions from the web it reads public pages in the background, without logins.",
+    "settings.phone": "Control {name} from the {name} app on your Android phone: typed and spoken commands, approvals, live status, tasks and a view of the screen. The phone connects over Tailscale (install it on this PC and the phone, same account), so nothing is open to the internet; every phone must be paired.",
+    "settings.startup": "Start {name} when I sign in to Windows",
+    "settings.close_to_tray": "Closing the window keeps {name} running (orb + tray)",
+    "settings.budget.help": "API providers. When today's estimated cost reaches it, {name} pauses until tomorrow.",
+    "standalone": `This page is the ${PRODUCT} desktop UI.<br>Start it with <b>pythonw jarvis_gui.pyw</b>.`,
+  };
+  let name = PRODUCT;
+
+  function t(key, vars) {
+    const text = key in STRINGS ? STRINGS[key] : key;
+    return text.replace(/\{(\w+)\}/g, (m, k) => (k === "name" ? name : vars && k in vars ? String(vars[k]) : m));
+  }
+
+  function setName(next) {
+    name = (next || "").trim() || PRODUCT;
+    document.querySelectorAll("[data-s]").forEach(el => { el.textContent = t(el.dataset.s); });
+    document.querySelectorAll("[data-s-title]").forEach(el => { el.title = t(el.dataset.sTitle); });
+    document.querySelectorAll("[data-s-aria]").forEach(el => { el.setAttribute("aria-label", t(el.dataset.sAria)); });
+    const mark = document.getElementById("brand-mark");
+    if (mark) mark.textContent = name.charAt(0).toUpperCase();
+    const title = document.documentElement.dataset.sTitleKey;
+    if (title) document.title = t(title);
+  }
+
+  window.JarvisStrings = { t, setName, PRODUCT, get name() { return name; } };
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", () => setName(name));
+  else setName(name);
+})();

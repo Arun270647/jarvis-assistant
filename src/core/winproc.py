@@ -115,6 +115,7 @@ def launch_program(command: Cmd, show_console: bool = False, cwd: Optional[str] 
     - GUI exes start normally (they never get a console).
     - .cmd/.bat launchers (e.g. VS Code's `code`) run through cmd.exe with
       CREATE_NO_WINDOW: the launcher's console is hidden, the app it starts is not.
+    - A .lnk shortcut (apps found in the Start Menu) opens like a double-click; returns None.
     - Console exes get CREATE_NO_WINDOW for system helpers (shutdown, rundll32 ...)
       unless show_console=True, which gives them a visible console on purpose
       (e.g. the user explicitly asked to open a console tool).
@@ -122,6 +123,9 @@ def launch_program(command: Cmd, show_console: bool = False, cwd: Optional[str] 
     argv = split_command(command)
     if not argv:
         raise ValueError("empty command")
+    if IS_WINDOWS and argv[0].lower().endswith(".lnk") and Path(argv[0]).is_file():
+        os.startfile(argv[0])           # a Start Menu shortcut: opened the way Explorer opens it (no arguments)
+        return None
     exe = resolve_executable(argv[0])
     if exe is None:
         raise FileNotFoundError(f"Program not found: {argv[0]}")

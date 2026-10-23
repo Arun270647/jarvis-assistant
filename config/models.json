@@ -1,0 +1,399 @@
+{
+  "version": 1,
+  "_comment": "Every model Jarvis can download: what it does in plain words, who made it, its license, the official page, and pinned file URLs with sizes and SHA-256 sums (checked before a file is used). Text may use {name} (the assistant's name). In each group the first matching 'recommend' rule wins; 'config' is what choosing the option sets in the user's settings. Generated 2026-10-23 from the hubs' metadata.",
+  "groups": [
+    {
+      "id": "vad",
+      "icon": "ear",
+      "title": "Speech detection",
+      "explain": "Notices when you start and stop talking, so {name} knows when your sentence is finished.",
+      "recommend": [
+        {
+          "when": "always",
+          "option": "silero-vad"
+        }
+      ],
+      "options": [
+        {
+          "id": "silero-vad",
+          "name": "Silero VAD",
+          "summary": "Tiny and fast. Runs on any computer.",
+          "about": "A small speech-detection model from the Silero team.",
+          "license": "MIT",
+          "license_url": "https://github.com/snakers4/silero-vad/blob/master/LICENSE",
+          "page": "https://github.com/snakers4/silero-vad",
+          "dir": "vad",
+          "size_mb": 2,
+          "files": [
+            {
+              "url": "https://github.com/snakers4/silero-vad/raw/v6.2.3/src/silero_vad/data/silero_vad.onnx",
+              "name": "silero_vad.onnx",
+              "size": 2327524,
+              "sha256": "1a153a22f4509e292a94e67d6f9b85e8deb25b4988682b7e174c65279d8788e3"
+            }
+          ],
+          "config": {}
+        }
+      ]
+    },
+    {
+      "id": "stt",
+      "icon": "text",
+      "title": "Speech recognition",
+      "explain": "Turns your voice into text, on your computer. Your recordings never leave it.",
+      "recommend": [
+        {
+          "when": "nvidia_free_vram_gb >= 3 and cuda_libs",
+          "option": "whisper-medium",
+          "reason": "uses your graphics card",
+          "config": {
+            "stt.device": "cuda",
+            "stt.compute_type": "int8"
+          }
+        },
+        {
+          "when": "nvidia_gpu and cuda_libs",
+          "option": "whisper-small",
+          "reason": "uses your graphics card",
+          "config": {
+            "stt.device": "cuda",
+            "stt.compute_type": "int8"
+          }
+        },
+        {
+          "when": "cpu_logical_cores >= 8",
+          "option": "whisper-small",
+          "reason": "your computer has no graphics card that can speed this up",
+          "config": {
+            "stt.device": "cpu",
+            "stt.compute_type": "int8"
+          }
+        },
+        {
+          "when": "always",
+          "option": "whisper-base",
+          "reason": "fast on smaller computers",
+          "config": {
+            "stt.device": "cpu",
+            "stt.compute_type": "int8"
+          }
+        }
+      ],
+      "options": [
+        {
+          "id": "whisper-base",
+          "name": "Whisper base",
+          "summary": "Fastest. For older or slower computers.",
+          "about": "OpenAI's Whisper speech recognition, converted for fast local use by Systran.",
+          "license": "MIT",
+          "license_url": "https://github.com/openai/whisper/blob/main/LICENSE",
+          "page": "https://huggingface.co/Systran/faster-whisper-base",
+          "dir": "whisper/base",
+          "size_mb": 148,
+          "files": [
+            {
+              "url": "https://huggingface.co/Systran/faster-whisper-base/resolve/ebe41f70d5b6dfa9166e2c581c45c9c0cfc57b66/model.bin",
+              "name": "model.bin",
+              "size": 145217532,
+              "sha256": "d01c3014881c9c6f3133c182f3d2887eb6ca1c789a7538c5c007196857a0a6a9"
+            },
+            {
+              "url": "https://huggingface.co/Systran/faster-whisper-base/resolve/ebe41f70d5b6dfa9166e2c581c45c9c0cfc57b66/config.json",
+              "name": "config.json",
+              "size": 2309,
+              "sha256": "56a6d8110d311f19c8f0471e562832c7527f146b567275bfca59fcf7c184da9a"
+            },
+            {
+              "url": "https://huggingface.co/Systran/faster-whisper-base/resolve/ebe41f70d5b6dfa9166e2c581c45c9c0cfc57b66/tokenizer.json",
+              "name": "tokenizer.json",
+              "size": 2203239,
+              "sha256": "fb7b63191e9bb045082c79fd742a3106a12c99513ab30df4a0d47fa6cb6fd0ab"
+            },
+            {
+              "url": "https://huggingface.co/Systran/faster-whisper-base/resolve/ebe41f70d5b6dfa9166e2c581c45c9c0cfc57b66/vocabulary.txt",
+              "name": "vocabulary.txt",
+              "size": 459861,
+              "sha256": "34ce3fe1c5041027b3f8d42912270993f986dbc4bb34cf27f951e34a1e453913"
+            }
+          ],
+          "config": {
+            "stt.model_path": "base"
+          }
+        },
+        {
+          "id": "whisper-small",
+          "name": "Whisper small",
+          "summary": "Fast and accurate. Good for most computers.",
+          "about": "OpenAI's Whisper speech recognition, converted for fast local use by Systran.",
+          "license": "MIT",
+          "license_url": "https://github.com/openai/whisper/blob/main/LICENSE",
+          "page": "https://huggingface.co/Systran/faster-whisper-small",
+          "dir": "whisper/small",
+          "size_mb": 486,
+          "files": [
+            {
+              "url": "https://huggingface.co/Systran/faster-whisper-small/resolve/536b0662742c02347bc0e980a01041f333bce120/model.bin",
+              "name": "model.bin",
+              "size": 483546902,
+              "sha256": "3e305921506d8872816023e4c273e75d2419fb89b24da97b4fe7bce14170d671"
+            },
+            {
+              "url": "https://huggingface.co/Systran/faster-whisper-small/resolve/536b0662742c02347bc0e980a01041f333bce120/config.json",
+              "name": "config.json",
+              "size": 2370,
+              "sha256": "b55496ac7940a7ae47d2c01eab40edfd8701feec1229d9cce3b40014383fb828"
+            },
+            {
+              "url": "https://huggingface.co/Systran/faster-whisper-small/resolve/536b0662742c02347bc0e980a01041f333bce120/tokenizer.json",
+              "name": "tokenizer.json",
+              "size": 2203239,
+              "sha256": "fb7b63191e9bb045082c79fd742a3106a12c99513ab30df4a0d47fa6cb6fd0ab"
+            },
+            {
+              "url": "https://huggingface.co/Systran/faster-whisper-small/resolve/536b0662742c02347bc0e980a01041f333bce120/vocabulary.txt",
+              "name": "vocabulary.txt",
+              "size": 459861,
+              "sha256": "34ce3fe1c5041027b3f8d42912270993f986dbc4bb34cf27f951e34a1e453913"
+            }
+          ],
+          "config": {
+            "stt.model_path": "small"
+          }
+        },
+        {
+          "id": "whisper-medium",
+          "name": "Whisper medium",
+          "summary": "More accurate. Best with an NVIDIA graphics card with 4 GB.",
+          "about": "OpenAI's Whisper speech recognition, converted for fast local use by Systran.",
+          "license": "MIT",
+          "license_url": "https://github.com/openai/whisper/blob/main/LICENSE",
+          "page": "https://huggingface.co/Systran/faster-whisper-medium",
+          "dir": "whisper/medium",
+          "size_mb": 1531,
+          "files": [
+            {
+              "url": "https://huggingface.co/Systran/faster-whisper-medium/resolve/08e178d48790749d25932bbc082711ddcfdfbc4f/model.bin",
+              "name": "model.bin",
+              "size": 1527906378,
+              "sha256": "9b45e1009dcc4ab601eff815b61d80e60ce3fd8c74c1a14f4a282258286b51ae"
+            },
+            {
+              "url": "https://huggingface.co/Systran/faster-whisper-medium/resolve/08e178d48790749d25932bbc082711ddcfdfbc4f/config.json",
+              "name": "config.json",
+              "size": 2257,
+              "sha256": "3622a2ddc41ec0e0fd4e68c13c6830f03b90c38d89aaad184de02c8c642cf807"
+            },
+            {
+              "url": "https://huggingface.co/Systran/faster-whisper-medium/resolve/08e178d48790749d25932bbc082711ddcfdfbc4f/tokenizer.json",
+              "name": "tokenizer.json",
+              "size": 2203239,
+              "sha256": "fb7b63191e9bb045082c79fd742a3106a12c99513ab30df4a0d47fa6cb6fd0ab"
+            },
+            {
+              "url": "https://huggingface.co/Systran/faster-whisper-medium/resolve/08e178d48790749d25932bbc082711ddcfdfbc4f/vocabulary.txt",
+              "name": "vocabulary.txt",
+              "size": 459861,
+              "sha256": "34ce3fe1c5041027b3f8d42912270993f986dbc4bb34cf27f951e34a1e453913"
+            }
+          ],
+          "config": {
+            "stt.model_path": "medium"
+          }
+        },
+        {
+          "id": "whisper-large-v3-turbo",
+          "name": "Whisper large-v3 turbo",
+          "summary": "Most accurate. Needs a strong graphics card.",
+          "about": "OpenAI's Whisper large-v3 turbo, converted for fast local use (community conversion).",
+          "license": "MIT",
+          "license_url": "https://github.com/openai/whisper/blob/main/LICENSE",
+          "page": "https://huggingface.co/deepdml/faster-whisper-large-v3-turbo-ct2",
+          "dir": "whisper/large-v3-turbo",
+          "size_mb": 1622,
+          "files": [
+            {
+              "url": "https://huggingface.co/deepdml/faster-whisper-large-v3-turbo-ct2/resolve/4df90f75321148c3a29a9e2351b7ddf8f5b115a8/model.bin",
+              "name": "model.bin",
+              "size": 1617884929,
+              "sha256": "e76620f83d5f5b69efd3d87e3dc180c1bd21df9fbebacfd4335e5e1efcc018da"
+            },
+            {
+              "url": "https://huggingface.co/deepdml/faster-whisper-large-v3-turbo-ct2/resolve/4df90f75321148c3a29a9e2351b7ddf8f5b115a8/config.json",
+              "name": "config.json",
+              "size": 2263,
+              "sha256": "b0253ea6c0d3bea6b1e19e91a02acfd3b53f4467362efcb5a3e6b16c9b3a9b7e"
+            },
+            {
+              "url": "https://huggingface.co/deepdml/faster-whisper-large-v3-turbo-ct2/resolve/4df90f75321148c3a29a9e2351b7ddf8f5b115a8/preprocessor_config.json",
+              "name": "preprocessor_config.json",
+              "size": 340,
+              "sha256": "7ccc62c6f2765af1f3b46c00c9b5894426835a05021c8b9c01eecb6dfb542711"
+            },
+            {
+              "url": "https://huggingface.co/deepdml/faster-whisper-large-v3-turbo-ct2/resolve/4df90f75321148c3a29a9e2351b7ddf8f5b115a8/tokenizer.json",
+              "name": "tokenizer.json",
+              "size": 2710337,
+              "sha256": "297b13372ac43916285644fb9687add3cc62ee2a1adb60da3dc25cc94c1871fd"
+            },
+            {
+              "url": "https://huggingface.co/deepdml/faster-whisper-large-v3-turbo-ct2/resolve/4df90f75321148c3a29a9e2351b7ddf8f5b115a8/vocabulary.json",
+              "name": "vocabulary.json",
+              "size": 1068114,
+              "sha256": "c69260f2ab26d659b7c398f9a2b2b48ed0df16c3b47d7326782fd9cba71690c1"
+            }
+          ],
+          "config": {
+            "stt.model_path": "large-v3-turbo"
+          }
+        }
+      ]
+    },
+    {
+      "id": "tts",
+      "icon": "speaker",
+      "title": "Voice",
+      "explain": "Reads {name}'s answers aloud, on your computer.",
+      "recommend": [
+        {
+          "when": "always",
+          "option": "piper-en_US-amy-medium",
+          "reason": "clear and quick"
+        }
+      ],
+      "options": [
+        {
+          "id": "system",
+          "name": "System voice",
+          "summary": "Built into Windows. Always works, sounds more robotic.",
+          "about": "The voice that comes with Windows (SAPI). Nothing to download.",
+          "license": "Part of Windows",
+          "size_mb": 0,
+          "files": [],
+          "config": {
+            "tts.engine": "system"
+          }
+        },
+        {
+          "id": "piper-en_US-amy-medium",
+          "name": "Piper · Amy (US)",
+          "summary": "Clear and quick. US English.",
+          "about": "A fast local voice from the Piper project (Rhasspy). Voice: see its model card. The Piper engine itself is GPL-3.0 and installed as an optional add-on.",
+          "license": "Voice: see model card; engine GPL-3.0",
+          "license_url": "https://huggingface.co/rhasspy/piper-voices/blob/main/en/en_US/amy/medium/MODEL_CARD",
+          "page": "https://huggingface.co/rhasspy/piper-voices",
+          "dir": "piper",
+          "size_mb": 63,
+          "files": [
+            {
+              "url": "https://huggingface.co/rhasspy/piper-voices/resolve/5041a7a49ae5b3a0f30e6837769eb03fdbb231bd/en/en_US/amy/medium/en_US-amy-medium.onnx",
+              "name": "en_US-amy-medium.onnx",
+              "size": 63201294,
+              "sha256": "b3a6e47b57b8c7fbe6a0ce2518161a50f59a9cdd8a50835c02cb02bdd6206c18"
+            },
+            {
+              "url": "https://huggingface.co/rhasspy/piper-voices/resolve/5041a7a49ae5b3a0f30e6837769eb03fdbb231bd/en/en_US/amy/medium/en_US-amy-medium.onnx.json",
+              "name": "en_US-amy-medium.onnx.json",
+              "size": 4882,
+              "sha256": "95a23eb4d42909d38df73bb9ac7f45f597dbfcde2d1bf9526fdeaf5466977d77"
+            }
+          ],
+          "config": {
+            "tts.engine": "piper",
+            "tts.piper.voice": "en_US-amy-medium"
+          },
+          "sample": "https://rhasspy.github.io/piper-samples/samples/en/en_US/amy/medium/speaker_0.mp3"
+        },
+        {
+          "id": "piper-en_US-lessac-medium",
+          "name": "Piper · Lessac (US)",
+          "summary": "Warm and steady. US English.",
+          "about": "A fast local voice from the Piper project (Rhasspy). Voice: see its model card. The Piper engine itself is GPL-3.0 and installed as an optional add-on.",
+          "license": "Voice: see model card; engine GPL-3.0",
+          "license_url": "https://huggingface.co/rhasspy/piper-voices/blob/main/en/en_US/lessac/medium/MODEL_CARD",
+          "page": "https://huggingface.co/rhasspy/piper-voices",
+          "dir": "piper",
+          "size_mb": 63,
+          "files": [
+            {
+              "url": "https://huggingface.co/rhasspy/piper-voices/resolve/5041a7a49ae5b3a0f30e6837769eb03fdbb231bd/en/en_US/lessac/medium/en_US-lessac-medium.onnx",
+              "name": "en_US-lessac-medium.onnx",
+              "size": 63201294,
+              "sha256": "5efe09e69902187827af646e1a6e9d269dee769f9877d17b16b1b46eeaaf019f"
+            },
+            {
+              "url": "https://huggingface.co/rhasspy/piper-voices/resolve/5041a7a49ae5b3a0f30e6837769eb03fdbb231bd/en/en_US/lessac/medium/en_US-lessac-medium.onnx.json",
+              "name": "en_US-lessac-medium.onnx.json",
+              "size": 4885,
+              "sha256": "efe19c417bed055f2d69908248c6ba650fa135bc868b0e6abb3da181dab690a0"
+            }
+          ],
+          "config": {
+            "tts.engine": "piper",
+            "tts.piper.voice": "en_US-lessac-medium"
+          },
+          "sample": "https://rhasspy.github.io/piper-samples/samples/en/en_US/lessac/medium/speaker_0.mp3"
+        },
+        {
+          "id": "piper-en_US-ryan-medium",
+          "name": "Piper · Ryan (US)",
+          "summary": "A lower voice. US English.",
+          "about": "A fast local voice from the Piper project (Rhasspy). Voice: see its model card. The Piper engine itself is GPL-3.0 and installed as an optional add-on.",
+          "license": "Voice: see model card; engine GPL-3.0",
+          "license_url": "https://huggingface.co/rhasspy/piper-voices/blob/main/en/en_US/ryan/medium/MODEL_CARD",
+          "page": "https://huggingface.co/rhasspy/piper-voices",
+          "dir": "piper",
+          "size_mb": 63,
+          "files": [
+            {
+              "url": "https://huggingface.co/rhasspy/piper-voices/resolve/5041a7a49ae5b3a0f30e6837769eb03fdbb231bd/en/en_US/ryan/medium/en_US-ryan-medium.onnx",
+              "name": "en_US-ryan-medium.onnx",
+              "size": 63201294,
+              "sha256": "abf4c274862564ed647ba0d2c47f8ee7c9b717d27bdad9219100eb310db4047a"
+            },
+            {
+              "url": "https://huggingface.co/rhasspy/piper-voices/resolve/5041a7a49ae5b3a0f30e6837769eb03fdbb231bd/en/en_US/ryan/medium/en_US-ryan-medium.onnx.json",
+              "name": "en_US-ryan-medium.onnx.json",
+              "size": 4883,
+              "sha256": "44034c056cb15681b2ad494307c7f3f2e4499d1253c700c711fa0a4607ffe78d"
+            }
+          ],
+          "config": {
+            "tts.engine": "piper",
+            "tts.piper.voice": "en_US-ryan-medium"
+          },
+          "sample": "https://rhasspy.github.io/piper-samples/samples/en/en_US/ryan/medium/speaker_0.mp3"
+        },
+        {
+          "id": "piper-en_GB-alba-medium",
+          "name": "Piper · Alba (UK)",
+          "summary": "British English.",
+          "about": "A fast local voice from the Piper project (Rhasspy). Voice: see its model card. The Piper engine itself is GPL-3.0 and installed as an optional add-on.",
+          "license": "Voice: see model card; engine GPL-3.0",
+          "license_url": "https://huggingface.co/rhasspy/piper-voices/blob/main/en/en_GB/alba/medium/MODEL_CARD",
+          "page": "https://huggingface.co/rhasspy/piper-voices",
+          "dir": "piper",
+          "size_mb": 63,
+          "files": [
+            {
+              "url": "https://huggingface.co/rhasspy/piper-voices/resolve/5041a7a49ae5b3a0f30e6837769eb03fdbb231bd/en/en_GB/alba/medium/en_GB-alba-medium.onnx",
+              "name": "en_GB-alba-medium.onnx",
+              "size": 63201294,
+              "sha256": "401369c4a81d09fdd86c32c5c864440811dbdcc66466cde2d64f7133a66ad03b"
+            },
+            {
+              "url": "https://huggingface.co/rhasspy/piper-voices/resolve/5041a7a49ae5b3a0f30e6837769eb03fdbb231bd/en/en_GB/alba/medium/en_GB-alba-medium.onnx.json",
+              "name": "en_GB-alba-medium.onnx.json",
+              "size": 4888,
+              "sha256": "aa965a2f02ecced632c2694e1fc72bbff6d65f265fab567ca945918c73dd89f4"
+            }
+          ],
+          "config": {
+            "tts.engine": "piper",
+            "tts.piper.voice": "en_GB-alba-medium"
+          },
+          "sample": "https://rhasspy.github.io/piper-samples/samples/en/en_GB/alba/medium/speaker_0.mp3"
+        }
+      ]
+    }
+  ]
+}

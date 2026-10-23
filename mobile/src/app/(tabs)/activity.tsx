@@ -5,7 +5,7 @@ import { Alert, FlatList, Pressable, RefreshControl, StyleSheet, Text, View } fr
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import type { Message, Task } from '@/api/protocol';
-import { useJarvis } from '@/state/JarvisProvider';
+import { useAssistantName, useJarvis } from '@/state/JarvisProvider';
 import { colors, font } from '@/theme';
 
 type View_ = 'live' | 'tasks' | 'history';
@@ -18,6 +18,7 @@ const time = (t?: number) => (t ? new Date(t * 1000).toLocaleTimeString([], { ho
 
 export default function Activity() {
   const { state, request, refreshTasks } = useJarvis();
+  const name = useAssistantName();
   const [view, setView] = useState<View_>('live');
   const [history, setHistory] = useState<Message[]>([]);
   const [refreshing, setRefreshing] = useState(false);
@@ -71,7 +72,7 @@ export default function Activity() {
         <FlatList
           data={state.live}
           keyExtractor={(r) => r.callId}
-          ListEmptyComponent={<Text style={styles.empty}>Tool runs appear here while Jarvis works.</Text>}
+          ListEmptyComponent={<Text style={styles.empty}>Tool runs appear here while {name} works.</Text>}
           renderItem={({ item }) => (
             <View style={styles.card}>
               <View style={styles.rowBetween}>
@@ -90,7 +91,7 @@ export default function Activity() {
           data={tasks}
           keyExtractor={(t) => String(t.id)}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={load} tintColor={colors.accent400} />}
-          ListEmptyComponent={<Text style={styles.empty}>No tasks yet. Ask Jarvis for something with several steps.</Text>}
+          ListEmptyComponent={<Text style={styles.empty}>No tasks yet. Ask {name} for something with several steps.</Text>}
           renderItem={({ item }) => {
             const active = ACTIVE.includes(item.status);
             const resumable = ['BLOCKED', 'PAUSED'].includes(item.status);

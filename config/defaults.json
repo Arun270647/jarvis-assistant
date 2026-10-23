@@ -1,5 +1,13 @@
 {
-  "config_version": 2,
+  "config_version": 3,
+  "setup": {
+    "complete": false,
+    "step": "",
+    "models": {}
+  },
+  "assistant": {
+    "name": "Jarvis"
+  },
   "audio": {
     "input_device_index": null,
     "sample_rate": 16000,
@@ -135,9 +143,6 @@
       "claude-haiku-4-5": {"input": 1.0, "output": 5.0, "cache_read": 0.1, "cache_write": 1.25}
     }
   },
-  "vad": {
-    "hub_dir": "torch-hub"
-  },
   "pipeline": {
     "silence_timeout_ms": 400,
     "max_recording_ms": 20000,
@@ -147,6 +152,11 @@
   "tts": {
     "enabled": true,
     "engine": "piper",
+    "fallback": "system",
+    "system": {
+      "voice": "",
+      "rate": 0
+    },
     "piper": {
       "voice": "en_US-amy-medium",
       "model_dir": "piper",
@@ -164,7 +174,7 @@
       "sentence_timeout_s": 90,
       "fallback": "piper",
       "cache_phrases": [
-        "Jarvis is back."
+        "{name} is back."
       ]
     }
   },
@@ -182,6 +192,9 @@
     "affirmative": ["yes", "yeah", "yep", "yup", "sure", "confirm", "go ahead", "do it", "go", "correct",
                     "affirmative", "proceed"],
     "negative": ["no", "nope", "nah", "cancel", "stop", "abort", "don't", "negative", "wait"]
+  },
+  "apps": {
+    "discover": true
   },
   "dry_run": false,
   "agent": {
@@ -208,7 +221,8 @@
     "permissions": {},
     "extensions": [],
     "profile": "auto",
-    "custom_list": []
+    "custom_list": [],
+    "preset": ""
   },
   "memory": {
     "history_in_ui": 60,
@@ -240,7 +254,7 @@
   },
   "greeting": {
     "enabled": true,
-    "prefix": "Jarvis is back.",
+    "prefix": "{name} is back.",
     "batch_size": 25,
     "min_pool": 8,
     "prepare_after_idle_s": 20

@@ -21,7 +21,7 @@
     const label = $("mini-label");
     const showLabel = BUSY.includes(ph) || ph === "error" || ph === "paused" || ph === "stopped";
     label.hidden = !showLabel; label.textContent = LABEL[ph] || ph;
-    $("mini").title = `Jarvis — ${LABEL[ph] || ph} · click to open, drag to move`;
+    $("mini").title = window.JarvisStrings.t("orb.mini.state", { state: LABEL[ph] || ph });
     const slot = $("caption-slot"); slot.textContent = "";
     if (S.approval) {
       const box = document.createElement("div"); box.className = "card blueprint caption";
@@ -57,7 +57,10 @@
       case "approval_resolved": S.approval = null; break;
       case "error": S.errorUntil = Date.now() + 3400; caption("Error · " + ev.stage + ": " + ev.detail, 6000); setTimeout(render, 3500); break;
       case "mute": S.muted = !!ev.muted; break;
-      case "settings_changed": if (ev.config && ev.config.orb_style) S.orbStyle = ev.config.orb_style; break;
+      case "settings_changed":
+        if (ev.config && ev.config.orb_style) S.orbStyle = ev.config.orb_style;
+        if (ev.assistant_name) window.JarvisStrings.setName(ev.assistant_name);
+        break;
       default: return;
     }
     render();
@@ -84,6 +87,7 @@
     J.snapshot(raw => {
       const s = JSON.parse(raw);
       S.phase = s.phase; S.voiceOk = s.voice_ok; S.muted = s.muted; S.orbStyle = s.orb_style; S.approval = s.pending_approval;
+      window.JarvisStrings.setName(s.assistant_name);
       render();
     });
   });

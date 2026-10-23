@@ -5,6 +5,8 @@ import {
 import { File } from 'expo-file-system';
 import * as Haptics from 'expo-haptics';
 import { useRef, useState } from 'react';
+
+import { useAssistantName } from '@/state/JarvisProvider';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { colors } from '../theme';
@@ -32,6 +34,7 @@ export function MicButton({ disabled, onRecorded, onError }: {
   onError: (message: string) => void;
 }) {
   const recorder = useAudioRecorder(VOICE);
+  const name = useAssistantName();
   const [recording, setRecording] = useState(false);
   const startedAt = useRef(0);
   const limit = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -40,7 +43,7 @@ export function MicButton({ disabled, onRecorded, onError }: {
   async function start() {
     if (disabled || active.current) return;
     const perm = await AudioModule.requestRecordingPermissionsAsync();
-    if (!perm.granted) { onError('Microphone permission is needed to talk to Jarvis.'); return; }
+    if (!perm.granted) { onError(`Microphone permission is needed to talk to ${name}.`); return; }
     active.current = true;
     try {
       await setAudioModeAsync({ playsInSilentMode: true, allowsRecording: true });

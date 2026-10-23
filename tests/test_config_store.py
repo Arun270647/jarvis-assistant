@@ -115,7 +115,8 @@ class ConfigStoreTests(unittest.TestCase):
         self.path.write_text(json.dumps(v1), encoding="utf-8")
         config_store.migrate_user_config(self.path)
         self.assertEqual(self.read(), {
-            "config_version": 2,
+            "config_version": 3,
+            "setup": {"complete": True},                                # set up before the wizard existed
             "llm": {"providers": {"claude_code": {"model": "claude-opus-5-5", "effort": "high", "timeout_seconds": 45,
                                                   "utility_model": "claude-haiku-4-5"}}},
             "coding_agent": {"default_project": "shop", "require_confirmation": False, "timeout_seconds": 600},
@@ -125,6 +126,13 @@ class ConfigStoreTests(unittest.TestCase):
         self.assertEqual(cfg["llm"]["main"]["provider"], "claude_code")
         self.assertEqual(cfg["llm"]["providers"]["claude_code"]["model"], "claude-opus-5-5")
         self.assertEqual(cfg["coding_agent"]["cli"], "claude")
+
+    def test_a_new_install_runs_setup_and_an_existing_one_does_not(self):
+        from src.app import setup
+        self.assertTrue(setup.needed(config_store.load_config(self.path)), "no settings yet: the wizard shows")
+        self.path.write_text(json.dumps({"config_version": 2, "agent": {"max_turns": 9}}), encoding="utf-8")
+        config_store.migrate_user_config(self.path)
+        self.assertFalse(setup.needed(config_store.load_config(self.path)))
 
     def test_version_1_delegation_off_or_custom_cli(self):
         self.path.write_text(json.dumps({"config_version": 1, "claude_code": {"enabled": False}}), encoding="utf-8")

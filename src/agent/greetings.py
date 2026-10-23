@@ -1,6 +1,6 @@
 """Greetings for when the user opens Jarvis's window: short, chill, and never the same twice.
 
-- Every greeting is the fixed line `greeting.prefix` ("Jarvis is back.", pre-rendered via
+- Every greeting is the fixed line `greeting.prefix` ("{name} is back." with the assistant's name, pre-rendered via
   tts.chatterbox.cache_phrases) followed by a unique line. When the profile has the user's name, that
   line always contains their first name; without a name it addresses nobody by name.
 - The unique lines are written in batches by the utility model (llm.utility: by default the main
@@ -24,10 +24,10 @@ from typing import Callable, Optional
 
 SLOTS =("morning", "afternoon", "evening", "night")
 
-DEFAULT_PREFIX = "Jarvis is back."
+DEFAULT_PREFIX = "{name} is back."
 
-PROMPT = """You write the spoken greeting Jarvis (a calm, witty AI assistant) says when {who} opens \
-its window on their PC. Jarvis always says "{prefix}" first; your line comes right after it, so it \
+PROMPT = """You write the spoken greeting {assistant} (a calm, witty AI assistant) says when {who} opens \
+its window on their PC. {assistant} always says "{prefix}" first; your line comes right after it, so it \
 must follow that naturally (e.g. "{example}"). Write {count} lines.
 
 Style: chill, cool, confident, warm, a little dry humour now and then. Spoken aloud, so natural \
@@ -122,7 +122,9 @@ class GreetingPool:
         user = (profile or {}).get("user") or {}
         self.name = (self.cfg.get("name") or user.get("name", "") or "").strip().split(" ")[0]   # "" = no name
         self.about = user.get("work", "")[:300]
-        self.prefix = " ".join(str(self.cfg.get("prefix", DEFAULT_PREFIX) or "").split())
+        from src.core.config_store import assistant_name, with_name
+        self.assistant = assistant_name(config)
+        self.prefix = " ".join(with_name(self.cfg.get("prefix", DEFAULT_PREFIX), self.assistant).split())
         self._lock = threading.Lock()
         self._refilling = threading.Event()
         self._prepared = None              # greeting id whose audio was handed to the TTS
@@ -201,6 +203,7 @@ class GreetingPool:
                 who, example = "the user", "Good to see you. What are we building?"
                 name_rule = "Don't address the user by any name."
             prompt = PROMPT.format(who=who, example=example, name_rule=name_rule, prefix=self.prefix,
+                                   assistant=self.assistant,
                                    count=int(self.cfg.get("batch_size", 25)), about=self.about or "-",
                                    recent="\n".join(f"- {t}" for t in recent) or "- (none yet)")
             items = parse_batch(self.generator(prompt), name=self.name)

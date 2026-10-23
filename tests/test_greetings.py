@@ -10,7 +10,7 @@ from src.memory.store import MemoryStore
 from tests.fakes import temp_db, wait_for
 
 PROFILE = {"user": {"name": "Alex Morgan", "work": "Builds web shops"}}
-PREFIX = DEFAULT_PREFIX + " "
+PREFIX = DEFAULT_PREFIX.replace("{name}", "Jarvis") + " "     # the assistant's default name
 
 
 def unique(spoken):
@@ -47,6 +47,14 @@ class GreetingTests(unittest.TestCase):
             return reply or "[]"
         return GreetingPool({"greeting": dict({"min_pool": 3, "batch_size": 5}, **cfg)}, self.memory, tts,
                             profile=profile, generator=gen, clock=at(hour))
+
+    def test_a_renamed_assistant_greets_with_its_own_name(self):
+        pool = GreetingPool({"assistant": {"name": "Nova"}, "greeting": {"min_pool": 3, "batch_size": 5}}, self.memory,
+                            profile=PROFILE, generator=lambda p: self.prompts.append(p) or "[]", clock=at(10))
+        self.assertTrue(pool.take().startswith("Nova is back. "))
+        pool._refill()
+        self.assertIn('Nova always says "Nova is back."', self.prompts[-1])
+        self.assertNotIn("Jarvis", self.prompts[-1])
 
     def test_slots(self):
         self.assertEqual([slot_for(h) for h in (6, 13, 18, 23, 2)], ["morning", "afternoon", "evening", "night", "night"])
@@ -109,7 +117,7 @@ class GreetingTests(unittest.TestCase):
         self.assertTrue(wait_for(lambda: self.memory.count_unused_greetings() == 5))
         self.assertIn("Alex", self.prompts[0])
         self.assertIn("Welcome back, Alex.", self.prompts[0])          # don't repeat recent ones
-        self.assertIn(DEFAULT_PREFIX, self.prompts[0])                 # Claude knows what comes first
+        self.assertIn(PREFIX.strip(), self.prompts[0])                 # the model knows what comes first
 
     def test_claude_failure_falls_back_to_a_new_local_greeting(self):
         p = self.pool(reply=RuntimeError("not logged in"))

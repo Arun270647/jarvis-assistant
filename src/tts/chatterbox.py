@@ -66,7 +66,9 @@ class ChatterboxTTS:
         self._results = {}                       # id -> result dict
         self._cv = threading.Condition()
         self._stop = threading.Event()
-        self._phrases = [p.strip() for p in self.cfg.get("cache_phrases", []) if p and p.strip()]
+        from src.core.config_store import assistant_name, with_name
+        name = assistant_name()
+        self._phrases = [with_name(p, name).strip() for p in self.cfg.get("cache_phrases", []) if p and p.strip()]
         CACHE_DIR.mkdir(parents=True, exist_ok=True)
         TMP_DIR.mkdir(parents=True, exist_ok=True)
         threading.Thread(target=self._start, name="chatterbox-start", daemon=True).start()

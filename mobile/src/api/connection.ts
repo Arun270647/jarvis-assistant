@@ -58,7 +58,7 @@ export class JarvisConnection {
       this.ws = null;
       this.failPending('Connection lost');
       if (ev.code === CLOSE_UNAUTHORIZED || ev.code === CLOSE_REVOKED) {
-        this.lastError = ev.code === CLOSE_REVOKED ? 'This phone was removed in Jarvis’s settings.' : 'This phone is not paired any more.';
+        this.lastError = ev.code === CLOSE_REVOKED ? 'This phone was removed in the PC’s settings.' : 'This phone is not paired any more.';
         this.setState('unauthorized');
         return;
       }

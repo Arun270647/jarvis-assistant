@@ -136,7 +136,7 @@ class MainWindow(QMainWindow):
     def __init__(self, app: "JarvisQtApp"):
         super().__init__()
         self.app = app
-        self.setWindowTitle("Jarvis")
+        self.setWindowTitle(app.name)
         self.setWindowIcon(app.icon)
         self.resize(1180, 780)
         self.setMinimumSize(760, 560)
@@ -167,7 +167,7 @@ class OrbWindow(QWidget):
         self.app = app
         self.setAttribute(Qt.WA_TranslucentBackground)
         self.setAttribute(Qt.WA_ShowWithoutActivating)
-        self.setWindowTitle("Jarvis orb")
+        self.setWindowTitle(f"{app.name} orb")
         self.resize(self.W, self.H)
         self.bridge = Bridge(app, "compact")
         self.view = make_view(self, self.bridge, "compact.html", transparent=True)
@@ -211,6 +211,7 @@ class JarvisQtApp:
         self.quitting = False
         self.icon = make_icon()
         qapp.setWindowIcon(self.icon)
+        self.name = config_store.assistant_name()       # what the user calls the assistant (Settings › General)
         self.hub = EventHub()
         self.hub.quit_requested.connect(qapp.quit)
         self.controller = AssistantController()
@@ -222,9 +223,14 @@ class JarvisQtApp:
         self._build_tray()
         self._register_hotkey()
 
-        cfg = config_store.load_config().get("gui", {})
+        full_cfg = config_store.load_config()
+        cfg = full_cfg.get("gui", {})
         self._announce_ready = False
-        if start_minimized or cfg.get("start_minimized", False):
+        from src.app import setup as first_run
+        self.setup_needed = first_run.needed(full_cfg)
+        if self.setup_needed:
+            self.main.show()                    # the setup wizard; the assistant starts from its last screen
+        elif start_minimized or cfg.get("start_minimized", False):
             # Started with Windows: the floating orb (click it to talk, Ctrl+Shift+J for the window), or tray only.
             if cfg.get("startup_view", "tray") == "orb":
                 self.orb.show()
@@ -234,7 +240,7 @@ class JarvisQtApp:
         self.phone = None
         self.phone_error = None
         threading.Thread(target=self.restart_phone_server, name="phone-start", daemon=True).start()
-        if cfg.get("autostart_pipeline", True):
+        if cfg.get("autostart_pipeline", True) and not self.setup_needed:
             QTimer.singleShot(400, self.controller.start)
 
     # ------------------------------------------------------------ phone app server
@@ -267,7 +273,7 @@ class JarvisQtApp:
         if t in ("phase", "mute", "stopped"):
             self._tray_dirty = True
         elif t == "error":
-            self._pending_notice = (f"Jarvis · {ev.get('stage', 'error')}", str(ev.get("detail", ""))[:240])
+            self._pending_notice = (f"{self.name} · {ev.get('stage', 'error')}", str(ev.get("detail", ""))[:240])
         elif t == "approval_request":
             self._pending_approval = ev.get("title", "")
         elif t == "ready":
@@ -289,7 +295,7 @@ class JarvisQtApp:
             if self._announce_ready and not self.main.isVisible():
                 self._announce_ready = False
                 hint = "Click the tray icon or press Ctrl+Shift+J to open it."
-                self.tray.showMessage("Jarvis is running", hint, QSystemTrayIcon.Information, 5000)
+                self.tray.showMessage(f"{self.name} is running", hint, QSystemTrayIcon.Information, 5000)
         approval = getattr(self, "_pending_approval", None)
         if approval is not None:
             self._pending_approval = None
@@ -302,7 +308,7 @@ class JarvisQtApp:
     def _build_tray(self):
         self.tray = QSystemTrayIcon(self.icon)
         menu = QMenu()
-        self.act_show = QAction("Open Jarvis", menu, triggered=self.show_main)
+        self.act_show = QAction(f"Open {self.name}", menu, triggered=self.show_main)
         self.act_orb = QAction("Show floating orb", menu, triggered=self.toggle_orb)
         self.act_start = QAction("Start assistant", menu, triggered=self.controller.start)
         self.act_stop = QAction("Stop assistant", menu,
@@ -316,7 +322,7 @@ class JarvisQtApp:
         self._menu = menu
         self.tray.setContextMenu(menu)
         self.tray.activated.connect(self._tray_activated)
-        self.tray.setToolTip("Jarvis")
+        self.tray.setToolTip(self.name)
         self.tray.show()
         self._ui_timer = QTimer()
         self._ui_timer.timeout.connect(self._poll_ui)
@@ -336,7 +342,7 @@ class JarvisQtApp:
         if phase == "idle" and c.muted:
             phase = "paused"
         self.tray.setIcon(make_icon(STATE_COLORS.get(phase, "#94bce3")))
-        self.tray.setToolTip(f"Jarvis — {STATE_LABELS.get(phase, phase)}")
+        self.tray.setToolTip(f"{self.name} — {STATE_LABELS.get(phase, phase)}")
         self.act_start.setEnabled(not c.running)
         self.act_stop.setEnabled(c.running)
         self.act_mute.setChecked(c.muted)
@@ -408,7 +414,17 @@ class JarvisQtApp:
         QTimer.singleShot(900 if view else 50, grab)
 
     def apply_gui_settings(self):
-        self.hub.emit_event({"type": "settings_changed", "config": config_store.load_config().get("gui", {})})
+        cfg = config_store.load_config()
+        self.apply_name(config_store.assistant_name(cfg))
+        self.hub.emit_event({"type": "settings_changed", "config": cfg.get("gui", {}), "assistant_name": self.name})
+
+    def apply_name(self, name: str) -> None:
+        """A rename (wizard or Settings) takes effect at once in titles, the tray and its menu."""
+        self.name = name
+        self.main.setWindowTitle(name)
+        self.orb.setWindowTitle(f"{name} orb")
+        self.act_show.setText(f"Open {name}")
+        self.refresh_tray()
 
     def _register_hotkey(self):
         """Ctrl+Shift+J anywhere in Windows toggles the main window / orb."""
@@ -429,7 +445,7 @@ class JarvisQtApp:
         print("[GUI] Quit requested — stopping the assistant")
         self.main.hide()
         self.orb.hide()
-        self.tray.setToolTip("Jarvis — shutting down")
+        self.tray.setToolTip(f"{self.name} — shutting down")
         try:
             ctypes.windll.user32.UnregisterHotKey(None, HOTKEY_ID)
         except Exception:

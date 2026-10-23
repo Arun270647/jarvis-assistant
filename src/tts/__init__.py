@@ -4,6 +4,9 @@ tts.engine picks the voice:
   - "chatterbox": Chatterbox-Turbo in its own Python (src/tts/chatterbox.py), with Piper as the
     fallback while it loads or if it fails.
   - "piper": Piper, in-process: local, CPU-only, no VRAM (tts.piper).
+  - "system": the voice built into Windows (src/tts/system.py): nothing to download.
+If the chosen engine can't start (a voice not downloaded yet, for example), tts.fallback ("system" by
+default, or "none") speaks instead, so a fresh install can always talk.
 
 After playback the pipeline drains the microphone buffer, so Jarvis's own voice
 never becomes part of the next command.
@@ -133,19 +136,30 @@ class PiperTTS(TTSEngine):
 
 
 def create_tts_engine():
-    """The engine in the settings (tts.engine)."""
+    """The engine in the settings (tts.engine), or tts.fallback when it can't start."""
     cfg = load_config()
     tts_cfg = cfg.get("tts", {})
-    if tts_cfg.get("engine", "piper") == "chatterbox":
-        from src.tts.chatterbox import ChatterboxTTS
-        fallback = None
-        if (tts_cfg.get("chatterbox", {}) or {}).get("fallback", "piper") == "piper":
-            try:
-                fallback = PiperTTS()
-            except Exception as e:
-                print(f"[TTS] Piper fallback unavailable: {e}")
-        return ChatterboxTTS(cfg, fallback=fallback)
-    return PiperTTS()
+    engine = tts_cfg.get("engine", "piper")
+    try:
+        if engine == "chatterbox":
+            from src.tts.chatterbox import ChatterboxTTS
+            fallback = None
+            if (tts_cfg.get("chatterbox", {}) or {}).get("fallback", "piper") == "piper":
+                try:
+                    fallback = PiperTTS()
+                except Exception as e:
+                    print(f"[TTS] Piper fallback unavailable: {e}")
+            return ChatterboxTTS(cfg, fallback=fallback)
+        if engine == "system":
+            from src.tts.system import SystemTTS
+            return SystemTTS()
+        return PiperTTS()
+    except Exception as e:
+        if engine == "system" or tts_cfg.get("fallback", "system") != "system":
+            raise
+        print(f"[TTS] {engine} unavailable ({str(e).splitlines()[0]}); using the system voice")
+        from src.tts.system import SystemTTS
+        return SystemTTS()
 
 
 def _resample_int16(audio: np.ndarray, from_sr: int, to_sr: int) -> np.ndarray:

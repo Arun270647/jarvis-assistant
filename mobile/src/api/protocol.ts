@@ -14,6 +14,7 @@ export type Phase =
 export type Status = {
   running: boolean; phase: Phase; busy: boolean; muted: boolean; active_task_id: number | null;
   queued: number; pending_approval: string | null; model?: string; voice: boolean; dry_run: boolean; pc: string;
+  assistant_name?: string;       // what the user calls the assistant on the PC (Settings › General › Name)
 };
 
 export type ApprovalRow = { k: string; v: string; sub?: string };

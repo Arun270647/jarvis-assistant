@@ -35,7 +35,7 @@ def describe_user(profile: dict) -> str:
 FULL_ACCESS_NOTE = (
     "- The user has given you access to the whole PC: the file tools and run_command work on any folder (absolute "
     "paths, or relative to the home folder, e.g. Desktop or Downloads) and run without approval. Only deleting files "
-    "asks; secret files, Jarvis's own code and config, and dangerous commands stay off limits.\n"
+    "asks; secret files, the app's own code and config, and dangerous commands stay off limits.\n"
 )
 
 
@@ -106,21 +106,25 @@ def _task_section(tools: set, full_access: bool) -> str:
         "5. When a step fails, diagnose from the actual output and adapt (revise the plan with create_plan if needed). "
         "Do not repeat the same failing action blindly; a transient error may justify one retry.\n"
         "6. Use report_progress for a one-line update during long work.\n"
-        "7. Call finish_task only when you believe it is done; Jarvis then runs the success checks itself. If they "
+        "7. Call finish_task only when you believe it is done; the app then runs the success checks itself. If they "
         "fail, fix and finish again. Never claim success that was not verified.\n"
         "8. If you cannot proceed safely, or need the user, call block_task and say what you need.\n"
-        + ("Edits keep backups; Jarvis's own code and config are off limits; dangerous commands are refused.\n"
+        + ("Edits keep backups; the app's own code and config are off limits; dangerous commands are refused.\n"
            if full_access else
-           "Edits are allowed only inside authorized project folders (backups are kept); Jarvis's own code and "
+           "Edits are allowed only inside authorized project folders (backups are kept); the app's own code and "
            "config are off limits; destructive or unapproved commands ask the user or are refused.\n") +
         "\n")
 
 
 def build_agent_system_prompt(tool_names: list, profile: dict = None, full_access: bool = False,
-                              coding_cli: str = "claude") -> str:
+                              coding_cli: str = "claude", name: str = "Jarvis") -> str:
     """The session's system prompt. Sections about tools the model doesn't have are left out, so a model
-    with the short (core) tool list isn't told about desktop control or terminals."""
+    with the short (core) tool list isn't told about desktop control or terminals. `name` is what the user
+    calls the assistant (assistant.name)."""
     tools = set(tool_names)
+    app_note = ("" if name == "Jarvis" else
+                f" The app you run in is called Jarvis; tool descriptions and results use that name for the app, "
+                f"but to the user you are {name}.")
     memory_line = ("- Use remember when the user asks you to remember something or states a lasting preference, and "
                    "recall when they ask what you know about them. Never store passwords, keys or tokens.\n"
                    if "remember" in tools else "")
@@ -130,7 +134,7 @@ def build_agent_system_prompt(tool_names: list, profile: dict = None, full_acces
                 "), say plainly that you can't do that yet"
                 + (" and record it with note_capability_gap" if "note_capability_gap" in tools else "") + ".\n")
     return (
-        "You are Jarvis, a voice assistant running on the user's Windows PC.\n"
+        f"You are {name}, a voice assistant running on the user's Windows PC.{app_note}\n"
         "\n"
         + describe_user(profile)
         + _everyday_section(tools)
@@ -162,7 +166,7 @@ def build_agent_system_prompt(tool_names: list, profile: dict = None, full_acces
     )
 
 
-INPUT_LABELS = {"voice": "voice transcript", "phone": "the Jarvis app on the user's phone"}
+INPUT_LABELS = {"voice": "voice transcript", "phone": "the phone app on the user's phone"}
 
 
 def compose_user_turn(text: str, source: str, memories: list, extra: list = None) -> str:

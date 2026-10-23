@@ -71,6 +71,8 @@ class Bridge(QObject):
             "ready": c.ready_info,
             "pending_approval": {"type": "approval_request", **pending.to_event()} if pending else None,
             "orb_style": cfg.get("gui", {}).get("orb_style", "hud"),
+            "assistant_name": config_store.assistant_name(cfg),
+            "setup_needed": bool(getattr(self.app, "setup_needed", False)),
             "dry_run": cfg.get("dry_run", False),
             "history": history,
             "log_file": str(logging_setup.LOG_FILE),
@@ -293,6 +295,11 @@ class Bridge(QObject):
         return _dumps({"days": days, "today_usd": meter.spent_today(), "budget_usd": meter.budget()})
 
     @Slot(str, result=str)
+    def checkAssistantName(self, name: str) -> str:
+        error, warning = config_store.check_assistant_name(name)
+        return _dumps({"error": error, "warning": warning})
+
+    @Slot(str, result=str)
     def settingsSave(self, updates_json: str) -> str:
         try:
             updates = json.loads(updates_json)
@@ -309,6 +316,215 @@ class Bridge(QObject):
             return _dumps({"ok": True, "restart_needed": restart_needed and self.controller.running})
         except Exception as e:
             return _dumps({"ok": False, "error": str(e)})
+
+    # ------------------------------------------------------------ setup wizard (src/app/setup.py)
+
+    def _downloads(self):
+        if getattr(self.app, "downloads", None) is None:
+            from src.core.downloads import Downloader
+            self.app.downloads = Downloader(emit=self.app.hub.emit_event)
+        return self.app.downloads
+
+    def _facts(self) -> dict:
+        if getattr(self.app, "hardware_facts", None) is None:
+            from src.core.hardware import detect
+            self.app.hardware_facts = detect()
+        return self.app.hardware_facts
+
+    @Slot(result=str)
+    def setupState(self) -> str:
+        """Everything the wizard shows: hardware-based model picks, their download state, the AI providers."""
+        from src.app import setup
+        cfg = config_store.load_config()
+        state = setup.state(cfg, self._facts())
+        state["downloads"] = self._downloads().jobs()
+        state["ai"] = self._ai_status(cfg)
+        state["devices"] = self._options(cfg).get("devices", [])
+        return _dumps(state)
+
+    @Slot(str, str, result=str)
+    def setupSave(self, step: str, data_json: str) -> str:
+        from src.app import setup
+        try:
+            data = json.loads(data_json or "{}")
+        except ValueError:
+            return _dumps({"ok": False, "error": "Bad data"})
+        result = setup.save_step(step, data, self._facts())
+        if result.get("ok"):
+            for option_id in result.get("downloads", []):
+                self._downloads().start(option_id)
+            if step == "name":
+                self.app.apply_gui_settings()
+            if step == "finish":
+                self.app.setup_needed = False
+        return _dumps(result)
+
+    @Slot(str)
+    def setupDownload(self, option_id: str) -> None:
+        try:
+            self._downloads().start(option_id)
+        except KeyError as e:
+            self.app.hub.emit_event({"type": "download", "option": option_id, "state": "failed", "error": str(e)})
+
+    @Slot(str)
+    def setupCancelDownload(self, option_id: str) -> None:
+        self._downloads().cancel(option_id)
+
+    @Slot(str, str, result=str)
+    def setupImportFile(self, option_id: str, file_name: str) -> str:
+        """"I already have this file": pick it, check it against the catalogue, copy it in."""
+        from PySide6.QtWidgets import QFileDialog
+        path, _ = QFileDialog.getOpenFileName(self.app.main, f"Choose {file_name}", str(Path.home() / "Downloads"),
+                                              f"{file_name} (*{Path(file_name).suffix});;All files (*)")
+        if not path:
+            return _dumps({"ok": False, "cancelled": True})
+        return _dumps(self._downloads().import_file(option_id, file_name, path))
+
+    @Slot(str)
+    def openUrl(self, url: str) -> None:
+        """Official pages, plans and manual downloads open in the user's browser (web addresses only)."""
+        if url.startswith(("https://", "http://")):
+            from PySide6.QtCore import QUrl
+            from PySide6.QtGui import QDesktopServices
+            QDesktopServices.openUrl(QUrl(url))
+
+    @Slot(result=str)
+    def pickFolder(self) -> str:
+        from PySide6.QtWidgets import QFileDialog
+        return QFileDialog.getExistingDirectory(self.app.main, "Choose a folder", str(Path.home())) or ""
+
+    @Slot()
+    def openMicPrivacy(self) -> None:
+        os.startfile("ms-settings:privacy-microphone")
+
+    @Slot(str)
+    def hearName(self, name: str) -> None:
+        """"Hear it": the name spoken by the system voice (the chosen voice may still be downloading)."""
+        def run():
+            try:
+                from src.tts.system import SystemTTS
+                SystemTTS().speak(f"Hi, I'm {name}.")
+            except Exception as e:
+                print(f"[SETUP] Could not speak the name: {e}")
+        threading.Thread(target=run, name="hear-name", daemon=True).start()
+
+    @Slot()
+    def claudeStatus(self) -> None:
+        def run():
+            from src.app import setup
+            self.app.hub.emit_event(dict(setup.claude_status(), type="claude_status"))
+        threading.Thread(target=run, name="claude-status", daemon=True).start()
+
+    @Slot()
+    def claudeLogin(self) -> None:
+        """Sign in with Claude: the browser opens; the status is checked every 2 s for up to 5 minutes."""
+        def run():
+            from src.app import setup
+            emit = self.app.hub.emit_event
+            self._login_cancel = threading.Event()
+            try:
+                proc = setup.start_claude_login()
+            except Exception as e:
+                emit({"type": "claude_login", "state": "error", "error": str(e)})
+                return
+            emit({"type": "claude_login", "state": "waiting"})
+            deadline = time.time() + 300
+            try:
+                while time.time() < deadline and not self._login_cancel.wait(2):
+                    status = setup.claude_status()
+                    if status.get("signed_in"):
+                        config_store.update_config({"llm.main.provider": "claude_code"})
+                        emit(dict(status, type="claude_login", state="signed_in"))
+                        return
+                emit({"type": "claude_login", "state": "cancelled" if self._login_cancel.is_set() else "timeout"})
+            finally:
+                if proc.poll() is None:
+                    proc.kill()
+        threading.Thread(target=run, name="claude-login", daemon=True).start()
+
+    @Slot()
+    def claudeLoginCancel(self) -> None:
+        if getattr(self, "_login_cancel", None) is not None:
+            self._login_cancel.set()
+
+    @Slot(str)
+    def micTest(self, device: str) -> None:
+        """Record up to 5 seconds, report the level live (mic_level) and what was heard (mic_test)."""
+        def run():
+            import numpy as np
+            emit = self.app.hub.emit_event
+            index = None if device in ("", "null", "None") else int(device)
+            try:
+                import sounddevice as sd
+                rate, chunk, frames, voiced = 16000, 800, [], 0
+                with sd.InputStream(device=index, channels=1, samplerate=rate, dtype="int16", blocksize=chunk) as stream:
+                    for _ in range(int(5 * rate / chunk)):
+                        data, _ = stream.read(chunk)
+                        frames.append(data.copy())
+                        rms = float(np.sqrt(np.mean(data.astype(np.float32) ** 2)))
+                        level = min(1.0, rms / 4000)
+                        voiced += 1 if rms > 600 else 0
+                        emit({"type": "mic_level", "v": round(level, 3)})
+            except Exception as e:
+                text = str(e)
+                blocked = any(s in text.lower() for s in ("unanticipated host error", "access", "-9999"))
+                emit({"type": "mic_test", "ok": False, "blocked": blocked, "error": text})
+                return
+            audio = np.concatenate(frames).reshape(-1)
+            if voiced * chunk / rate < 0.3:
+                emit({"type": "mic_test", "ok": False, "error": "I didn't hear anything. Is the right microphone selected?"})
+                return
+            heard = ""
+            try:
+                from src.core import paths as p
+                if Path(p.whisper_model(config_store.load_config()["stt"]["model_path"])[0]).exists():
+                    from src.stt.transcriber import transcribe_audio
+                    heard = transcribe_audio(audio)
+            except Exception as e:
+                print(f"[SETUP] Mic test transcription skipped: {e}")
+            emit({"type": "mic_test", "ok": True, "heard": heard})
+        threading.Thread(target=run, name="mic-test", daemon=True).start()
+
+    @Slot(result=str)
+    def modelsState(self) -> str:
+        """Settings › Models: the catalogue with what is in use, downloaded or downloading."""
+        from src.app import setup
+        cfg = config_store.load_config()
+        return _dumps({"groups": setup.catalogue_view(config_store.assistant_name(cfg), self._facts(), cfg),
+                       "jobs": self._downloads().jobs(), "models_dir": str(paths.models_dir()), "facts": self._facts()})
+
+    @Slot(str, result=str)
+    def modelsUse(self, option_id: str) -> str:
+        from src.app import setup
+        try:
+            result = setup.use_model(option_id, self._facts())
+            if result["download"]:
+                self._downloads().start(option_id)
+            return _dumps(result)
+        except (KeyError, ValueError) as e:
+            return _dumps({"ok": False, "error": str(e)})
+
+    @Slot(str, result=str)
+    def modelsDelete(self, option_id: str) -> str:
+        from src.core import models
+        try:
+            _, option = models.find(option_id)
+            self._downloads().cancel(option_id)
+            return _dumps({"ok": True, "freed": models.delete(option)})
+        except (KeyError, OSError) as e:
+            return _dumps({"ok": False, "error": str(e)})
+
+    @Slot()
+    def setupStartAssistant(self) -> None:
+        if not self.controller.running:
+            self.controller.start()
+
+    @Slot()
+    def setupRunAgain(self) -> None:
+        """Settings › Run setup again."""
+        config_store.update_config({"setup.complete": False, "setup.step": ""})
+        self.app.setup_needed = True
+        self.app.main.view.reload()
 
     # ------------------------------------------------------------ email account
 
@@ -438,6 +654,8 @@ class Bridge(QObject):
             opts["devices_error"] = str(e)
         piper_dir = paths.model_path(cfg.get("tts", {}).get("piper", {}).get("model_dir") or "piper")
         opts["voices"] = sorted(p.name[:-5] for p in piper_dir.glob("*.onnx"))
+        from src.tts.system import system_voices
+        opts["system_voices"] = system_voices()
         # Model names, plus local CTranslate2 model folders the user put in models/whisper.
         local = paths.models_dir() / "whisper"
         opts["whisper_models"] = WHISPER_SIZES + sorted(p.name for p in local.glob("*") if (p / "model.bin").exists())
@@ -474,6 +692,18 @@ class Bridge(QObject):
         return out
 
     # ------------------------------------------------------------ diagnostics
+
+    @Slot(result=str)
+    def saveReport(self) -> str:
+        """Settings › Save a report: the redacted diagnostic report, shown in Explorer."""
+        try:
+            from src.core.diagnose import save_report
+            path = save_report()
+            from src.core import winproc
+            winproc.popen_hidden(["explorer", "/select,", str(path)])
+            return _dumps({"ok": True, "path": str(path)})
+        except Exception as e:
+            return _dumps({"ok": False, "error": str(e)})
 
     @Slot()
     def openLog(self) -> None:

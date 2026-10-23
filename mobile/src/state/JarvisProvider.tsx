@@ -147,6 +147,11 @@ export function JarvisProvider({ children }: { children: React.ReactNode }) {
   return <JarvisContext.Provider value={value}>{children}</JarvisContext.Provider>;
 }
 
+/** What the user calls the assistant (from the PC); the product name until the PC has said. */
+export function useAssistantName(): string {
+  return useJarvis().state.status?.assistant_name || 'Jarvis';
+}
+
 export function useJarvis(): Ctx {
   const ctx = useContext(JarvisContext);
   if (!ctx) throw new Error('useJarvis outside JarvisProvider');

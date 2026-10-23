@@ -22,6 +22,7 @@ from typing import Callable, Optional
 
 from src.agent.base import AgentBackend, AgentResult
 from src.agent.prompt import build_agent_system_prompt
+from src.core.config_store import assistant_name
 from src.agent.providers.base import Message, ProviderError, ToolDef, ToolResultItem
 from src.agent.toolsets import tool_names
 from src.agent.usage import budget_message
@@ -80,7 +81,7 @@ class ToolLoopBackend(AgentBackend):
                       for s in executor.registry.specs() if s.name in offered]
         coding_cli = (config.get("coding_agent", {}) or {}).get("cli", "claude")
         self.system_prompt = build_agent_system_prompt(self.tool_names, _profile(), bool(acfg.get("full_access")),
-                                                       coding_cli=coding_cli)
+                                                       coding_cli=coding_cli, name=assistant_name(config))
         self.history: list = []
         self._last_prompt_tokens = 0
         self._cancel = threading.Event()

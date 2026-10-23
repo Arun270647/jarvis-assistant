@@ -16,6 +16,7 @@ with the user's user_profile.json on top. Every section is optional; a missing o
 import copy
 import json
 import os
+import re
 import tempfile
 import threading
 from pathlib import Path
@@ -25,7 +26,7 @@ from src.core import paths
 
 DEFAULTS_PATH = paths.shipped_config_dir() / "defaults.json"
 PROFILE_DEFAULTS_PATH = paths.shipped_config_dir() / "profile_defaults.json"
-CONFIG_VERSION = 2
+CONFIG_VERSION = 3
 ENV_PREFIX = "JARVIS__"
 
 
@@ -72,8 +73,14 @@ def _v1_to_v2(raw: dict) -> dict:
     return raw
 
 
+def _v2_to_v3(raw: dict) -> dict:
+    """The setup wizard arrived: someone who already has settings has set Jarvis up, so it doesn't show again."""
+    raw.setdefault("setup", {})["complete"] = True
+    return raw
+
+
 # config_version -> function upgrading a user config.json from that version to the next one.
-MIGRATIONS = {1: _v1_to_v2}
+MIGRATIONS = {1: _v1_to_v2, 2: _v2_to_v3}
 
 _lock = threading.Lock()
 _MISSING = object()
@@ -82,6 +89,11 @@ _MISSING = object()
 # allowed values, a (min, max) range for numbers, or None.
 EFFORTS = ("low", "medium", "high", "xhigh", "max")
 EDITABLE = {
+    "assistant.name": (str, None),
+    "setup.complete": (bool, None),
+    "setup.step": (str, None),
+    "setup.models": (dict, None),
+    "tools.preset": (str, ("", "everyday", "work", "full")),
     "llm.main.provider": (str, None),
     "llm.utility.provider": (str, None),
     "llm.utility.model": (str, None),
@@ -110,10 +122,14 @@ EDITABLE = {
     "pipeline.max_recording_ms": (int, (1000, 30000)),
     "tts.enabled": (bool, None),
     "tts.piper.voice": (str, None),
-    "tts.engine": (str, ("chatterbox", "piper")),
+    "tts.engine": (str, ("chatterbox", "piper", "system")),
+    "tts.fallback": (str, ("system", "none")),
+    "tts.system.voice": (str, None),
+    "tts.system.rate": (int, (-10, 10)),
     "tools.approval_timeout_ms": (int, (3000, 120000)),
     "tools.default_timeout_s": (int, (1, 600)),
     "tools.permissions": (dict, None),
+    "apps.discover": (bool, None),
     "tools.profile": (str, ("auto", "full", "core", "custom")),
     "tools.custom_list": (list, None),
     "coding_agent.cli": (str, ("claude", "codex", "aider", "custom", "off")),
@@ -147,6 +163,40 @@ EDITABLE = {
 }
 # Settings where null is a valid choice (null microphone = the system default, null budget = none).
 NULLABLE = {"audio.input_device_index", "llm.daily_budget_usd"}
+
+
+DEFAULT_ASSISTANT_NAME = "Jarvis"
+# Letters (any alphabet), with single spaces, hyphens or apostrophes between them.
+_NAME_RE = re.compile(r"^[^\W\d_]+(?:[ '\-’][^\W\d_]+)*$")
+# Words people say all the time: as a name they would wake or address the assistant by accident.
+COMMON_WORDS = {"hey", "hi", "hello", "okay", "ok", "yes", "no", "stop", "computer", "assistant", "please",
+                "thanks", "thank you", "the", "what", "open", "play", "siri", "alexa", "google", "cortana"}
+
+
+def check_assistant_name(name: str) -> tuple:
+    """(error, warning) for a proposed assistant name; each is None or one plain sentence."""
+    name = " ".join(str(name or "").split())
+    if not name:
+        return "Give your assistant a name.", None
+    if not 2 <= len(name) <= 20:
+        return "Use 2 to 20 characters.", None
+    if not _NAME_RE.match(name):
+        return "Use letters, with spaces, hyphens or apostrophes between them.", None
+    if name.lower() in COMMON_WORDS:
+        return None, f"\u201c{name}\u201d is a word people say a lot, so it may be picked up by accident."
+    return None, None
+
+
+def assistant_name(cfg: Optional[dict] = None) -> str:
+    """What the user calls the assistant (assistant.name); the product name until they pick another."""
+    cfg = load_config() if cfg is None else cfg
+    name = " ".join(str(((cfg.get("assistant") or {}).get("name")) or "").split())
+    return name if name and check_assistant_name(name)[0] is None else DEFAULT_ASSISTANT_NAME
+
+
+def with_name(text: str, name: str) -> str:
+    """Fill the {name} placeholder in a setting such as the greeting prefix."""
+    return str(text or "").replace("{name}", name)
 
 
 def _provider_editables() -> None:
@@ -237,13 +287,21 @@ def load_config(path: Optional[Path] = None) -> dict:
 
 
 def profile_defaults() -> dict:
-    """The shipped profile. Apps with an absolute path (after %VAR% expansion) are offered only when installed."""
+    """The shipped profile. Apps with an absolute path (after %VAR% expansion) are offered only when installed;
+    common apps found in the Start Menu are added (src/core/app_discovery.py, unless apps.discover is off)."""
     prof = _read_json(PROFILE_DEFAULTS_PATH)
     apps = {}
     for key, app in (prof.get("apps") or {}).items():
         path = os.path.expandvars(app.get("path", ""))
         if not Path(path).is_absolute() or Path(path).exists():
             apps[key] = dict(app, path=path)
+    if (load_config().get("apps", {}) or {}).get("discover", True):
+        try:
+            from src.core.app_discovery import discover
+            for key, app in discover().items():
+                apps.setdefault(key, app)
+        except Exception as e:            # a broken shortcut folder must never stop the profile from loading
+            print(f"[APPS] Start Menu discovery skipped: {e}")
     prof["apps"] = apps
     return prof
 
@@ -259,6 +317,13 @@ def load_profile(path: Optional[Path] = None) -> dict:
         else:
             prof[section] = value
     return prof
+
+
+def save_profile(user_profile: dict, path: Optional[Path] = None) -> None:
+    """Write the user's own profile file (only their sections; the shipped profile stays underneath)."""
+    path = Path(path) if path else paths.profile_file()
+    with _lock:
+        _atomic_write(path, user_profile)
 
 
 def get_path(cfg: dict, dotted: str, default=None):
@@ -308,6 +373,8 @@ def validate_update(updates: dict) -> list:
             for tool, perm in value.items():
                 if perm not in PERMISSION_VALUES:
                     errors.append(f"tools.permissions.{tool}: must be allow, ask or deny")
+        if key == "assistant.name" and check_assistant_name(value)[0]:
+            errors.append(f"assistant.name: {check_assistant_name(value)[0]}")
         if key == "llm.main.provider" and value not in _provider_names():
             errors.append(f"{key}: unknown provider {value!r}")
         if key == "llm.utility.provider" and value and value not in _provider_names():

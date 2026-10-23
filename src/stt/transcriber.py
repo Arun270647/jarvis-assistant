@@ -36,13 +36,12 @@ def load_audio_file(path: str) -> np.ndarray:
     return np.concatenate(chunks).astype(np.int16) if chunks else np.zeros(0, dtype=np.int16)
 
 
-def _build_initial_prompt(profile: dict) -> str:
-    """Build whisper initial_prompt from user_profile.json vocabulary.
+def _build_initial_prompt(profile: dict, name: str = "Jarvis") -> str:
+    """Build whisper initial_prompt from user_profile.json vocabulary and the assistant's name.
 
     Biases whisper decoding toward project-specific proper nouns.
     """
-    words = set()
-    words.add("Claude")
+    words = {"Claude", name}
 
     for key, app_cfg in profile.get("apps", {}).items():
         words.add(key)
@@ -54,7 +53,7 @@ def _build_initial_prompt(profile: dict) -> str:
         for alias in proj_cfg.get("aliases", []):
             words.add(alias)
 
-    prompt = "Jarvis voice assistant. " + ", ".join(sorted(words)) + "."
+    prompt = f"{name} voice assistant. " + ", ".join(sorted(words)) + "."
     return prompt
 
 
@@ -109,7 +108,7 @@ class Transcriber:
     """Wrapper for faster-whisper STT and Silero VAD. The Whisper model stays loaded.
 
     stt.model_path is a model name ("small", downloaded into models/whisper on first use) or a local
-    CTranslate2 model folder; vad.hub_dir is torch hub's folder, relative to the models folder.
+    CTranslate2 model folder. Speech detection is Silero VAD through ONNX Runtime (src/stt/vad.py).
     """
 
     def __init__(self):
@@ -117,10 +116,10 @@ class Transcriber:
         profile = _load_profile()
         self.stt_cfg = cfg["stt"]
         self.beam_size = self.stt_cfg.get("beam_size", 1)
-        self.vad_hub_dir = str(paths.model_path(cfg.get("vad", {}).get("hub_dir") or "torch-hub"))
         self._model_path, self._download_root = paths.whisper_model(self.stt_cfg["model_path"])
         self._model = None
-        self._initial_prompt = _build_initial_prompt(profile)
+        from src.core.config_store import assistant_name
+        self._initial_prompt = _build_initial_prompt(profile, assistant_name(cfg))
         self._correction_map = _build_correction_map(profile)
 
         print(f"[STT] Initial prompt: {self._initial_prompt}")
@@ -184,16 +183,9 @@ class Transcriber:
         return np.zeros(16000, dtype=np.float32)
 
     def _load_vad(self):
-        """Load the Silero VAD model (torch hub, kept in the models folder)."""
-        import torch
-        torch.hub.set_dir(self.vad_hub_dir)
-        model, utils = torch.hub.load(
-            repo_or_dir="snakers4/silero-vad",
-            model="silero_vad",
-            force_reload=False,
-            onnx=False,
-        )
-        return model, utils
+        """Silero VAD through ONNX Runtime (src/stt/vad.py; the model file is in the models folder)."""
+        from src.stt.vad import SileroVAD
+        return SileroVAD(), None
 
     def transcribe_audio(self, audio: np.ndarray, sample_rate: int = 16000) -> str:
         """Transcribe audio with vocabulary bias and fuzzy correction."""

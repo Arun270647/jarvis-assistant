@@ -2,6 +2,7 @@
 
     pythonw jarvis_gui.pyw              # no console window (double-click the file or the shortcut)
     pythonw jarvis_gui.pyw --minimized  # start as the floating orb (used by the Windows startup shortcut)
+    python jarvis_gui.pyw --diagnose    # save a redacted diagnostic report for a bug report, and show it
 
 Settings, profile, database and logs live in the user's data folder (%APPDATA%\\Jarvis, or JARVIS_HOME);
 logs: logs/jarvis.log there (also visible in Settings > Diagnostics).
@@ -28,7 +29,21 @@ def _fatal(message: str) -> None:
         pass
 
 
+def _diagnose() -> int:
+    from src.core.diagnose import save_report
+    path = save_report()
+    print(f"Diagnostic report saved: {path}")
+    try:
+        import os
+        os.startfile(str(path))
+    except Exception:
+        pass
+    return 0
+
+
 if __name__ == "__main__":
+    if "--diagnose" in sys.argv:
+        sys.exit(_diagnose())
     try:
         from src.gui.qt_app import run
     except ImportError as e:

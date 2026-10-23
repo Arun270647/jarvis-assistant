@@ -5,24 +5,25 @@ import { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 're
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { LinkPill } from '@/components/LinkPill';
-import { useJarvis } from '@/state/JarvisProvider';
+import { useAssistantName, useJarvis } from '@/state/JarvisProvider';
 import { colors, font } from '@/theme';
 
 export default function Settings() {
   const { state, pairing, prefs, setPrefs, request, unpair } = useJarvis();
+  const name = useAssistantName();
   const online = state.link === 'online';
   const running = !!state.status?.running && state.phase !== 'stopped';
 
   async function toggleNotifications(on: boolean) {
     if (on) {
       const { status } = await Notifications.requestPermissionsAsync();
-      if (status !== 'granted') { Alert.alert('Notifications are off', 'Allow notifications for Jarvis in Android settings.'); return; }
+      if (status !== 'granted') { Alert.alert('Notifications are off', `Allow notifications for ${name} in Android settings.`); return; }
     }
     setPrefs({ ...prefs, notifications: on });
   }
 
   function confirmUnpair() {
-    Alert.alert('Unpair this phone?', 'You will need a new code from the PC to connect again. Remove the phone in Jarvis’s Settings › Phone app too.', [
+    Alert.alert('Unpair this phone?', `You will need a new code from the PC to connect again. Remove the phone in ${name}’s Settings › Phone app too.`, [
       { text: 'Keep' },
       { text: 'Unpair', style: 'destructive', onPress: async () => { await unpair(); router.replace('/pair'); } },
     ]);
@@ -30,7 +31,7 @@ export default function Settings() {
 
   function powerJarvis() {
     if (!running) { request({ type: 'start' }).catch(() => {}); return; }
-    Alert.alert('Stop Jarvis on the PC?', 'It stops listening and releases the microphone. You can start it again from here.', [
+    Alert.alert(`Stop ${name} on the PC?`, 'It stops listening and releases the microphone. You can start it again from here.', [
       { text: 'Keep running' },
       { text: 'Stop', style: 'destructive', onPress: () => request({ type: 'stop' }, 30000).catch(() => {}) },
     ]);
@@ -47,11 +48,11 @@ export default function Settings() {
           <Row k="Mode" v={state.status?.dry_run ? 'Dry run (actions are simulated)' : 'Live'} />
           {state.link === 'unauthorized' && <Text style={styles.error}>{state.linkError} Pair again.</Text>}
           <Pressable style={styles.btn} disabled={!online} onPress={powerJarvis}>
-            <Text style={styles.btnText}>{running ? 'Stop Jarvis' : 'Start Jarvis'}</Text>
+            <Text style={styles.btnText}>{running ? `Stop ${name}` : `Start ${name}`}</Text>
           </Pressable>
         </Section>
         <Section title="On this phone">
-          <Toggle label="Read Jarvis’s replies aloud" value={prefs.readAloud} onChange={(v) => setPrefs({ ...prefs, readAloud: v })} />
+          <Toggle label={`Read ${name}’s replies aloud`} value={prefs.readAloud} onChange={(v) => setPrefs({ ...prefs, readAloud: v })} />
           <Toggle label="Notify me while the app is in the background" value={prefs.notifications} onChange={toggleNotifications} />
           <Text style={styles.help}>
             Notifications work while the app is open or recently in the background. When Android closes the app,

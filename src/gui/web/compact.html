@@ -1,8 +1,8 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-s-title-key="orb.title">
 <head>
 <meta charset="utf-8">
-<title>Jarvis orb</title>
+<title></title>
 <link rel="stylesheet" href="ds/styles.css">
 <link rel="stylesheet" href="app.css">
 <style>
@@ -19,13 +19,14 @@
     color: var(--state-color); text-shadow: 0 1px 6px rgba(0,0,0,.8); }
 </style>
 <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+<script src="strings.js"></script>
 <script src="orb.js"></script>
 </head>
 <body>
 <div class="compact" data-screen-label="Compact orb">
   <div id="caption-slot"></div>
   <div class="orb-col">
-    <button type="button" class="mini" id="mini" title="Jarvis — click to open, drag to move" aria-label="Open Jarvis"><canvas id="orb" width="144" height="144"></canvas></button>
+    <button type="button" class="mini" id="mini" data-s-title="orb.mini" data-s-aria="orb.open"><canvas id="orb" width="144" height="144"></canvas></button>
     <span class="mini-label" id="mini-label" hidden></span>
   </div>
 </div>

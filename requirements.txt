@@ -1,8 +1,7 @@
 sounddevice==0.5.1
 numpy>=1.24
 faster-whisper>=1.1.0
-silero-vad>=5.1
-torch>=2.0
+onnxruntime>=1.20         # Silero speech detection (src/stt/vad.py) and Piper; no torch in the core install
 claude-agent-sdk>=0.2.165
 anthropic>=2.2            # Anthropic API provider (API key); imported only when it is chosen
 openai>=3.37              # OpenAI-compatible providers: OpenAI, OpenRouter, Groq, Gemini, Ollama, LM Studio

@@ -14,7 +14,7 @@ import time
 import uuid
 from typing import Callable, Optional
 
-from src.core.config_store import load_config
+from src.core.config_store import assistant_name, load_config
 from src.memory.store import ACTIVE_STATUSES, TERMINAL_STATUSES, MemoryStore
 from src.tools.approvals import ApprovalBroker, classify_reply
 
@@ -227,7 +227,8 @@ class AssistantController:
                 "active_task_id": self.active_task_id, "queued": self.commands.qsize(),
                 "pending_approval": self.broker.pending.title if self.broker.pending else None,
                 "model": self.ready_info.get("model"), "voice": self.voice_ok,
-                "dry_run": bool(self.ready_info.get("dry_run")), "pc": os.environ.get("COMPUTERNAME", "PC")}
+                "dry_run": bool(self.ready_info.get("dry_run")), "pc": os.environ.get("COMPUTERNAME", "PC"),
+                "assistant_name": assistant_name(load_config())}
 
     def send_text(self, text: str) -> str:
         """Typed input. Returns what happened: approval | queued | sent | rejected."""

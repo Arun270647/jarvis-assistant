@@ -183,7 +183,7 @@
         dg.addColorStop(0, rgba(this.C.paper, .95 * dim)); dg.addColorStop(.4, rgba(A.hi, .8 * dim)); dg.addColorStop(1, rgba(A.core, 0));
         ctx.beginPath(); ctx.arc(c, c, cr, 0, TAU); ctx.fillStyle = dg; ctx.fill();
       } else {
-        const word = "JARVIS";
+        const word = (window.JarvisStrings ? window.JarvisStrings.name : "").toUpperCase();     // the assistant's name
         const fs = Math.round(R * .115 * Math.min(1, 11 / word.length));     // sized to fit the core like the old 11-character mark
         ctx.save();
         ctx.font = `600 ${fs}px "Barlow Condensed", "Barlow", sans-serif`;
@@ -277,7 +277,7 @@
     if (!(window.qt && window.qt.webChannelTransport)) {
       const d = document.createElement("div");
       d.className = "nobridge";
-      d.innerHTML = "This page is the Jarvis desktop UI.<br>Start it with <b>pythonw jarvis_gui.pyw</b>.";
+      d.innerHTML = window.JarvisStrings ? window.JarvisStrings.t("standalone") : "Start it with <b>pythonw jarvis_gui.pyw</b>.";
       document.body.appendChild(d);
       return;
     }

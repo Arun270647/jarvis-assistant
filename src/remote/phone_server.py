@@ -256,7 +256,8 @@ class PhoneServer:
         if loop is None or not loop.is_running():
             return
         try:
-            asyncio.run_coroutine_threadsafe(self._close_all(1001, "Jarvis is shutting down"), loop).result(wait)
+            asyncio.run_coroutine_threadsafe(self._close_all(1001, f"{config_store.assistant_name()} is shutting down"),
+                                             loop).result(wait)
         except Exception:
             pass
         loop.call_soon_threadsafe(loop.stop)
@@ -298,7 +299,7 @@ class PhoneServer:
         if loop is not None and loop.is_running():
             async def close():
                 for conn in [c for c in self.conns if c.device_id == device_id]:
-                    await conn.ws.close(code=CLOSE_REVOKED, message=b"This phone was removed in Jarvis's settings")
+                    await conn.ws.close(code=CLOSE_REVOKED, message=b"This phone was removed in the PC's settings")
             asyncio.run_coroutine_threadsafe(close(), loop)
         if ok:
             log(f"removed device {device_id}")
@@ -521,7 +522,7 @@ class PhoneServer:
 
     async def _on_screenshot(self, conn, data):
         if not self.cfg.get("allow_screenshot", True):
-            raise PermissionError("Screenshots are turned off in Jarvis's settings.")
+            raise PermissionError(f"Screenshots are turned off in {config_store.assistant_name()}'s settings.")
         jpeg = await self._db(self._screenshot)
         return {"mime": "image/jpeg", "data": base64.b64encode(jpeg).decode("ascii"), "taken_at": time.time()}
 

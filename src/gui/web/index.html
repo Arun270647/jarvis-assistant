@@ -1,12 +1,13 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-s-title-key="window.title">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Jarvis</title>
+<title></title>
 <link rel="stylesheet" href="ds/styles.css">
 <link rel="stylesheet" href="app.css">
 <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+<script src="strings.js"></script>
 <script src="orb.js"></script>
 </head>
 <body>
@@ -14,7 +15,7 @@
 
   <!-- top bar: brand, views, window controls -->
   <header class="topbar">
-    <div class="brand"><span class="brand-mark">J</span><span>Jarvis</span></div>
+    <div class="brand"><span class="brand-mark" id="brand-mark"></span><span data-s="window.title"></span></div>
     <nav class="tabs" role="tablist" aria-label="Views">
       <button class="tab" role="tab" data-view="assistant" aria-selected="true">Assistant</button>
       <button class="tab" role="tab" data-view="agent" aria-selected="false">Agent<span class="count" id="agent-count" hidden></span></button>
@@ -42,7 +43,7 @@
         </div>
         <div class="blueprint orb-frame">
           <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
-          <button type="button" class="orb-button" id="orb-button" aria-label="Start Jarvis" title="Start Jarvis"><canvas id="orb" width="760" height="760"></canvas></button>
+          <button type="button" class="orb-button" id="orb-button" data-s-aria="orb.start" data-s-title="orb.start"><canvas id="orb" width="760" height="760"></canvas></button>
         </div>
         <div class="state-label" id="state-label">Offline</div>
         <div class="captions" id="captions" aria-live="polite">
@@ -74,7 +75,7 @@
           <div id="task-items"><div class="empty" style="padding:14px">Loading…</div></div>
         </aside>
         <div class="agent-detail page" id="task-detail">
-          <div class="page-inner"><div class="empty">Give Jarvis an objective, for example “prepare the demo shop for deployment, test it and fix what you can”. Multi-step work appears here with its plan, actions, verification and outcome.</div></div>
+          <div class="page-inner"><div class="empty" data-s="agent.empty"></div></div>
         </div>
       </div>
     </section>
@@ -83,7 +84,7 @@
     <section class="view page" id="view-activity" role="tabpanel" aria-label="Activity">
       <div class="page-inner">
         <div class="page-head">
-          <div><h2>Activity</h2><div class="sub">Every tool Jarvis ran for you, with its real result, and what the AI used. Live while a task runs.</div></div>
+          <div><h2>Activity</h2><div class="sub" data-s="activity.sub"></div></div>
           <div class="actions"><button class="btn btn-secondary" id="act-refresh">Refresh</button></div>
         </div>
         <div id="act-now"></div>
@@ -104,7 +105,7 @@
     <section class="view page" id="view-memory" role="tabpanel" aria-label="Memory">
       <div class="page-inner">
         <div class="page-head">
-          <div><h2>Memory</h2><div class="sub">What Jarvis remembers about you. Claude sees the relevant items with each request.</div></div>
+          <div><h2>Memory</h2><div class="sub" data-s="memory.sub"></div></div>
         </div>
         <div class="card blueprint section">
           <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
@@ -146,5 +147,6 @@
 <div id="dialog-root"></div>
 <script src="app.js"></script>
 <script src="agent.js"></script>
+<script src="setup.js"></script>
 </body>
 </html>

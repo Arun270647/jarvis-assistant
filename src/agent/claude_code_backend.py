@@ -19,6 +19,7 @@ from typing import Callable, Optional
 
 from src.agent.base import AgentBackend, AgentResult
 from src.agent.prompt import build_agent_system_prompt
+from src.core.config_store import assistant_name
 from src.agent.providers.base import Usage
 from src.agent.toolsets import tool_names
 from src.tools.registry import ToolContext
@@ -65,7 +66,8 @@ class ClaudeCodeAgentBackend(AgentBackend):
         self.tool_names = tool_names(executor.registry, config, ccfg)
         self._system_prompt = build_agent_system_prompt(
             self.tool_names, _profile(), bool(acfg.get("full_access")),
-            coding_cli=(config.get("coding_agent", {}) or {}).get("cli", "claude"))
+            coding_cli=(config.get("coding_agent", {}) or {}).get("cli", "claude"),
+            name=assistant_name(config))
         self._loop: Optional[asyncio.AbstractEventLoop] = None
         self._thread: Optional[threading.Thread] = None
         self._client = None
