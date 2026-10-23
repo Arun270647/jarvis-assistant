@@ -167,6 +167,8 @@
         break;
       case "ready":
         S.info = ev; S.voiceOk = !!ev.voice; S.running = true; S.dryRun = !!ev.dry_run;
+        ["signed_out", "claude_missing", "offline", "limit", "ai_setup", "bad_key"].forEach(Banners.clear);
+        if (ev.voice) ["mic_blocked", "mic_missing", "stt_missing", "voice_off"].forEach(Banners.clear);
         if (document.activeElement === document.body) $("input").focus();
         break;
       case "level": S.level = ev.v; return;
@@ -190,7 +192,8 @@
         bumpActivity(); break;
       case "reply": ev.greeting ? caption("", ev.text) : caption(undefined, ev.text); break;
       case "error":
-        caption(undefined, ev.detail, "error");
+        if (ev.code) Banners.show(ev);
+        caption(undefined, ev.message || ev.detail, "error");
         S.errorUntil = Date.now() + 3400; S.errorDetail = ev.detail;
         if (S.task && S.task.status === "running") { S.task.status = "failed"; S.task.endedAt = Date.now(); finishTaskLater(); }
         setTimeout(renderState, 3500); break;
@@ -202,7 +205,16 @@
       case "stopped": S.info = null; break;
       case "settings_test": Settings.onTest(ev); return;
       case "ai_models": Settings.onModels(ev); return;
-      case "download": if (S.view === "settings") Settings.onDownload(ev); return;
+      case "banner": Banners.show(ev); return;
+      case "update_check": { const l = $("update-line"); if (l) l.textContent = ev.available ? `Version ${ev.version} is available.` : ev.error || "You have the latest version."; return; }
+      case "claude_login": Banners.onClaudeLogin(ev); return;
+      case "claude_install": Banners.onClaudeInstall(ev); return;
+      case "download":
+        if (S.view === "settings") Settings.onDownload(ev);
+        if (ev.state === "failed" && !(window.JarvisSetup && window.JarvisSetup.active))
+          Banners.show({ code: "download_failed", message: `${ev.name} didn't finish downloading.`, fix: { label: "Retry", action: "download", arg: ev.option } });
+        if (ev.state === "done") Banners.clear("download_failed");
+        return;
       case "usage": if (S.view === "activity") Activity.loadUsage(); return;
       case "email_test": { const l = $("email-line"); if (l) l.textContent = (ev.ok ? "✓ " : "✗ ") + ev.detail; return; }
       case "phone_status": Settings.renderPhone(); return;
@@ -401,6 +413,47 @@
     },
   };
 
+  // Settings sections with a matching section in docs/GETTING_STARTED.md (the ? buttons).
+  const HELP = { "general": "2-set-up-the-setup-wizard", "ai": "5-other-ways-to-connect", "microphone": "6-somethings-not-working",
+                 "voice": "6-somethings-not-working", "models": "what-gets-downloaded",
+                 "tools-and-permissions": "4-change-what-jarvis-is-allowed-to-do", "about": "7-update-and-uninstall" };
+
+  // ───────────────────────────── banners: an explained error and its fix (src/app/errors.py)
+  const Banners = {
+    items: new Map(),
+    show(ev) {
+      if (!ev.code || !ev.message) return;
+      this.items.set(ev.code, ev); this.render();
+    },
+    clear(code) { if (Banners.items.delete(code)) Banners.render(); },
+    note(code, message) { const b = this.items.get(code); if (b) { this.items.set(code, Object.assign({}, b, { message, busy: true })); this.render(); } },
+    render() {
+      const box = $("banners"); box.textContent = "";
+      [...this.items.values()].slice(-2).forEach(b => box.appendChild(h("div", { class: "banner" },
+        h("span", { class: "msg", text: b.message }),
+        b.fix && !b.busy ? h("button", { class: "btn btn-primary btn-sm", onclick: () => this.fix(b), text: b.fix.label }) : null,
+        h("button", { class: "close", title: "Dismiss", "aria-label": "Dismiss", onclick: () => this.clear(b.code), text: "×" }))));
+    },
+    fix(b) {
+      const { action, arg } = b.fix;
+      if (action === "open_mic_privacy") call("openMicPrivacy");
+      else if (action === "settings") Settings.open(arg);
+      else if (action === "restart") { call("restart"); this.clear(b.code); toast("Restarting the assistant…"); }
+      else if (action === "download") { call("setupDownload", arg); this.clear(b.code); }
+      else if (action === "open_url") call("openUrl", arg);
+      else if (action === "claude_login") { call("claudeLogin"); this.note(b.code, "Finish signing in in your browser, then come back here."); }
+      else if (action === "claude_install") { call("claudeInstall"); this.note(b.code, "Getting Claude ready… (about a minute)"); }
+    },
+    onClaudeLogin(ev) {
+      if (ev.state === "signed_in") { this.clear("signed_out"); toast(`Signed in as ${ev.email || "your Claude account"}.`); call("restart"); }
+      else if (ev.state !== "waiting") this.show({ code: "signed_out", message: ev.state === "timeout" ? "Sign-in wasn't finished." : "You're signed out of Claude.", fix: { label: "Sign in", action: "claude_login" } });
+    },
+    onClaudeInstall(ev) {
+      if (ev.state === "done") { this.clear("claude_missing"); this.show({ code: "signed_out", message: "Claude Code is ready. Sign in with your Claude account.", fix: { label: "Sign in", action: "claude_login" } }); }
+      else if (ev.state === "failed") this.show({ code: "claude_missing", message: ev.error || "Claude Code didn't install.", fix: { label: "Install it yourself", action: "open_url", arg: "https://docs.claude.com/en/docs/claude-code/setup" } });
+    },
+  };
+
   // ───────────────────────────── Settings view
   const Settings = {
     data: null, changes: {},
@@ -416,8 +469,11 @@
     async load() {
       const raw = await call("settingsGet"); if (raw == null) return;
       this.data = JSON.parse(raw); this.changes = {}; this.render();
+      if (this.focus) { const sec = $("sec-" + this.focus); this.focus = null; if (sec) sec.scrollIntoView({ block: "start" }); }
     },
+    open(section) { this.focus = section; showView("settings"); },
     field(label, path, control, help) {
+      if (help && control.setAttribute) control.setAttribute("title", help);
       return h("div", { class: "field" + (path in this.changes ? " changed" : ""), "data-field": path }, h("label", { text: label }), control, help ? h("div", { class: "help", text: help }) : null);
     },
     select(path, options, label, help, cast) {
@@ -443,7 +499,7 @@
     toggle(path, label, help) {
       const cb = h("input", { type: "checkbox" }); cb.checked = path === "__startup__" ? !!this.cur(path) || (!(path in this.changes) && !!this.data.startup_enabled) : !!this.cur(path);
       cb.addEventListener("change", () => this.set(path, cb.checked));
-      return h("div", { class: "field", "data-field": path }, h("label", { class: "check", style: "font-size:13px; color:var(--color-text)" }, cb, label), help ? h("div", { class: "help", text: help }) : null);
+      return h("div", { class: "field", "data-field": path }, h("label", { class: "check", style: "font-size:13px; color:var(--color-text)", title: help || label }, cb, label), help ? h("div", { class: "help", text: help }) : null);
     },
     async renderPhone() {
       const line = $("ph-line"); if (!line) return;
@@ -475,7 +531,10 @@
           h("div", { class: "help", text: "The code works once and expires in 10 minutes." }))));
     },
     section(title, note, ...kids) {
-      return h("div", { class: "card blueprint section" }, corners(), h("div", { class: "section-title", text: title }), note ? h("div", { class: "section-note", text: note }) : null, ...kids);
+      const key = title.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+      const guide = HELP[key];
+      return h("div", { class: "card blueprint section", id: "sec-" + key }, corners(),
+        h("div", { class: "section-title" }, title, guide ? h("button", { class: "help-btn", title: `Help: ${title}`, "aria-label": `Help: ${title}`, onclick: () => call("openHelp", guide), text: "?" }) : null), note ? h("div", { class: "section-note", text: note }) : null, ...kids);
     },
     render() {
       const o = this.data.options, root = $("settings-root"); root.textContent = "";
@@ -596,6 +655,8 @@
           this.select("gui.startup_view", [["tray", "Tray icon only"], ["orb", "Floating orb"]], "When Windows starts, show"),
           this.field("Orb style", "gui.orb_style", orbSeg))));
 
+      root.appendChild(this.aboutSection());
+
       const logBox = h("pre", { class: "log-panel", id: "log-panel" });
       root.appendChild(this.section("Logging and diagnostics", "Everything the assistant prints goes to logs/jarvis.log in the data folder (rotating, 5 MB × 3).",
         h("div", { class: "toolbar" },
@@ -698,6 +759,39 @@
             (p.kind === "anthropic" ? `, ≈ $${(tokens * (price.cache_read != null ? price.cache_read : price.input * 0.1) / 1e6).toFixed(4)} for later ones with caching` : "") + ", plus the answer.";
       }
       return h("div", { class: "facts" }, h("div", { class: "toolbar" }, tags.map(t => h("span", { class: "tag tag-outline", text: t }))), h("div", { class: "help", text: cost }));
+    },
+    aboutSection() {
+      const info = h("div", { class: "kv", id: "about-kv" });
+      const updateLine = h("div", { class: "help", id: "update-line", text: "" });
+      const wipe = h("input", { type: "checkbox" });
+      const planLine = h("div", { class: "help", id: "uninstall-line", text: "" });
+      const uninstallBtn = h("button", { class: "btn btn-secondary btn-sm", text: t("about.uninstall") });
+      uninstallBtn.addEventListener("click", async () => {
+        if (!uninstallBtn.dataset.armed) {
+          const p = JSON.parse(await call("uninstallPlan", wipe.checked) || "{}");
+          const parts = [p.startup && "the start-up shortcut", (p.shortcuts || []).length && "the shortcuts", p.apps_entry && "the Apps list entry",
+            (p.credentials || []).length && "saved keys and passwords", (p.folders || []).length && `your data (${p.folders.join(", ")})`,
+            p.app_folder && "the app itself"].filter(Boolean);
+          planLine.textContent = (parts.length ? "This removes " + parts.join(", ") + "." : "There is nothing to remove besides closing the app.") +
+            (p.app_folder ? "" : " The app folder stays (it runs from source).") + " Click again to uninstall.";
+          uninstallBtn.dataset.armed = "1"; uninstallBtn.textContent = t("about.uninstall.confirm");
+          return;
+        }
+        const r = JSON.parse(await call("uninstallRun", wipe.checked) || "{}");
+        planLine.textContent = r.ok ? t("about.uninstall.done") : "Couldn't uninstall: " + r.error;
+      });
+      wipe.addEventListener("change", () => { delete uninstallBtn.dataset.armed; uninstallBtn.textContent = t("about.uninstall"); planLine.textContent = ""; });
+      call("aboutInfo").then(raw => {
+        if (!raw) return; const a = JSON.parse(raw);
+        [["Version", a.version], ["Settings and memories", a.data], ["Models", a.models], ["Running", a.installed ? "installed copy" : "from source"]]
+          .forEach(([k, v]) => info.appendChild(h("div", { class: "kv-row" }, h("span", { class: "k", text: k }), h("span", { class: "v", text: v }))));
+        if (!a.updates_url) updateLine.textContent = "Update checks start once the download site is set up.";
+      });
+      return this.section("About", null, info,
+        h("div", { class: "toolbar" }, h("button", { class: "btn btn-secondary btn-sm", onclick: () => { updateLine.textContent = "Checking…"; call("checkUpdates"); }, text: "Check for updates" }), updateLine),
+        this.toggle("updates.auto_check", "Check for updates when the app starts"),
+        h("label", { class: "check", style: "font-size:13px" }, wipe, "When uninstalling, also delete my settings, memories, downloaded models and saved keys"),
+        h("div", { class: "toolbar" }, uninstallBtn), planLine);
     },
     async renderModels() {
       const box = $("models-body"); if (!box) return;

@@ -229,6 +229,25 @@ def claude_status(cli: Optional[str] = None) -> dict:
             "plan": data.get("subscriptionType") or "", "method": data.get("authMethod") or ""}
 
 
+WINDOWS_INSTALLER = "irm https://claude.ai/install.ps1 | iex"     # Anthropic's documented Windows install
+
+
+def install_claude_code(timeout_s: float = 600) -> dict:
+    """"Get Claude ready": run Anthropic's official installer without a window. Claude Code isn't open source,
+    so Jarvis installs it at setup time instead of bundling it. Not yet verified on a clean machine (the
+    Sign in with Claude spike); the wizard also links to the official setup page."""
+    try:
+        res = winproc.run_hidden(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", WINDOWS_INSTALLER],
+                                 timeout=timeout_s, capture_output=True, text=True, encoding="utf-8", errors="replace")
+    except Exception as e:
+        return {"ok": False, "error": f"The installer couldn't run: {e}"}
+    cli = find_claude()
+    if res.returncode != 0 or not cli:
+        tail = (res.stderr or res.stdout or "").strip().splitlines()[-1:] or [f"exit {res.returncode}"]
+        return {"ok": False, "error": f"Claude Code didn't install: {tail[0][:200]}"}
+    return {"ok": True, "cli": cli}
+
+
 def start_claude_login(cli: Optional[str] = None):
     """Start the browser sign-in (`claude auth login --claudeai`) without a window; returns the process.
     The caller polls claude_status() until signed in, and kills the process on cancel."""

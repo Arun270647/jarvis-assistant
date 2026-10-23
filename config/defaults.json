@@ -196,6 +196,13 @@
   "apps": {
     "discover": true
   },
+  "help": {
+    "url": ""
+  },
+  "updates": {
+    "url": "",
+    "auto_check": true
+  },
   "dry_run": false,
   "agent": {
     "max_turns": 120,

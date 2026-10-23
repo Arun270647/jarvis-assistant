@@ -6,6 +6,71 @@ each entry names the phase it belongs to.
 
 ---
 
+## 2026-10-23 · Phase 3, part 2: error banners, uninstall and updates, the user guide, help
+
+### What changed
+
+**Errors with a fix button** (`src/app/errors.py`)
+- The error catalogue: an error's stage and text become one plain sentence and the button that fixes it:
+  microphone blocked by Windows privacy (Open privacy settings), microphone missing, speech recognition not
+  downloaded, voice unavailable, Claude Code missing (Get Claude ready), signed out of Claude (Sign in),
+  Claude's usage limit with the reset time (Use an API key instead), a rejected API key (Change key),
+  offline (Try again), the AI not set up, the daily budget, a failed download (Retry).
+- The window shows them as a bar under the top bar (at most two, each dismissible); fix buttons open the
+  right Settings section, start the Claude sign-in or install, retry a download or restart the assistant.
+  A successful start clears the AI and voice bars.
+- With Claude as the brain, the app checks Claude Code at start-up and shows "You're signed out of Claude" or
+  "Claude needs Claude Code" before the user says anything.
+- Spoken approvals use the name: "Nova wants to delete memory #3. Allow?".
+
+**Claude Code install**: "Install it for me" (wizard) and "Get Claude ready" (banner) run Anthropic's
+documented Windows installer (`irm https://claude.ai/install.ps1 | iex`) without a window, then check for the
+CLI. Not run on this machine (it would reinstall the author's Claude Code); it waits for the clean-machine
+spike, and the official setup page stays one click away.
+
+**Settings › About** (`src/app/uninstall.py`, `src/app/updates.py`, `src/version.py`)
+- Version, the data and models folders, whether this is an installed copy or a source checkout.
+- Check for updates (and on start-up): reads the website's `latest.json` (`updates.url`, empty until the site
+  exists), compares versions (dev < alpha < beta < rc < release), and can download the release zip and check
+  its SHA-256. Swapping the app folder needs the packaged updater (Phase 6); until then a new version is
+  offered as a download link.
+- Uninstall {name}: removes the start-up shortcut, Start Menu and Desktop shortcuts and the Apps-list entry;
+  with "also delete my data", the saved keys and passwords and the data, models and cache folders. The
+  confirmation lists what will go. Open files are deleted by a throwaway script that waits for Jarvis to exit.
+  It never deletes a drive root, the user's home folder or a folder containing the app, and a source checkout
+  never deletes itself.
+
+**User guide** (`docs/GETTING_STARTED.md`): install (source for now), the setup wizard screen by screen with
+screenshots (demo account and paths, `docs/images/`), what gets downloaded, everyday use, permissions, other
+ways to connect, troubleshooting that matches the error bars, update and uninstall, privacy.
+
+**Help, tooltips, keyboard**: a ? button on the wizard and on the Settings sections that have a guide section
+opens the guide there (`help.url` once the website exists; the shipped guide until then); every Settings
+control shows its help text as a tooltip; Enter moves on in the wizard; focus rings on the option cards.
+
+**Chatterbox** (`scripts/setup_chatterbox.py`): builds a separate environment in the models folder with a
+Python 3.10–3.13 (py launcher or `--python`), installs `chatterbox-tts` 0.1.7 (and CUDA torch with
+`--cuda`), checks it imports, and saves its settings; `--use` switches the voice; `--dry-run` shows the steps.
+
+### Verified
+- 366 automated tests pass (19 new): the catalogue's mapping for every error kind, the spoken approval with a
+  name, the installer call, the uninstall plan with and without data, the folder safety rules, the cleanup
+  script (waits for the process, then deletes only the allowed folders), version ordering, the update check and
+  its checksum, every ? anchor and screenshot in the guide, and the Chatterbox setup steps and settings.
+- Live in a scratch data folder: a real start-up error (Ollama chosen, no model) showed "The AI connection
+  isn't set up yet" with **Open Settings › AI**, and the button opened Settings; the About section rendered.
+- Bugs caught by the tests and fixed before they shipped: the uninstall script lost its wait-for-exit line in
+  an edit (it would have deleted folders while Jarvis was still running), and its line endings doubled.
+- Personal-data scan over every changed or new file: 0 hits (the screenshots show only demo details).
+
+### Not done yet (rest of Phase 3)
+- The Sign in with Claude spike on clean Windows and macOS machines (unattended install, fully hidden login).
+- The usability test with three non-technical people.
+- Kokoro (waits for the voice and license decision).
+- The update swap itself, Install for me and the Apps-list entry come with the packaged app (Phase 6).
+
+---
+
 ## 2026-10-23 · Phase 3, part 1: setup wizard, the assistant's name, models and downloads
 
 ### What changed

@@ -197,14 +197,17 @@ class PolicyExecutor:
         purpose = spec.describe(args)
         kind = {"delegate_to_coding_agent": "Coding agent delegation", "system_command": "System command",
                 "forget": "Memory deletion"}.get(spec.name, spec.risk.capitalize() + " action")
+        from src.core.config_store import assistant_name
+        name = assistant_name(cfg)
         if spec.name == "delegate_to_coding_agent":
             project = next((r["v"] for r in rows if r["k"] == "Project"), "the project")
             agent = next((r["v"] for r in rows if r["k"] == "Agent"), "the coding agent")
-            title, spoken = f"Allow {agent} to work in “{project}”?", f"Run {agent} in {project}?"
+            title, spoken = f"Allow {agent} to work in “{project}”?", f"{name} wants to run {agent} in {project}. Allow?"
         elif spec.name == "system_command":
-            title, spoken = f"Allow “{args.get('command')}” on this PC?", f"{str(args.get('command', '')).replace('_', ' ').capitalize()} the PC?"
+            command = str(args.get("command", "")).replace("_", " ")
+            title, spoken = f"Allow “{args.get('command')}” on this PC?", f"{name} wants to {command} the PC. Allow?"
         else:
-            title, spoken = f"Allow: {purpose}?", f"{purpose}?"
+            title, spoken = f"Allow: {purpose}?", f"{name} wants to {purpose[:1].lower() + purpose[1:]}. Allow?"
         req = ApprovalRequest(tool=spec.name, args=args, title=title, kind_label=kind, spoken=spoken,
                               rows=rows, timeout_s=timeout_s, source=ctx.source)
         print(f"[APPROVAL] Asking: {title}")

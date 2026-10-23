@@ -326,7 +326,7 @@ class TypedAndControlTests(unittest.TestCase):
         try:
             h.commands.put("forget that")
             self.assertTrue(wait_for(lambda: h.has("approval_request")))
-            self.assertIn("Delete memory", h.tts.spoken[0])             # asked aloud
+            self.assertIn("wants to delete memory", h.tts.spoken[0])    # asked aloud
             h.commands.put("yes")                                         # typed answer (queue-based UIs)
             self.assertTrue(h.wait_idle_after("timing"))
             self.assertTrue(h.has("approval_resolved", decision="allow"))

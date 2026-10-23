@@ -393,6 +393,20 @@ class Bridge(QObject):
         from PySide6.QtWidgets import QFileDialog
         return QFileDialog.getExistingDirectory(self.app.main, "Choose a folder", str(Path.home())) or ""
 
+    @Slot(str)
+    def openHelp(self, anchor: str) -> None:
+        """A ? button: the matching section of the user guide (the website's copy once help.url is set, until then
+        the guide that ships in docs/)."""
+        url = (config_store.load_config().get("help", {}) or {}).get("url", "")
+        if url.startswith(("https://", "http://")):
+            from PySide6.QtCore import QUrl
+            from PySide6.QtGui import QDesktopServices
+            QDesktopServices.openUrl(QUrl(url + (f"#{anchor}" if anchor else "")))
+            return
+        guide = paths.APP_ROOT / "docs" / "GETTING_STARTED.md"
+        if guide.exists():
+            os.startfile(str(guide))
+
     @Slot()
     def openMicPrivacy(self) -> None:
         os.startfile("ms-settings:privacy-microphone")
@@ -441,6 +455,15 @@ class Bridge(QObject):
                 if proc.poll() is None:
                     proc.kill()
         threading.Thread(target=run, name="claude-login", daemon=True).start()
+
+    @Slot()
+    def claudeInstall(self) -> None:
+        def run():
+            from src.app import setup
+            self.app.hub.emit_event({"type": "claude_install", "state": "running"})
+            result = setup.install_claude_code()
+            self.app.hub.emit_event(dict(result, type="claude_install", state="done" if result["ok"] else "failed"))
+        threading.Thread(target=run, name="claude-install", daemon=True).start()
 
     @Slot()
     def claudeLoginCancel(self) -> None:
@@ -513,6 +536,42 @@ class Bridge(QObject):
             return _dumps({"ok": True, "freed": models.delete(option)})
         except (KeyError, OSError) as e:
             return _dumps({"ok": False, "error": str(e)})
+
+    # ------------------------------------------------------------ about, updates, uninstall
+
+    @Slot(result=str)
+    def aboutInfo(self) -> str:
+        from src.app import uninstall, updates
+        from src.version import __version__
+        cfg = config_store.load_config()
+        return _dumps({"version": __version__, "data": str(paths.home()), "models": str(paths.models_dir()),
+                       "installed": uninstall.installed_copy(), "updates_url": bool(cfg.get("updates", {}).get("url")),
+                       "updater": updates.updater_available()})
+
+    @Slot()
+    def checkUpdates(self) -> None:
+        def run():
+            from src.app import updates
+            result = updates.check(config_store.load_config().get("updates", {}).get("url", ""))
+            self.app.hub.emit_event(dict(result, type="update_check"))
+        threading.Thread(target=run, name="update-check", daemon=True).start()
+
+    @Slot(bool, result=str)
+    def uninstallPlan(self, delete_data: bool) -> str:
+        from src.app import uninstall
+        return _dumps(uninstall.plan(delete_data))
+
+    @Slot(bool, result=str)
+    def uninstallRun(self, delete_data: bool) -> str:
+        """Settings › About › Uninstall: remove, then quit (folders go once Jarvis has exited)."""
+        from src.app import uninstall
+        try:
+            result = uninstall.run(uninstall.plan(delete_data))
+        except Exception as e:
+            return _dumps({"ok": False, "error": str(e)})
+        from PySide6.QtCore import QTimer
+        QTimer.singleShot(1500, self.app.quit)
+        return _dumps(result)
 
     @Slot()
     def setupStartAssistant(self) -> None:

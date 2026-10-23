@@ -32,6 +32,9 @@
     "settings.startup": "Start {name} when I sign in to Windows",
     "settings.close_to_tray": "Closing the window keeps {name} running (orb + tray)",
     "settings.budget.help": "API providers. When today's estimated cost reaches it, {name} pauses until tomorrow.",
+    "about.uninstall": "Uninstall {name}",
+    "about.uninstall.confirm": "Click again to uninstall {name}",
+    "about.uninstall.done": "Uninstalled. {name} closes now; what's left is removed once it has closed.",
     "standalone": `This page is the ${PRODUCT} desktop UI.<br>Start it with <b>pythonw jarvis_gui.pyw</b>.`,
   };
   let name = PRODUCT;

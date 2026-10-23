@@ -242,6 +242,38 @@ class JarvisQtApp:
         threading.Thread(target=self.restart_phone_server, name="phone-start", daemon=True).start()
         if cfg.get("autostart_pipeline", True) and not self.setup_needed:
             QTimer.singleShot(400, self.controller.start)
+        if not self.setup_needed:
+            threading.Thread(target=self._check_claude, name="claude-check", daemon=True).start()
+        updates_cfg = full_cfg.get("updates", {}) or {}
+        if updates_cfg.get("auto_check", True) and updates_cfg.get("url"):
+            threading.Thread(target=self._check_updates, args=(updates_cfg["url"],), name="update-check", daemon=True).start()
+
+    def _check_updates(self, url: str) -> None:
+        """Once per start (the app is restarted at least daily for most people): offer a newer version."""
+        from src.app import updates
+        result = updates.check(url)
+        if result.get("available"):
+            self.hub.emit_event({"type": "banner", "code": "update", "message": f"Version {result['version']} is available.",
+                                 "fix": {"label": "Get it", "action": "open_url", "arg": result["download"]["url"]}})
+
+    def _check_claude(self) -> None:
+        """With Claude as the brain: say at once when Claude Code is missing or signed out (a banner)."""
+        from src.agent.providers import role
+        from src.app import errors, setup
+        try:
+            if role(config_store.load_config(), "main")[2]["kind"] != "claude_code":
+                return
+        except Exception:
+            return
+        status = setup.claude_status()
+        if not status.get("installed"):
+            info = errors.entry("claude_missing", "Claude needs Claude Code, Anthropic's app, which isn't installed.",
+                                "Get Claude ready", "claude_install")
+        elif not status.get("signed_in") and not status.get("error"):
+            info = errors.entry("signed_out", "You're signed out of Claude.", "Sign in", "claude_login")
+        else:
+            return
+        self.hub.emit_event(dict(info, type="banner"))
 
     # ------------------------------------------------------------ phone app server
 
@@ -268,6 +300,11 @@ class JarvisQtApp:
     def _on_controller_event(self, ev: dict) -> None:
         # Pipeline thread -> Qt signal (queued to the UI thread).
         # Widgets are only touched from _poll_ui on the UI thread.
+        if ev.get("type") == "error":
+            from src.app.errors import explain
+            info = explain(str(ev.get("stage", "")), str(ev.get("detail", "")), self.name)
+            if info:
+                ev = dict(ev, **info)           # the window shows a banner with the fix button
         self.hub.emit_event(ev)
         t = ev.get("type")
         if t in ("phase", "mute", "stopped"):

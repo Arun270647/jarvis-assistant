@@ -29,8 +29,17 @@
     new JarvisOrb($("setup-orb"), () => ({ phase: W.orbPhase, style: "hud", level: W.level, approvalFrac: 1 }));
   }
 
+  function onKey(e) {
+    if (!W.active || e.key !== "Enter" || e.shiftKey || e.ctrlKey || e.altKey) return;
+    const el = document.activeElement;
+    if (el && (el.tagName === "BUTTON" || el.tagName === "SELECT" || el.tagName === "TEXTAREA" || el.tagName === "A" || el.list)) return;
+    const btn = document.querySelector("#setup-body .setup-actions .btn-primary:not([disabled])");
+    if (btn) { e.preventDefault(); btn.click(); }
+  }
+
   async function open() {
     mount();
+    document.addEventListener("keydown", onKey);
     W.active = true;
     document.body.classList.add("in-setup");
     $("setup").classList.add("preloading");
@@ -87,7 +96,8 @@
   function page(title, lead, body, actions) {
     const box = $("setup-body"); box.textContent = "";
     box.appendChild(h("div", { class: "setup-card card blueprint" }, A.corners(),
-      h("h1", { class: "setup-title", text: title }),
+      h("div", { class: "setup-head" }, h("h1", { class: "setup-title", text: title }),
+        h("button", { class: "help-btn", title: "Help with setup", "aria-label": "Help with setup", onclick: () => call("openHelp", "2-set-up-the-setup-wizard"), text: "?" })),
       lead ? h("p", { class: "setup-lead", text: lead }) : null,
       h("div", { class: "setup-content" }, body),
       h("div", { class: "setup-actions" },
@@ -126,7 +136,6 @@
       hint.className = "setup-note" + (r.error || r.warning ? " warn" : "");
     };
     inp.addEventListener("input", check);
-    inp.addEventListener("keydown", e => { if (e.key === "Enter") cont.click(); });
     page("Name your AI", "This is what you'll call your assistant. It will answer to this name and use it to introduce itself.",
       [h("div", { class: "toolbar" }, inp, secondary("▶ Hear it", () => call("hearName", inp.value.trim() || T.name))),
        h("div", { class: "chips" }, h("span", { class: "chips-label", text: "Ideas:" }),
@@ -217,8 +226,11 @@
     } else if (W.claude == null) {
       body.push(note("Checking Claude…"));
     } else if (!c.installed) {
-      body.push(note("Claude needs Claude Code, Anthropic's official app, on this computer. Install it, then come back here."),
-        h("div", { class: "toolbar" }, secondary("Get Claude Code", () => call("openUrl", "https://docs.claude.com/en/docs/claude-code/setup")),
+      body.push(note(W.installing ? "Getting Claude ready… (about a minute)" : W.installError ||
+          "Claude needs Claude Code, Anthropic's official app, on this computer."),
+        h("div", { class: "toolbar" },
+          W.installing ? null : h("button", { class: "btn btn-primary", onclick: () => { W.installing = true; W.installError = null; W.orbPhase = "thinking"; render(); call("claudeInstall"); }, text: "Install it for me" }),
+          secondary("Install it yourself", () => call("openUrl", "https://docs.claude.com/en/docs/claude-code/setup")),
           link("Check again", () => { W.claude = null; render(); })));
     } else {
       if (login === "timeout") body.push(note("Sign-in wasn't finished.", "warn"));
@@ -388,6 +400,10 @@
       case "settings_test": W.orbPhase = "idle"; W.provider = ev.ok ? "ok" : "failed";
         W.providerLine = (ev.ok ? "✓ Works: " : "✗ ") + ev.detail; if (W.screen === "connect") render(); break;
       case "ai_models": if (W.onModels && ev.ok) W.onModels(ev.models); break;
+      case "claude_install": if (ev.state === "running") break;
+        W.installing = false; W.orbPhase = "idle"; W.installError = ev.ok ? null : ev.error;
+        if (ev.ok) W.claude = null;                          // re-check: now installed, next is signing in
+        if (W.screen === "connect") render(); break;
       case "mic_level": W.level = ev.v; { const m = $("mic-meter"); if (m) m.style.width = Math.round(ev.v * 100) + "%"; } break;
       case "mic_test": onMicTest(ev); break;
       case "phase": W.orbPhase = ev.phase; if (W.screen === "try") { W.tryState = { listening: "Listening…", transcribing: "Listening…", thinking: "Thinking…", executing: "Working…", speaking: "Speaking…", loading: "Starting up…" }[ev.phase] || ""; const s = $("try-state"); if (s) s.textContent = W.tryState; } break;
