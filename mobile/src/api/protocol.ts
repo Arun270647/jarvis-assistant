@@ -22,6 +22,8 @@ export type ApprovalRow = { k: string; v: string; sub?: string };
 export type ApprovalRequest = {
   type: 'approval_request'; id: number; tool: string; title: string; kind_label?: string; spoken?: string;
   rows: ApprovalRow[]; timeout_s: number; deadline?: number; source?: string;
+  voice_ok?: boolean;   // false: a spoken yes on the PC isn't accepted (high risk); a tap here is
+  reason?: string;      // why it asks: setting | rule | always | untrusted
 };
 
 export type Task = {

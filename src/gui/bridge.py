@@ -308,7 +308,8 @@ class Bridge(QObject):
                 config_store.update_config(updates)
             if startup_wanted is not None:
                 startup.set_startup(bool(startup_wanted))
-            restart_needed = any(not k.startswith(("gui.", "tools.permissions", "tools.approval", "phone."))
+            restart_needed = any(not k.startswith(("gui.", "tools.permissions", "tools.approval", "tools.untrusted_asks",
+                                                   "voice_approval.high_risk", "phone."))
                                  for k in updates)
             if any(k in ("phone.enabled", "phone.port", "phone.bind") for k in updates):
                 self._restart_phone()
@@ -723,15 +724,28 @@ class Bridge(QObject):
             opts["whisper_models"].append(current)
         try:
             from src.router.action_router import ActionRouter
-            from src.tools.registry import build_default_registry
-            reg = build_default_registry(ActionRouter(), self.controller.memory, cfg)
-            opts["prompt_tokens"] = self._prompt_tokens(reg)
-            overrides = cfg.get("tools", {}).get("permissions", {})
+            from src.tools import groups
+            from src.tools.extensions import available_extensions
+            from src.tools.registry import ToolRegistry, build_default_registry
+            reg = build_default_registry(ActionRouter(), self.controller.memory, cfg, apply_groups=False)
+            shown = ToolRegistry()                   # what the model sees: tools in groups that are on
             for s in reg.specs():
+                if groups.tool_enabled(s.name, cfg):
+                    shown.register(s)
+            opts["prompt_tokens"] = self._prompt_tokens(shown)
+            overrides = cfg.get("tools", {}).get("permissions", {})
+            on = groups.enabled_groups(cfg)
+            opts["tool_groups"] = [{"id": gid, "title": g["title"], "text": g["text"], "locked": bool(g.get("locked")),
+                                    "on": gid in on} for gid, g in groups.GROUPS.items()]
+            for s in reg.specs():
+                gid = groups.group_of(s.name)
                 opts["tools"].append({"name": s.name, "description": s.description.split(". ")[0].rstrip(".") + ".",
                                       "risk": s.risk, "default": s.permission,
                                       "per_arg": s.needs_confirmation is not None,
+                                      "always": s.always_ask is True, "note": groups.ALWAYS_ASK_NOTES.get(s.name, ""),
+                                      "group": gid or "", "group_title": groups.GROUPS[gid]["title"] if gid else "Extension",
                                       "permission": overrides.get(s.name, s.permission)})
+            opts["extensions"] = available_extensions()
         except Exception as e:
             opts["tools_error"] = str(e)
         return opts

@@ -1,5 +1,5 @@
 {
-  "config_version": 3,
+  "config_version": 4,
   "setup": {
     "complete": false,
     "step": "",
@@ -191,7 +191,8 @@
     "window_ms": 5000,
     "affirmative": ["yes", "yeah", "yep", "yup", "sure", "confirm", "go ahead", "do it", "go", "correct",
                     "affirmative", "proceed"],
-    "negative": ["no", "nope", "nah", "cancel", "stop", "abort", "don't", "negative", "wait"]
+    "negative": ["no", "nope", "nah", "cancel", "stop", "abort", "don't", "negative", "wait"],
+    "high_risk": false
   },
   "apps": {
     "discover": true
@@ -226,6 +227,16 @@
     "approval_timeout_ms": 15000,
     "default_timeout_s": 20,
     "permissions": {},
+    "groups": {
+      "workspace_read": true,
+      "workspace_write": false,
+      "terminals": false,
+      "desktop": false,
+      "system": true,
+      "email": false,
+      "coding_agent": false
+    },
+    "untrusted_asks": true,
     "extensions": [],
     "profile": "auto",
     "custom_list": [],

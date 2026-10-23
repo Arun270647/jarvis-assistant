@@ -285,7 +285,7 @@ class JarvisQtApp:
             old.stop(wait=3.0)
         self.phone_error = None
         if config_store.load_config().get("phone", {}).get("enabled", False):
-            server = PhoneServer(self.controller, on_change=self.emit_phone_status)
+            server = PhoneServer(self.controller, on_change=self.emit_phone_status, on_pair=self._on_phone_paired)
             if server.start():
                 self.phone = server
             else:
@@ -294,6 +294,12 @@ class JarvisQtApp:
 
     def emit_phone_status(self) -> None:
         self.hub.emit_event({"type": "phone_status"})
+
+    def _on_phone_paired(self, device: str) -> None:
+        """Phone server thread: a new phone can now control this PC, so say so even if the window is open."""
+        self._pending_pairing = device
+        self.hub.emit_event({"type": "info", "detail": f"New phone paired: {device}. If that wasn't you, remove it "
+                                                       "in Settings › Phone app."})
 
     # ------------------------------------------------------------ events
 
@@ -333,6 +339,12 @@ class JarvisQtApp:
                 self._announce_ready = False
                 hint = "Click the tray icon or press Ctrl+Shift+J to open it."
                 self.tray.showMessage(f"{self.name} is running", hint, QSystemTrayIcon.Information, 5000)
+        device = getattr(self, "_pending_pairing", None)
+        if device is not None:
+            self._pending_pairing = None
+            self.tray.showMessage(f"A phone can now control {self.name}",
+                                  f"“{device}” was paired. If that wasn't you, remove it in Settings › Phone app.",
+                                  QSystemTrayIcon.Warning, 10000)
         approval = getattr(self, "_pending_approval", None)
         if approval is not None:
             self._pending_approval = None

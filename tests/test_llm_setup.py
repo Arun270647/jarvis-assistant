@@ -159,6 +159,9 @@ class CodingAgentTests(unittest.TestCase):
         router = ActionRouter()
         cfg = config_store.load_config()
         cfg["coding_agent"]["cli"] = "codex"
+        self.assertIsNone(build_default_registry(router, None, cfg).get("delegate_to_coding_agent"),
+                          "its group is off on a new install")
+        cfg["tools"]["groups"]["coding_agent"] = True
         reg = build_default_registry(router, None, cfg)
         spec = reg.get("delegate_to_coding_agent")
         self.assertIn("Codex", spec.description)

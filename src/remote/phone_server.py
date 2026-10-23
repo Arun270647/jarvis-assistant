@@ -8,6 +8,9 @@ the address; on top of that every connection must authenticate with a device tok
   (10 minutes, 5 tries). The app sends {type: pair, code, device_name} and gets a
   device id + token; only the token's SHA-256 is stored (memory table phone_devices).
 - Every later connection starts with {type: hello, device_id, token} within 5 s.
+- An address with 5 failed hellos or pairings within a minute is locked out for 5 minutes,
+  and every new pairing shows a desktop notification (on_pair), so a phone added
+  behind the user's back doesn't go unnoticed.
 - Commands and voice recordings become controller.send_remote(source="phone", ref=...):
   the pipeline runs them like typed commands, keeps the PC silent and tags the reply
   events with the ref. Voice is transcribed by the pipeline's own Whisper.
@@ -41,6 +44,9 @@ PROTOCOL_VERSION = 1
 PAIR_TTL_S = 600
 PAIR_MAX_TRIES = 5
 HELLO_TIMEOUT_S = 5.0
+AUTH_FAILS_MAX = 5              # failed hellos / pairings from one address within AUTH_FAILS_WINDOW_S ...
+AUTH_FAILS_WINDOW_S = 60.0
+AUTH_LOCKOUT_S = 300.0          # ... lock it out for this long
 CLOSE_UNAUTHORIZED = 4401
 CLOSE_REVOKED = 4403
 SCREENSHOT_MAX_SIDE = 1920
@@ -174,8 +180,12 @@ class PhoneServer:
                  load_config: Callable[[], dict] = config_store.load_config,
                  on_change: Optional[Callable[[], None]] = None,
                  screenshot: Callable[[], bytes] = screenshot_jpeg,
-                 resolve_host: Callable[[str], tuple] = resolve_bind_host):
+                 resolve_host: Callable[[str], tuple] = resolve_bind_host,
+                 on_pair: Optional[Callable[[str], None]] = None):
         self.controller = controller
+        self.on_pair = on_pair or (lambda name: None)
+        self.auth_fails: dict = {}           # remote address -> times of recent failed hellos / pairings
+        self.locked_until: dict = {}         # remote address -> time its lockout ends
         self.memory = memory if memory is not None else getattr(controller, "memory", None)
         self._load_config = load_config
         self.on_change = on_change or (lambda: None)
@@ -346,7 +356,7 @@ class PhoneServer:
         from aiohttp import WSMsgType, web
         ws = web.WebSocketResponse(heartbeat=20, max_msg_size=self._max_bytes() * 2)
         await ws.prepare(request)
-        conn = await self._authenticate(ws)
+        conn = await self._authenticate(ws, request.remote or "")
         if conn is None:
             return ws
         self.conns.add(conn)
@@ -386,8 +396,28 @@ class PhoneServer:
         except (ConnectionError, RuntimeError):
             pass
 
-    async def _authenticate(self, ws) -> Optional[_Conn]:
+    def _locked_out(self, remote: str) -> bool:
+        until = self.locked_until.get(remote, 0)
+        if until and time.time() >= until:
+            self.locked_until.pop(remote, None)
+            return False
+        return bool(until)
+
+    def _auth_failed(self, remote: str) -> None:
+        now = time.time()
+        recent = [t for t in self.auth_fails.get(remote, []) if now - t < AUTH_FAILS_WINDOW_S] + [now]
+        self.auth_fails[remote] = recent
+        if len(recent) >= AUTH_FAILS_MAX:
+            self.auth_fails.pop(remote, None)
+            self.locked_until[remote] = now + AUTH_LOCKOUT_S
+            log(f"{remote or 'an address'} locked out for {AUTH_LOCKOUT_S / 60:.0f} minutes after "
+                f"{len(recent)} failed attempts")
+
+    async def _authenticate(self, ws, remote: str = "") -> Optional[_Conn]:
         from aiohttp import WSMsgType
+        if self._locked_out(remote):
+            await ws.close(code=CLOSE_UNAUTHORIZED, message=b"Too many failed attempts; try again later")
+            return None
         try:
             msg = await asyncio.wait_for(ws.receive(), HELLO_TIMEOUT_S)
             data = json.loads(msg.data) if msg.type == WSMsgType.TEXT else {}
@@ -395,18 +425,20 @@ class PhoneServer:
             data = {}
         kind = data.get("type")
         if kind == "pair":
-            return await self._pair(ws, data)
+            return await self._pair(ws, data, remote)
         if kind == "hello" and self.memory is not None:
             dev = await self._db(self.memory.get_phone_device, str(data.get("device_id", "")))
             token = str(data.get("token", ""))
             if dev and token and secrets.compare_digest(token_hash(token), dev["token_sha256"]):
                 await self._db(self.memory.touch_phone_device, dev["id"])
+                self.auth_fails.pop(remote, None)
                 log(f"{dev['name']} connected")
                 return _Conn(ws, dev["id"], dev["name"])
+        self._auth_failed(remote)
         await ws.close(code=CLOSE_UNAUTHORIZED, message=b"Not paired")
         return None
 
-    async def _pair(self, ws, data: dict) -> Optional[_Conn]:
+    async def _pair(self, ws, data: dict, remote: str = "") -> Optional[_Conn]:
         pair = self.pair
         code = str(data.get("code", ""))
         ok = (pair is not None and time.time() <= pair["expires"] and self.memory is not None
@@ -417,6 +449,7 @@ class PhoneServer:
                 if pair["tries"] >= PAIR_MAX_TRIES:
                     self.pair = None
                     log("pairing closed after too many wrong codes")
+            self._auth_failed(remote)            # before answering, so a quick retry already sees it
             await self._send(ws, {"type": "ack", "id": data.get("id"), "ok": False,
                                   "error": "That code is not valid or has expired."})
             await ws.close(code=CLOSE_UNAUTHORIZED, message=b"Pairing failed")
@@ -426,6 +459,10 @@ class PhoneServer:
         device_id, token = uuid.uuid4().hex[:12], secrets.token_urlsafe(32)
         await self._db(self.memory.add_phone_device, device_id, name, token_hash(token))
         log(f"paired {name} ({device_id})")
+        try:
+            self.on_pair(name)
+        except Exception as e:
+            log(f"pairing notification failed: {e}")
         await self._send(ws, {"type": "ack", "id": data.get("id"), "ok": True,
                               "result": {"device_id": device_id, "token": token,
                                          "pc": os.environ.get("COMPUTERNAME", "PC")}})

@@ -465,7 +465,8 @@ def register_workspace_tools(reg, profile: dict, config: dict, memory=None) -> W
     reg.register(ToolSpec(
         name="delete_file", description=f"Delete a file {where} (asks first; a recoverable copy is kept).",
         input_schema={"type": "object", "properties": {"path": path_prop, "project": project_prop}, "required": ["path"]},
-        handler=delete_file, risk="destructive", permission="ask", idempotent=False, requires_task=change_needs_task,
+        handler=delete_file, risk="destructive", permission="ask", always_ask=True, idempotent=False,
+        requires_task=change_needs_task,
         purpose=lambda a: f"Delete {a.get('path')}"))
     reg.register(ToolSpec(
         name="run_command",

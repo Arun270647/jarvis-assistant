@@ -99,12 +99,17 @@ Things to try:
 Open **Settings › Tools and permissions**, or run the setup again (**Settings › General › Run setup again**)
 and pick another card:
 
-- **Everyday**: apps, music and volume, time, web, memory.
-- **Work**: also reads and edits files in folders you added, runs project commands, opens terminals and sends
-  email. Always asks before changes.
-- **Full control**: also clicks and types in other apps for you and takes screenshots.
+- **Everyday**: apps, music and volume, time, web, memory, reading the folders you added, locking the PC.
+- **Work**: also edits files in those folders, runs project commands, opens Command Prompts, sends email and
+  runs coding agents. Asks before risky changes.
+- **Full control**: also looks at, clicks and types in other apps for you and takes screenshots.
 
-Jarvis **always** asks before deleting files, sending email, or shutting down your computer.
+In **Settings › Tools and permissions** you can also switch each group on or off by itself.
+
+Jarvis **always** asks before deleting a file, emailing someone who isn't on your trusted list, shutting down
+or restarting your computer, or typing into a running program. For these, click **Allow** or press **Y**: a
+spoken "yes" isn't enough. After it reads a web page or a screen, it also asks before any change. The details
+are in [What Jarvis can do on your PC, and how to limit it](SECURITY_MODEL.md).
 
 ## 5. Other ways to connect
 

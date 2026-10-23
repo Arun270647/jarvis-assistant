@@ -7,7 +7,8 @@
 - desktop_screenshot returns an image of a window for Claude to look at; desktop_click x/y
   are pixels in the latest screenshot.
 - Input is real mouse and keyboard (SendInput). Jarvis's own windows (its approval dialog),
-  consoles and desktop.blocked_processes are refused, typing is refused in
+  consoles, password managers, desktop.blocked_processes and windows whose title matches
+  desktop.blocked_titles (browser password pages, Credential Manager) are refused, typing is refused in
   desktop.no_typing_processes (Start menu, Explorer's address bar) and Win-key shortcuts are
   not sent, so desktop control cannot get around the approval and command policies.
   (Command Prompts Jarvis opens are typed into through terminal_tools, under the command policy.)
@@ -27,7 +28,16 @@ kernel32 = ctypes.windll.kernel32
 
 BLOCKED_PROCESSES = ["cmd.exe", "powershell.exe", "pwsh.exe", "windowsterminal.exe", "conhost.exe",
                      "openconsole.exe", "wsl.exe", "bash.exe", "regedit.exe", "mmc.exe", "taskmgr.exe",
-                     "consent.exe", "credentialuibroker.exe", "lockapp.exe"]
+                     "consent.exe", "credentialuibroker.exe", "lockapp.exe",
+                     # password managers
+                     "1password.exe", "bitwarden.exe", "keepass.exe", "keepassxc.exe", "lastpass.exe",
+                     "dashlane.exe", "nordpass.exe", "keeperpasswordmanager.exe", "roboform.exe", "enpass.exe",
+                     "proton pass.exe", "protonpass.exe", "pwsafe.exe"]
+# Window titles (lower case, part of the title) that are refused whatever the app: browsers' saved-password
+# and payment pages, Windows Credential Manager.
+BLOCKED_TITLES = ["password manager", "about:logins", "logins & passwords", "logins and passwords",
+                  "settings - passwords", "settings - autofill", "payment methods", "microsoft wallet",
+                  "credential manager"]
 CONSOLE_PROCESSES = {"cmd.exe", "powershell.exe", "pwsh.exe", "windowsterminal.exe", "conhost.exe", "openconsole.exe"}
 NO_TYPING_PROCESSES = ["explorer.exe", "searchhost.exe", "startmenuexperiencehost.exe",
                        "shellexperiencehost.exe", "searchapp.exe"]
@@ -260,6 +270,7 @@ class Desktop:
         cfg = config.get("desktop", {}) or {}
         self.config = config
         self.blocked = {p.lower() for p in cfg.get("blocked_processes", BLOCKED_PROCESSES)}
+        self.blocked_titles = [t.lower() for t in cfg.get("blocked_titles", BLOCKED_TITLES)]
         self.no_typing = {p.lower() for p in cfg.get("no_typing_processes", NO_TYPING_PROCESSES)}
         self.max_side = int(cfg.get("screenshot_max_side", 1400))
         self.own_pid = os.getpid()
@@ -278,6 +289,11 @@ class Desktop:
             hint = (" For a Command Prompt, use open_terminal, then terminal_type / terminal_read."
                     if proc in CONSOLE_PROCESSES else "")
             return f"Desktop control is not allowed in {proc} (desktop.blocked_processes).{hint}"
+        title = window_title(hwnd).lower()
+        hit = next((t for t in self.blocked_titles if t in title), None)
+        if hit:
+            return (f"Desktop control is not allowed in windows about saved passwords or payments (title contains "
+                    f"“{hit}”, desktop.blocked_titles).")
         if typing and proc in self.no_typing:
             return f"Typing into {proc} is not allowed (desktop.no_typing_processes). Use the dedicated tools instead."
         return ""
@@ -461,8 +477,9 @@ def register_desktop_tools(reg, config: dict) -> Desktop:
         focus_window(w["hwnd"])
         time.sleep(0.2)
         img = d.screenshot(w["hwnd"])
-        return ToolResult(ok=True, content=f"Screenshot of {w['title']} ({w['process']}), {img['width']}x{img['height']} "
-                                           "pixels. desktop_click x/y use these pixels.",
+        return ToolResult(ok=True, untrusted=True,
+                          content=f"Screenshot of {w['title']} ({w['process']}), {img['width']}x{img['height']} "
+                                  "pixels. desktop_click x/y use these pixels.",
                           data={"images": [img], "window": w["title"]})
 
     def target_point(a) -> tuple:

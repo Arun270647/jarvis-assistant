@@ -242,6 +242,10 @@ def register_terminal_tools(reg, ws, config: dict) -> None:
         checked[(ev.get("num"), a.get("text"))] = ev["verdict"]
         return ev["verdict"] == "ask"
 
+    def into_program(a):
+        """Typing into a running program (not at the prompt) always asks, with a click or key."""
+        return (evaluate(a).get("screen") or {}).get("mode") == "program"
+
     def terminal_type(a, c):
         ev = evaluate(a)
         seen = checked.pop((ev.get("num"), a["text"]), None)
@@ -342,7 +346,7 @@ def register_terminal_tools(reg, ws, config: dict) -> None:
                        "description": "Wait this long for the prompt to come back (default 3)"}},
             "required": ["text"]},
         handler=terminal_type, risk="sensitive", timeout_s=150, cancellable=True,
-        needs_confirmation=needs_ask_text, approval_rows=type_rows,
+        needs_confirmation=needs_ask_text, always_ask=into_program, approval_rows=type_rows,
         requires_task=False if ws.full_access else needs_task,
         purpose=lambda a: f"Type “{a.get('text', '')[:60]}” in Command Prompt"))
     reg.register(ToolSpec(

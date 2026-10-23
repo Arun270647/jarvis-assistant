@@ -130,7 +130,7 @@
         h("span", { class: "countdown" }, ring, h("span", { id: "cd-text", text: (left / 1000).toFixed(1) + " s" }))),
       h("div", { class: "dialog-title", id: "ap-title", text: a.title }),
       h("div", { class: "kv" }, (a.rows || []).map(r => h("div", { class: "kv-row" }, h("span", { class: "k", text: r.k }), h("span", { class: "v" }, String(r.v), " ", h("span", { class: "sub", text: r.sub || "" }))))),
-      h("div", { class: "dialog-body", text: (a.source === "phone" ? "Asked in the phone app, where you can answer too. You can also press Y or N or choose below." : t("approval.spoken", { spoken: a.spoken })) + ` Nothing runs until you allow it; the request is denied automatically when the timer runs out.` }),
+      h("div", { class: "dialog-body", text: (a.source === "phone" ? "Asked in the phone app, where you can answer too. You can also press Y or N or choose below." : t(a.voice_ok === false ? "approval.spoken_click" : "approval.spoken", { spoken: a.spoken })) + ` Nothing runs until you allow it; the request is denied automatically when the timer runs out.` }),
       h("div", { class: "dialog-actions" },
         h("button", { type: "button", class: "btn btn-secondary blueprint", id: "ap-deny", onclick: () => answer(false) }, corners(), "Deny · N"),
         h("button", { type: "button", class: "btn btn-primary blueprint", onclick: () => answer(true) }, corners(), "Allow · Y")));
@@ -574,25 +574,67 @@
       this.renderModels();
 
       const perms = this.get("tools.permissions") || {};
+      const groupOn = id => {
+        const g = (o.tool_groups || []).find(x => x.id === id);
+        if (!g || g.locked) return true;
+        const cur = this.cur("tools.groups") || {};
+        return id in cur ? !!cur[id] : g.on;
+      };
       const permRows = (o.tools || []).map(t => {
-        const sel = h("select", { class: "input", style: "min-width:110px" }, ["allow", "ask", "deny"].map(p => h("option", { value: p, selected: (perms[t.name] || t.default) === p, text: p + (p === t.default ? " (default)" : "") })));
+        const choices = t.always ? ["ask", "deny"] : ["allow", "ask", "deny"];   // never "always allow" for these
+        const now = choices.includes(perms[t.name] || t.default) ? (perms[t.name] || t.default) : "ask";
+        const sel = h("select", { class: "input", style: "min-width:110px", "aria-label": `Permission for ${t.name}` }, choices.map(p => h("option", { value: p, selected: now === p, text: p + (p === t.default ? " (default)" : "") })));
         sel.addEventListener("change", () => {
           const next = Object.assign({}, this.changes["tools.permissions"] || perms);
           if (sel.value === t.default) delete next[t.name]; else next[t.name] = sel.value;
           this.set("tools.permissions", next);
         });
-        return h("tr", {}, h("td", {}, h("span", { class: "tag tag-outline", style: "font-family:var(--font-heading); font-weight:600", text: t.name })),
-          h("td", { class: "wrap muted", text: t.description + (t.per_arg ? " Commands marked confirm in your profile always ask." : "") }),
+        return h("tr", { "data-group": t.group }, h("td", {}, h("span", { class: "tag tag-outline", style: "font-family:var(--font-heading); font-weight:600", text: t.name })),
+          h("td", { class: "wrap muted", text: t.description + (t.note ? " " + t.note : t.per_arg ? " Asks for some uses; the dialog says why." : "") }),
+          h("td", { class: "muted", text: t.group_title }),
           h("td", {}, h("span", { class: "tag " + (t.risk === "safe" ? "tag-neutral" : "tag-accent"), text: t.risk })), h("td", { "data-field": "tools.permissions" }, sel));
       });
-      root.appendChild(this.section("Tools and permissions", "Every action goes through these checks. “ask” shows the permission dialog and asks aloud; “deny” blocks the tool entirely.",
+      const syncRows = () => permRows.forEach(r => {
+        const off = !!r.dataset.group && !groupOn(r.dataset.group);
+        r.style.opacity = off ? "0.45" : ""; r.title = off ? "Its group is off: the assistant doesn't have this tool." : "";
+      });
+      const groupList = h("div", { class: "grid-2" }, (o.tool_groups || []).map(g => {
+        const cb = h("input", { type: "checkbox", disabled: g.locked }); cb.checked = groupOn(g.id);
+        cb.addEventListener("change", () => {
+          this.set("tools.groups", Object.assign({}, this.get("tools.groups") || {}, this.changes["tools.groups"] || {}, { [g.id]: cb.checked }));
+          syncRows();
+        });
+        return h("div", { class: "field", "data-field": "tools.groups" },
+          h("label", { class: "check", style: "font-size:13px; color:var(--color-text)" }, cb, g.title + (g.locked ? " (always on)" : "")),
+          h("div", { class: "help", text: g.text }));
+      }));
+      syncRows();
+      root.appendChild(this.section("Tools and permissions", "What the assistant may do at all, then how each tool is checked. A group that is off isn't even shown to the AI. “ask” shows the permission dialog and asks aloud; “deny” blocks the tool.",
+        h("div", { class: "section-title", style: "font-size:12px; margin-top:4px", text: "What it may do" }),
+        groupList,
+        h("div", { class: "grid-2" },
+          this.toggle("tools.untrusted_asks", t("settings.untrusted"), t("settings.untrusted.help")),
+          this.toggle("voice_approval.high_risk", "Accept a spoken yes for high-risk actions", t("settings.voice_high_risk.help"))),
         h("div", { class: "grid-2" },
           this.toggle("dry_run", "Dry run (log actions instead of executing them)"),
           this.number("tools.approval_timeout_ms", "Approval timer (ms)", "Unanswered requests are denied."),
           this.select("coding_agent.cli", [["claude", "Claude Code (claude -p)"], ["codex", "Codex (codex exec)"], ["aider", "Aider (aider --message)"], ["custom", "Custom command (coding_agent.custom_command)"], ["off", "Off"]], "Coding agent for hidden runs", "What delegate_to_coding_agent runs in a project folder. Visible terminals work with any of them."),
           this.toggle("coding_agent.require_confirmation", "Ask before delegating to the coding agent"),
           this.number("coding_agent.timeout_seconds", "Coding agent time limit (s)")),
-        o.tools_error ? h("div", { class: "help", text: o.tools_error }) : h("table", { class: "table" }, h("thead", {}, h("tr", {}, h("th", { text: "Tool" }), h("th", { text: "What it does" }), h("th", { text: "Risk" }), h("th", { text: "Permission" }))), h("tbody", {}, permRows))));
+        o.tools_error ? h("div", { class: "help", text: o.tools_error }) : h("table", { class: "table" }, h("thead", {}, h("tr", {}, h("th", { text: "Tool" }), h("th", { text: "What it does" }), h("th", { text: "Group" }), h("th", { text: "Risk" }), h("th", { text: "Permission" }))), h("tbody", {}, permRows))));
+
+      const exts = o.extensions || [];
+      const extOn = () => this.cur("tools.extensions") || [];
+      root.appendChild(this.section("Extensions", t("settings.extensions"),
+        h("div", { class: "banner", style: "position:static; margin:0 0 10px" }, h("span", { class: "msg", text: "Extensions run with your full Windows user rights and nobody has reviewed them. Turn one on only if you wrote it or trust whoever did." })),
+        exts.length ? h("div", { class: "grid-2" }, exts.map(name => {
+          const cb = h("input", { type: "checkbox" }); cb.checked = extOn().includes(name);
+          cb.addEventListener("change", () => {
+            const next = extOn().filter(n => n !== name); if (cb.checked) next.push(name);
+            this.set("tools.extensions", next);
+          });
+          return h("div", { class: "field", "data-field": "tools.extensions" }, h("label", { class: "check", style: "font-size:13px; color:var(--color-text)" }, cb, name), h("div", { class: "help", text: `tools_ext/${name}.py` }));
+        })) : h("div", { class: "help", text: "No extensions in the tools_ext folder." })));
 
       const orbSeg = h("div", { class: "seg", role: "radiogroup", "aria-label": "Orb style" }, ["hud", "reticle", "waveform", "particles"].map(sty => {
         const r = h("input", { type: "radio", name: "orb-style", value: sty }); r.checked = (this.get("gui.orb_style") || "hud") === sty;
@@ -608,7 +650,7 @@
       };
       root.appendChild(this.section("Email", t("settings.email"),
         h("div", { class: "grid-2" },
-          this.toggle("email.enabled", t("settings.email.toggle")),
+          this.toggle("email.enabled", t("settings.email.toggle"), (o.tool_groups || []).some(g => g.id === "email" && !g.on) ? "The Email group under Tools and permissions is off, so sending is off too until you switch it on there." : null),
           this.select("email.preset", [["zoho-in", "Zoho Mail (India, smtp.zoho.in)"], ["zoho", "Zoho Mail (smtp.zoho.com)"], ["gmail", "Gmail (app password)"], ["outlook", "Outlook / Microsoft 365"], ["custom", "Custom server"]], "Provider"),
           this.text("email.smtp_host", "SMTP server"),
           this.number("email.smtp_port", "Port"),

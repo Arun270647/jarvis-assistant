@@ -21,6 +21,8 @@ class ApprovalRequest:
     rows: list
     timeout_s: float
     source: str = "text"
+    voice_ok: bool = True           # False: a spoken yes is refused (high risk; click, Y key or typed yes)
+    reason: str = ""                # why it asks (policy.py): setting | rule | always | untrusted
     id: int = field(default_factory=lambda: next(_ids))
     deadline: float = 0.0
     decision: Optional[str] = None      # allow | deny | timeout | cancelled
@@ -30,7 +32,8 @@ class ApprovalRequest:
     def to_event(self) -> dict:
         return {"id": self.id, "tool": self.tool, "args": self.args, "title": self.title,
                 "kind_label": self.kind_label, "spoken": self.spoken, "rows": self.rows,
-                "timeout_s": self.timeout_s, "deadline": self.deadline, "source": self.source}
+                "timeout_s": self.timeout_s, "deadline": self.deadline, "source": self.source,
+                "voice_ok": self.voice_ok, "reason": self.reason}
 
     @property
     def resolved(self) -> bool:
@@ -83,11 +86,14 @@ class ApprovalBroker:
                     "decision": req.decision, "via": req.via})
         return req.decision
 
-    def resolve(self, request_id: Optional[int], allowed: bool, via: str = "ui") -> bool:
-        """Resolve the pending request (request_id None = whichever is pending)."""
+    def resolve(self, request_id: Optional[int], allowed: bool, via: str = "ui", spoken: bool = False) -> bool:
+        """Resolve the pending request (request_id None = whichever is pending). A spoken yes does not resolve
+        a request that needs a click or key (voice_ok False); a spoken no always does."""
         with self._lock:
             req = self._pending
         if req is None or (request_id is not None and req.id != request_id):
+            return False
+        if spoken and allowed and not req.voice_ok:
             return False
         return self._resolve(req, "allow" if allowed else "deny", via)
 

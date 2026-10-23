@@ -106,6 +106,10 @@ class Phone:
 
     async def recv(self, timeout=5):
         msg = await asyncio.wait_for(self.ws.receive(), timeout)
+        if msg.type == aiohttp.WSMsgType.CLOSE:
+            # The code the server sent. ws.close_code can turn into 1006 afterwards: aiohttp's automatic close
+            # reply fails when the server has already dropped the connection.
+            return {"type": "_closed", "code": msg.data}
         if msg.type != aiohttp.WSMsgType.TEXT:
             return {"type": "_closed", "code": self.ws.close_code}
         data = json.loads(msg.data)
@@ -138,8 +142,10 @@ class PhoneServerTests(unittest.TestCase):
         self.memory = MemoryStore(temp_db())
         self.controller = StubController(self.memory)
         self.changes = []
+        self.paired = []
         self.server = PhoneServer(self.controller, load_config=lambda: self.cfg,
-                                  on_change=lambda: self.changes.append(1), screenshot=lambda: b"\xff\xd8JPEG")
+                                  on_change=lambda: self.changes.append(1), screenshot=lambda: b"\xff\xd8JPEG",
+                                  on_pair=self.paired.append)
         self.assertTrue(self.server.start(host="127.0.0.1", port=0), self.server.error)
         self.url = f"http://127.0.0.1:{self.server.port}/ws"
 
@@ -201,6 +207,7 @@ class PhoneServerTests(unittest.TestCase):
         self.assertEqual(welcome["status"]["model"], "fake-model")
         self.assertEqual(closed["code"], CLOSE_UNAUTHORIZED)
         self.assertIsNone(self.server.pair)                     # the code works once
+        self.assertEqual(self.paired, ["Pixel 8"], "a new pairing is announced on the desktop")
 
     def test_wrong_and_expired_codes_fail_and_tries_are_limited(self):
         async def attempt(code):
@@ -213,11 +220,33 @@ class PhoneServerTests(unittest.TestCase):
         for _ in range(phone_server.PAIR_MAX_TRIES):
             self.assertFalse(self.run_async(attempt(wrong))["ok"])
         self.assertIsNone(self.server.pair)
+        self.assertIn("127.0.0.1", self.server.locked_until, "and the address is locked out for a while")
+        self.server.locked_until.clear()
         self.assertFalse(self.run_async(attempt(info["code"]))["ok"])          # closed after too many tries
         info = self.server.new_pair_code()
         self.server.pair["expires"] = time.time() - 1
         self.assertFalse(self.run_async(attempt(info["code"]))["ok"])
         self.assertEqual(self.memory.list_phone_devices(), [])
+
+    def test_an_address_with_many_failed_hellos_is_locked_out(self):
+        async def hello(token):
+            phone = await Phone(self.url).open()
+            await phone.send(type="hello", device_id=creds["device_id"], token=token)
+            m = await phone.recv()
+            await phone.close()
+            return m
+
+        async def setup():
+            phone, c = await self.paired_phone()
+            await phone.close()
+            return c
+        creds = self.run_async(setup())
+        for _ in range(phone_server.AUTH_FAILS_MAX):
+            self.assertEqual(self.run_async(hello("wrong"))["code"], CLOSE_UNAUTHORIZED)
+        self.assertEqual(self.run_async(hello(creds["token"]))["code"], CLOSE_UNAUTHORIZED,
+                         "even the right token is refused while locked out")
+        self.server.locked_until["127.0.0.1"] = time.time() - 1             # the lockout is over
+        self.assertEqual(self.run_async(hello(creds["token"]))["type"], "welcome")
 
     def test_pair_code_comes_with_a_qr_code(self):
         info = self.server.new_pair_code()

@@ -114,18 +114,58 @@ class ConfigStoreTests(unittest.TestCase):
               "tools": {"permissions": {"delegate_to_claude": "allow", "open_app": "ask"}}}
         self.path.write_text(json.dumps(v1), encoding="utf-8")
         config_store.migrate_user_config(self.path)
+        all_on = {"workspace_read": True, "workspace_write": True, "terminals": True, "desktop": True,
+                  "system": True, "email": True, "coding_agent": True}
         self.assertEqual(self.read(), {
-            "config_version": 3,
+            "config_version": 4,
             "setup": {"complete": True},                                # set up before the wizard existed
             "llm": {"providers": {"claude_code": {"model": "claude-opus-5-5", "effort": "high", "timeout_seconds": 45,
                                                   "utility_model": "claude-haiku-4-5"}}},
             "coding_agent": {"default_project": "shop", "require_confirmation": False, "timeout_seconds": 600},
             "voice_approval": {"affirmative": ["ja"], "window_ms": 3000},
-            "tools": {"permissions": {"delegate_to_coding_agent": "allow", "open_app": "ask"}}})
+            "tools": {"permissions": {"delegate_to_coding_agent": "allow", "open_app": "ask"},
+                      "groups": all_on}})                               # it could do everything: still can
         cfg = config_store.load_config(self.path)
         self.assertEqual(cfg["llm"]["main"]["provider"], "claude_code")
         self.assertEqual(cfg["llm"]["providers"]["claude_code"]["model"], "claude-opus-5-5")
         self.assertEqual(cfg["coding_agent"]["cli"], "claude")
+
+    def test_version_3_files_get_tool_groups_that_keep_what_they_could_do(self):
+        from src.tools.groups import enabled_groups
+        old_deny = {t: "deny" for t in ("desktop_click", "run_command", "send_email")}
+        cases = [
+            ({"preset": "everyday", "permissions": dict(old_deny, open_app="ask")},
+             {"basic", "workspace_read", "system"}, {"open_app": "ask"}),
+            ({"preset": "work", "permissions": dict(old_deny)},
+             {"basic", "workspace_read", "system", "workspace_write", "terminals", "email", "coding_agent"},
+             {"run_command": "deny", "send_email": "deny"}),        # not the wizard's: the user's own denies
+            ({"permissions": {"run_command": "deny"}}, None, {"run_command": "deny"}),
+        ]
+        for tools, groups, perms in cases:
+            self.path.write_text(json.dumps({"config_version": 3, "tools": tools}), encoding="utf-8")
+            config_store.migrate_user_config(self.path)
+            cfg = config_store.load_config(self.path)
+            from src.tools.groups import GROUPS
+            self.assertEqual(enabled_groups(cfg), groups or set(GROUPS), tools)
+            self.assertEqual(cfg["tools"]["permissions"], perms, tools)
+        self.path.write_text(json.dumps({"config_version": 3, "tools": {"groups": {"email": True}}}), encoding="utf-8")
+        config_store.migrate_user_config(self.path)
+        self.assertEqual(self.read()["tools"], {"groups": {"email": True}}, "already has groups: untouched")
+
+    def test_new_installs_keep_the_risky_tool_groups_off(self):
+        from src.tools.groups import GROUPS, enabled_groups
+        cfg = config_store.load_config(self.dir / "missing.json")
+        self.assertEqual(enabled_groups(cfg), {"basic", "workspace_read", "system"})
+        shipped = config_store.defaults()["tools"]["groups"]
+        self.assertEqual(shipped, {g: v["default"] for g, v in GROUPS.items() if not v.get("locked")},
+                         "defaults.json and groups.py agree")
+        self.assertTrue(cfg["tools"]["untrusted_asks"])
+        self.assertFalse(cfg["voice_approval"]["high_risk"])
+        self.assertEqual(config_store.validate_update({"tools.groups": {"basic": False}})[:1],
+                         ["tools.groups.basic: not a group that can be switched"])
+        self.assertTrue(config_store.validate_update({"tools.groups": {"desktop": "yes"}}))
+        self.assertTrue(config_store.validate_update({"tools.extensions": ["not_there"]}))
+        self.assertEqual(config_store.validate_update({"tools.groups": {"desktop": True}, "tools.extensions": []}), [])
 
     def test_a_new_install_runs_setup_and_an_existing_one_does_not(self):
         from src.app import setup

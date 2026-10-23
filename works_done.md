@@ -6,6 +6,107 @@ each entry names the phase it belongs to.
 
 ---
 
+## 2026-10-24 · Phase 4: safe defaults and hardening
+
+### What changed
+
+**Tool groups** (`src/tools/groups.py`, `tools.groups`)
+- Every built-in tool belongs to one group: Basics (always on), Read your project folders (on), Change your
+  project folders, Command Prompts, Control other apps (all off), Lock and power (on), Email and Hidden
+  coding agent runs (off). A tool whose group is off is not registered, so the AI never sees it. Extension
+  tools have no group: they load only when ticked.
+- The setup wizard's Everyday / Work / Full control choices now switch groups instead of writing per-tool
+  denies.
+- Settings › Tools and permissions: a switch per group with what it covers. The tool table has a Group
+  column, and tools in groups that are off are dimmed.
+- Settings version 4. An existing settings file keeps what it could do: the wizard's earlier choice becomes
+  groups (its denies go), and without one every group stays on.
+
+**Instructions hidden in content** (the untrusted-content rule, `tools.untrusted_asks`, on by default)
+- Once a tool result in a request is untrusted, tools that can change something (sensitive or destructive,
+  and not a read) ask first for the rest of that request:
+  - after a web page, a screen or another outside source, all of them;
+  - after the user's own project files, command output or project Command Prompts, all but the project tools.
+    Edits inside the project are confined and backed up, and whoever wrote those files can already run code
+    through the project's own commands.
+- The approval dialog says why it asked and names what was read. Screenshots now count as untrusted too.
+
+**Approvals that need a click or key** (`ToolSpec.always_ask`)
+- These always ask, even when Settings says allow, and a spoken yes is refused for them: deleting a file,
+  email to anyone outside the trusted list, shutting down or restarting (by key or by command, whatever the
+  profile says), and typing into a program running in a Command Prompt.
+- A spoken no still denies. The broker itself refuses a spoken yes, so a new front-end can't get around it.
+- Jarvis says "To allow it, click Allow or press Y." and the dialog explains.
+- `voice_approval.high_risk` turns spoken yes back on. Settings never offers "allow" for deleting files.
+- Permission and approval settings now reach the running assistant at the next tool call, without a restart.
+
+**Secrets**
+- More key patterns are masked: OpenAI `sk-proj-` / `sk-svcacct-` / `sk-admin-`, OpenRouter, Groq, xAI,
+  Hugging Face, Perplexity, Cerebras, Replicate, NVIDIA, `Authorization` headers, bearer tokens and passwords
+  in URLs. Prefixed keys must have a digit and stand on their own, so ordinary hyphenated words are left
+  alone.
+- The log file and the log listeners now mask every line, whoever wrote it. The tool log line prints the
+  masked arguments.
+
+**Phone app**: still off by default. An address with 5 failed hellos or pairings within a minute is locked
+out for 5 minutes. A new pairing shows a desktop notification ("If that wasn't you, remove it in Settings ›
+Phone app") and a line in the activity feed.
+
+**Desktop control**: refuses password managers (1Password, Bitwarden, KeePass/KeePassXC, LastPass, Dashlane,
+NordPass, Keeper, RoboForm, Enpass, Proton Pass, Password Safe), and windows whose title shows a browser's
+saved passwords or payment methods, or Windows Credential Manager (`desktop.blocked_titles`).
+
+**Extensions**: a Settings section lists the files in `tools_ext/` with a switch each, under a warning that
+they run with full user rights and nobody reviewed them.
+
+**Docs**: `docs/SECURITY_MODEL.md` ("What Jarvis can do on your PC, and how to limit it") and `SECURITY.md`
+(private reporting through GitHub, response targets, scope). The user guide and README point to them.
+
+### Verified
+- 394 automated tests pass (28 new):
+  - every built-in tool is in exactly one group, and the defaults hide the risky ones;
+  - the migration's three cases;
+  - the untrusted-content rule at both levels, including the level only ever rising and each request
+    starting clean;
+  - click-only approvals: a spoken yes refused, a click accepted, a spoken no denies, the setting;
+  - shutdown under a custom command name, email to strangers;
+  - every key pattern, and ordinary words left alone;
+  - keys absent from events, the printed log line and the audit trail;
+  - the log filter;
+  - the desktop block list;
+  - phone lockout and the pairing notification;
+  - the security page naming every group.
+- Static test: what `credentials.read` returns (directly, or through `api_key()` / `get_password()`) is never
+  passed to print, a logger or an event emitter, and a new function that reads credentials fails the test
+  until it is reviewed. Its detector was checked against code that leaks, and code that doesn't.
+- Live in a scratch data folder: Settings › Tools and permissions showed the groups with the safe defaults.
+  Tools in groups that are off were dimmed, delete_file offered only ask / deny, and the Extensions warning
+  rendered.
+- Phone app: TypeScript clean, 16 tests pass. Its protocol type carries the two new approval fields.
+- Personal-data scan over every changed or new file: 0 hits.
+
+### Fixed along the way
+- A flaky phone test (`test_revoked_phone_is_disconnected`, about 1 run in 75) was a test-client bug. The
+  server sent the right close code (4403, "removed"), but aiohttp's automatic close reply sometimes failed on
+  the already-dropped connection and overwrote the recorded code with 1006. The test client now reads the
+  code from the close frame, as the phone app does: 300 runs, 0 failures.
+- The new lockout recorded a failed pairing only after answering, so a quick retry could slip in uncounted.
+  It now records the failure first.
+
+### Decided (review welcome)
+- The untrusted-content rule has two levels instead of making every change ask. With one level, a coding task
+  asked before every edit after its first file read, which would push people to turn the rule off entirely.
+- "Delete" in the never-always-allow list means deleting files. Forgetting a memory still asks, but a spoken
+  yes is enough.
+- Basics can't be switched off: planning tools and memory live there. Single tools can still be denied.
+
+### Not done yet
+- CI with pip-audit, Dependabot and CodeQL comes with the repository work (Phase 5).
+- The approval dialog's click-only wording was checked by tests, not on screen: showing it needs a live
+  approval.
+
+---
+
 ## 2026-10-23 · Phase 3, part 2: error banners, uninstall and updates, the user guide, help
 
 ### What changed

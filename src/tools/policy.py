@@ -13,15 +13,20 @@ execute(name, args, ctx) does, in order:
   8. redact secrets, audit (tool_runs row linked to the task) + tool_call / tool_result events
 
 Permission resolution: Settings override (tools.permissions[name]) or the
-tool's default; a per-argument rule (e.g. profile "confirm": true on shutdown)
-escalates allow -> ask; "deny" always wins.
+tool's default; "deny" always wins. Then, escalating allow -> ask:
+  - spec.always_ask (delete a file, email outside the trusted list, shut down,
+    type into a running program): asks even when Settings says allow, and a
+    spoken yes is not enough unless voice_approval.high_risk is on;
+  - a per-argument rule (e.g. profile "confirm": true on sleep);
+  - the untrusted-content rule (tools.untrusted_asks, on by default): once a
+    tool result in this request was untrusted (ToolResult.untrusted), tools
+    that can change something (risk sensitive/destructive, not a read) ask, so
+    instructions hidden in that content can't act on their own. After a web
+    page, screen or other outside content, all of them; after the user's own
+    project files or command output, all but the project tools (groups.py).
 
 Fault injection (config agent.fault_injection, for tests and the recovery demo)
 makes chosen calls fail with a clearly labelled SIMULATED error.
-
-Permission resolution: Settings override (tools.permissions[name]) or the
-tool's default; a per-argument rule (e.g. profile "confirm": true on shutdown)
-escalates allow -> ask; "deny" always wins.
 """
 import hashlib
 import json
@@ -32,6 +37,7 @@ from typing import Callable, Optional
 import jsonschema
 
 from src.core.redact import redact
+from src.tools import groups
 from src.tools.approvals import ApprovalBroker, ApprovalRequest
 from src.tools.registry import ToolContext, ToolRegistry, ToolResult
 
@@ -54,21 +60,34 @@ class PolicyExecutor:
 
     # ------------------------------------------------------------- permission
 
-    def permission_for(self, name: str, args: dict) -> str:
+    def permission_for(self, name: str, args: dict, tainted: str = "") -> str:
         spec = self.registry.get(name)
-        if spec is None:
-            return "deny"
-        overrides = (self._config().get("tools", {}) or {}).get("permissions", {}) or {}
-        perm = overrides.get(name, spec.permission)
+        return "deny" if spec is None else self._permission(spec, args, tainted)[0]
+
+    def _permission(self, spec, args: dict, tainted: str = "") -> tuple:
+        """(allow | ask | deny, why it asks: "" | "setting" | "rule" | "always" | "untrusted"). tainted is the
+        request's taint level: "" | "project" | "outside"."""
+        tools_cfg = self._config().get("tools", {}) or {}
+        perm = (tools_cfg.get("permissions", {}) or {}).get(spec.name, spec.permission)
         if perm == "deny":
-            return "deny"
+            return "deny", ""
+        rule = False
         if spec.needs_confirmation is not None:
             try:
-                if spec.needs_confirmation(args):
-                    return "ask"
+                rule = bool(spec.needs_confirmation(args))
             except Exception:
-                return "ask"
-        return perm if perm in ("allow", "ask") else "ask"
+                rule = True
+        if spec.always_asks(args):
+            return "ask", "always"
+        if rule:
+            return "ask", "rule"
+        if perm not in ("allow", "ask"):
+            return "ask", "setting"
+        if (perm == "allow" and tainted and tools_cfg.get("untrusted_asks", True)
+                and spec.risk != "safe" and spec.category != "read"
+                and (tainted == "outside" or not groups.project_tool(spec.name))):
+            return "ask", "untrusted"
+        return perm, "setting" if perm == "ask" else ""
 
     # ------------------------------------------------------------- execute
 
@@ -106,6 +125,10 @@ class PolicyExecutor:
         if isinstance(result, tuple):
             result, decision = result
         result.content = redact(result.content)
+        if result.untrusted:           # later risky calls in this request ask first
+            level = groups.taint_level(name)
+            if not ctx.tainted or (ctx.taint_level == "project" and level == "outside"):
+                ctx.tainted, ctx.taint_level = name, level
         ms = int((time.time() - t0) * 1000)
 
         if self.memory is not None and run_id is not None:
@@ -115,7 +138,7 @@ class PolicyExecutor:
                                             duration_ms=ms)
             except Exception as e:
                 print(f"[POLICY] Could not record tool result: {e}")
-        print(f"[TOOL] {name}({args}) -> {result.status}: {result.content[:200]} ({ms}ms)")
+        print(f"[TOOL] {name}({shown_args}) -> {result.status}: {result.content[:200]} ({ms}ms)")
         self._emit({"type": "tool_result", "call_id": call_id, "tool": name, "ok": result.ok, "status": result.status,
                     "content": result.content, "dry_run": result.dry_run, "ms": ms, "decision": decision,
                     "task_id": ctx.task_id, "data": {k: v for k, v in result.data.items() if k != "images"}, "simulated": bool(result.data.get("simulated"))})
@@ -161,13 +184,13 @@ class PolicyExecutor:
                     "Inspect the current state first (e.g. check_process, read_file, list_dir); only if it did not "
                     "take effect, call it again with repeat=true."))
 
-        perm = self.permission_for(name, args)
+        perm, why = self._permission(spec, args, ctx.taint_level if ctx.tainted else "")
         decision = "auto"            # allowed by policy without asking
         if perm == "deny":
             return ToolResult(ok=False, status="denied",
                               content=f"Tool '{name}' is blocked by the user's permission settings"), "deny"
         if perm == "ask":
-            decision = self._ask(spec, args, ctx)
+            decision = self._ask(spec, args, ctx, why)
             if decision == "allow":
                 decision = "approved"
             else:
@@ -178,10 +201,11 @@ class PolicyExecutor:
 
         return self._run_with_timeout(spec, args, ctx), decision
 
-    def _ask(self, spec, args, ctx) -> str:
+    def _ask(self, spec, args, ctx, why: str = "") -> str:
         if self.approvals is None:
             return "deny"
         cfg = self._config()
+        voice_ok = why != "always" or bool((cfg.get("voice_approval", {}) or {}).get("high_risk", False))
         timeout_s = (cfg.get("tools", {}) or {}).get("approval_timeout_ms", 15000) / 1000.0
         if ctx.source == "phone":         # answered in the phone app: give the user time to pick it up
             timeout_s = max(timeout_s, float((cfg.get("phone", {}) or {}).get("approval_timeout_s", 180)))
@@ -194,6 +218,15 @@ class PolicyExecutor:
         else:
             rows = [{"k": "Tool", "v": spec.name, "sub": ""}] + [
                 {"k": k, "v": str(v), "sub": ""} for k, v in args.items()]
+        if why == "untrusted":
+            where = ("your project folders" if ctx.taint_level == "project"
+                     else "outside your project folders (a web page, a screen, a download)")
+            rows.append({"k": "Why", "v": "Asked because this request read text it can't trust",
+                         "sub": f"{ctx.tainted} returned text from {where}; instructions hidden in it must not act "
+                                "on their own"})
+        elif not voice_ok:
+            rows.append({"k": "Why", "v": "This always needs your click or key",
+                         "sub": "a spoken yes is not accepted for it"})
         purpose = spec.describe(args)
         kind = {"delegate_to_coding_agent": "Coding agent delegation", "system_command": "System command",
                 "forget": "Memory deletion"}.get(spec.name, spec.risk.capitalize() + " action")
@@ -202,14 +235,15 @@ class PolicyExecutor:
         if spec.name == "delegate_to_coding_agent":
             project = next((r["v"] for r in rows if r["k"] == "Project"), "the project")
             agent = next((r["v"] for r in rows if r["k"] == "Agent"), "the coding agent")
-            title, spoken = f"Allow {agent} to work in “{project}”?", f"{name} wants to run {agent} in {project}. Allow?"
+            title, spoken = f"Allow {agent} to work in “{project}”?", f"{name} wants to run {agent} in {project}."
         elif spec.name == "system_command":
             command = str(args.get("command", "")).replace("_", " ")
-            title, spoken = f"Allow “{args.get('command')}” on this PC?", f"{name} wants to {command} the PC. Allow?"
+            title, spoken = f"Allow “{args.get('command')}” on this PC?", f"{name} wants to {command} the PC."
         else:
-            title, spoken = f"Allow: {purpose}?", f"{name} wants to {purpose[:1].lower() + purpose[1:]}. Allow?"
+            title, spoken = f"Allow: {purpose}?", f"{name} wants to {purpose[:1].lower() + purpose[1:]}."
+        spoken += " Allow?" if voice_ok else " To allow it, click Allow or press Y."
         req = ApprovalRequest(tool=spec.name, args=args, title=title, kind_label=kind, spoken=spoken,
-                              rows=rows, timeout_s=timeout_s, source=ctx.source)
+                              rows=rows, timeout_s=timeout_s, source=ctx.source, voice_ok=voice_ok, reason=why)
         print(f"[APPROVAL] Asking: {title}")
         decision = self.approvals.request(req, cancel_event=ctx.cancel_event)
         print(f"[APPROVAL] {spec.name}: {decision} (via {req.via})")
@@ -267,7 +301,7 @@ class PolicyExecutor:
         # The tool gets its own cancel event: set on user cancel or on timeout, so a
         # timed-out tool is stopped without cancelling the rest of the request.
         tool_ctx = ToolContext(session_id=ctx.session_id, source=ctx.source, cancel_event=threading.Event(),
-                               task_id=ctx.task_id)
+                               task_id=ctx.task_id, tainted=ctx.tainted, taint_level=ctx.taint_level)
 
         def target():
             try:

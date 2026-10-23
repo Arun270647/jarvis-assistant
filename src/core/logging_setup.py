@@ -23,6 +23,21 @@ _listeners_lock = threading.Lock()
 _configured = False
 
 
+class _RedactFilter(logging.Filter):
+    """Masks keys, tokens and passwords (src/core/redact.py) in every line before it is written anywhere."""
+
+    def filter(self, record):
+        from src.core.redact import redact
+        try:
+            message = record.getMessage()
+        except Exception:
+            return True
+        clean = redact(message)
+        if clean != message or record.args:
+            record.msg, record.args = clean, None
+        return True
+
+
 class _ListenerHandler(logging.Handler):
     def emit(self, record):
         try:
@@ -82,10 +97,12 @@ def setup_logging(capture_std: bool = True, level: int = logging.DEBUG) -> Path:
     fmt = logging.Formatter("%(asctime)s [%(levelname)s] %(threadName)s: %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
     fh = logging.handlers.RotatingFileHandler(LOG_FILE, maxBytes=5 * 1024 * 1024, backupCount=3, encoding="utf-8")
     fh.setFormatter(fmt)
+    fh.addFilter(_RedactFilter())
     logger.addHandler(fh)
 
     lh = _ListenerHandler()
     lh.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s", datefmt="%H:%M:%S"))
+    lh.addFilter(_RedactFilter())
     logger.addHandler(lh)
 
     # Library warnings (warnings module, third-party loggers) go to the same file.

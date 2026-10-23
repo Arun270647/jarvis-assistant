@@ -7,9 +7,10 @@ stays driven by the user profile.
 
 Tools never run directly: PolicyExecutor (policy.py) validates, checks
 permissions, asks for approval, applies dry-run and timeouts, then calls the
-handler.
+handler. Tools whose group is off (groups.py, tools.groups) are not registered.
 """
 import datetime
+import re
 import threading
 from dataclasses import dataclass, field
 from typing import Callable, Optional
@@ -39,6 +40,8 @@ class ToolContext:
     task_id: Optional[int] = None   # set while an agentic task is running
     interrupt_event: Optional[threading.Event] = None   # stop the Claude turn (pause) without cancelling
     budget: Optional[CallBudget] = None
+    tainted: str = ""               # the tool whose untrusted output entered this request (policy.py)
+    taint_level: str = ""           # "project" | "outside" (groups.taint_level)
 
 
 @dataclass
@@ -81,6 +84,10 @@ class ToolSpec:
     # True (or a function of the args returning True): only allowed inside a tracked task, so every
     # change to the user's projects has a plan and independently verified success checks.
     requires_task: object = False
+    # True (or a function of the args returning True): always asks, even when Settings says allow, and a
+    # spoken yes is not enough (a click, the Y key or a typed yes). Deleting files, emailing people outside
+    # the trusted list, shutting down or restarting, typing into a running program.
+    always_ask: object = False
 
     def describe(self, args: dict) -> str:
         if self.purpose:
@@ -89,6 +96,14 @@ class ToolSpec:
             except Exception:
                 pass
         return self.name
+
+    def always_asks(self, args: dict) -> bool:
+        if callable(self.always_ask):
+            try:
+                return bool(self.always_ask(args))
+            except Exception:
+                return True
+        return bool(self.always_ask)
 
 
 class ToolRegistry:
@@ -143,8 +158,9 @@ def _router_result(res: dict) -> ToolResult:
     return ToolResult(ok=False, content=detail, status="failed")
 
 
-def build_default_registry(router, memory=None, config: Optional[dict] = None) -> ToolRegistry:
-    """Registry backed by the existing ActionRouter (+ memory tools when a store is given)."""
+def build_default_registry(router, memory=None, config: Optional[dict] = None, apply_groups: bool = True) -> ToolRegistry:
+    """Registry backed by the existing ActionRouter (+ memory tools when a store is given). Tools in groups
+    that are off are left out (apply_groups=False keeps them, for listing every tool in Settings)."""
     config = config or {}
     profile = router.profile
     apps = profile.get("apps", {})
@@ -176,6 +192,12 @@ def build_default_registry(router, memory=None, config: Optional[dict] = None) -
         purpose=lambda a: f"Media key: {a.get('control')}",
     ))
 
+    def _power(a):
+        """Shut down or restart: never allowed without asking, whatever the profile says."""
+        key, mapping = router._resolve_system_command(a)
+        cmd = str((mapping or {}).get("command", "")).lower()
+        return key in ("shutdown", "restart") or bool(re.search(r"\bshutdown(?:\.exe)?\s+/[srgp]\b", cmd))
+
     def _sys_rows(a):
         key, mapping = router._resolve_system_command(a)
         cmd = (mapping or {}).get("command", "?")
@@ -196,6 +218,7 @@ def build_default_registry(router, memory=None, config: Optional[dict] = None) -
         risk="sensitive",
         idempotent=False,
         needs_confirmation=router.system_command_needs_confirmation,
+        always_ask=_power,
         purpose=lambda a: f"System command: {a.get('command')}",
         approval_rows=_sys_rows,
     ))
@@ -350,4 +373,9 @@ def build_default_registry(router, memory=None, config: Optional[dict] = None) -
         print(f"[TOOLS] Desktop tools unavailable: {e}")
     from src.tools.extensions import load_extensions
     load_extensions(reg, config)
+    if apply_groups:
+        from src.tools.groups import tool_enabled
+        for name in reg.names():
+            if not tool_enabled(name, config):
+                reg.unregister(name)
     return reg

@@ -399,9 +399,32 @@ def main(state_callback=None, stop_event=None, duration=None,
             tool_ms["total"] += ev.get("ms", 0)
             phase("thinking")
 
+    def config_mtime():
+        try:
+            return paths.config_file().stat().st_mtime
+        except OSError:
+            return None
+
+    live = {"mtime": config_mtime()}
+
+    def policy_config():
+        """Permissions and approval settings saved in Settings apply to the next tool call, without a restart."""
+        mtime = config_mtime()
+        if mtime != live["mtime"]:
+            live["mtime"] = mtime
+            try:
+                fresh = load_full_config()
+                cfg.setdefault("tools", {}).update({k: v for k, v in (fresh.get("tools", {}) or {}).items()
+                                                    if k in ("permissions", "approval_timeout_ms", "untrusted_asks")})
+                cfg.setdefault("voice_approval", {}).update(fresh.get("voice_approval", {}) or {})
+            except Exception as e:
+                print(f"[WARN] Could not reload the permission settings: {e}")
+        return cfg
+
     executor = components.get("executor")
     if executor is None:
-        executor = PolicyExecutor(build_default_registry(router, memory, cfg), lambda: cfg, broker, memory, on_tool_event)
+        executor = PolicyExecutor(build_default_registry(router, memory, cfg), policy_config, broker, memory,
+                                  on_tool_event)
     else:
         executor.set_emitter(on_tool_event)
         if executor.approvals is None:
@@ -579,8 +602,11 @@ def main(state_callback=None, stop_event=None, duration=None,
                         verdict = classify_reply(reply_text, affirmative, negative)
                         emit(type="transcript", text=reply_text, source="voice")
                         emit(type="info", detail=f"Confirmation: '{reply_text}' -> {verdict}")
-                        if verdict in ("yes", "no"):
-                            broker.resolve(req.id, verdict == "yes", via=f"voice '{reply_text}'")
+                        if verdict == "yes" and not req.voice_ok:
+                            emit(type="info", detail="A spoken yes isn't enough for this one: click Allow or "
+                                                     "press Y.")
+                        elif verdict in ("yes", "no"):
+                            broker.resolve(req.id, verdict == "yes", via=f"voice '{reply_text}'", spoken=True)
                             break
                 else:
                     time.sleep(0.05)

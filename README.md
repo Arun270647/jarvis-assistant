@@ -28,7 +28,9 @@ click / hold Space ─► VAD ─► Whisper (local) ─► AI model (your choic
   itself, and pause / resume / retry. See [docs/AGENTIC_TASKS.md](docs/AGENTIC_TASKS.md).
 - **One safety layer for every model**: each tool call goes through the same policy engine: schema
   validation, allow / ask / deny permissions, on-screen and spoken approvals, protected paths, timeouts and
-  an audit log.
+  an audit log. Risky tool groups are off until you turn them on. High-risk approvals need a click or key.
+  Actions after reading web pages or screens ask first. See
+  [docs/SECURITY_MODEL.md](docs/SECURITY_MODEL.md), and [SECURITY.md](SECURITY.md) to report a problem.
 - **Cost visibility**: tokens and estimated cost per day in Activity, and an optional daily spending limit.
 - **Desktop app**: floating orb, tray icon, Ctrl+Shift+J hotkey, no console windows.
 - **Phone app (optional)**: an Android companion over your private Tailscale network (`mobile/`).
@@ -80,7 +82,7 @@ provider from the command line with `python -m src.agent check` (options in
 2. ~~Several AI providers~~ (done)
 3. Setup wizard and normal-app experience: name your assistant, model explanations and downloads, Sign in
    with Claude, error messages with fix buttons, auto-update, uninstall
-4. Safe defaults for strangers' machines: risky tool groups off until enabled, hardening
+4. ~~Safe defaults for strangers' machines: risky tool groups off until enabled, hardening~~ (done)
 5. Repository, documentation and CI
 6. Windows alpha release (signed zip)
 7. macOS

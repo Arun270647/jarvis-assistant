@@ -238,7 +238,8 @@ def register_email_tools(reg, profile: dict, config: dict, workspace=None) -> No
             "project": {"type": "string", "description": "Project key for relative attachment paths"},
             "reply_to": {"type": "string"}},
             "required": ["to", "subject", "body"]},
-        handler=send, risk="sensitive", idempotent=False, needs_confirmation=needs_approval, approval_rows=rows,
+        handler=send, risk="sensitive", idempotent=False, needs_confirmation=needs_approval, always_ask=needs_approval,
+        approval_rows=rows,
         retries=1, timeout_s=90, category="action",
         purpose=lambda a: f"Email '{a.get('subject')}' to {', '.join(map(str, a.get('to', [])))}"))
     reg.register(ToolSpec(

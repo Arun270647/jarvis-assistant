@@ -83,20 +83,27 @@ class SetupWizardTests(unittest.TestCase):
         self.assertEqual([p["path"] for p in added], [str(folder.resolve())], "once, and only folders that exist")
         self.assertIn("calculator", profile["apps"], "the shipped profile is still underneath")
 
-    def test_permission_presets(self):
+    def test_permission_presets_switch_tool_groups(self):
+        from src.tools.groups import enabled_groups, tool_enabled
+        self.assertEqual(setup.current_preset(self.cfg()), "everyday", "a new install starts with the safe set")
         setup.save_step("permissions", {"preset": "everyday"})
-        perms = self.cfg()["tools"]["permissions"]
-        self.assertEqual(perms["run_command"], "deny")
-        self.assertEqual(perms["desktop_click"], "deny")
-        self.assertNotIn("open_app", perms)
+        cfg = self.cfg()
+        self.assertFalse(tool_enabled("run_command", cfg))
+        self.assertFalse(tool_enabled("desktop_click", cfg))
+        self.assertTrue(tool_enabled("open_app", cfg) and tool_enabled("read_file", cfg))
         setup.save_step("permissions", {"preset": "work"})
-        perms = self.cfg()["tools"]["permissions"]
-        self.assertNotIn("run_command", perms, "work allows project commands again")
-        self.assertEqual(perms["desktop_click"], "deny")
-        config_store.update_config({"tools.permissions": dict(perms, open_app="ask")})
+        cfg = self.cfg()
+        self.assertTrue(tool_enabled("run_command", cfg) and tool_enabled("send_email", cfg))
+        self.assertFalse(tool_enabled("desktop_click", cfg))
+        config_store.update_config({"tools.permissions": {"open_app": "ask"}})
         setup.save_step("permissions", {"preset": "full"})
-        self.assertEqual(self.cfg()["tools"]["permissions"], {"open_app": "ask"}, "the user's own choices stay")
-        self.assertEqual(setup.current_preset(self.cfg()), "full")
+        cfg = self.cfg()
+        self.assertEqual(cfg["tools"]["permissions"], {"open_app": "ask"}, "the user's own choices stay")
+        self.assertTrue(tool_enabled("desktop_click", cfg))
+        self.assertEqual(setup.current_preset(cfg), "full")
+        config_store.update_config({"tools.groups": dict(cfg["tools"]["groups"], email=False)})
+        self.assertNotIn("email", enabled_groups(self.cfg()))
+        self.assertEqual(setup.current_preset(self.cfg()), "full", "no exact match: the saved choice")
         self.assertFalse(setup.save_step("permissions", {"preset": "root"})["ok"])
 
     def test_startup_and_finish(self):

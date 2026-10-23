@@ -17,24 +17,17 @@ from src.core import config_store, hardware, models, paths, winproc
 STEPS = ("name", "models", "connect", "microphone", "voice", "about", "permissions", "startup", "try")
 NAME_IDEAS = ("Jarvis", "Nova", "Atlas", "Echo", "Iris")
 
-# What may {name} do: a preset denies the tool groups it doesn't include (permissions still apply to the rest).
-DESKTOP_TOOLS = ("desktop_snapshot", "desktop_screenshot", "desktop_click", "desktop_type", "desktop_keys",
-                 "desktop_scroll", "desktop_focus")
-WORK_TOOLS = ("edit_file", "write_file", "delete_file", "run_command", "process_output", "stop_process",
-              "open_terminal", "terminal_type", "terminal_key", "terminal_read", "check_process", "http_check",
-              "send_email", "delegate_to_coding_agent")
+# What may {name} do: each choice switches on a set of tool groups (src/tools/groups.py); permissions and
+# approvals still apply to the tools in them. Settings › Tools and permissions changes single groups later.
 PRESETS = {
     "everyday": {"title": "Everyday",
                  "text": "Open apps, control music and volume, tell the time, read and search the web, remember "
-                         "things you tell it.",
-                 "deny": DESKTOP_TOOLS + WORK_TOOLS},
+                         "things you tell it, read the folders you add, lock the PC."},
     "work": {"title": "Work",
-             "text": "Everyday, plus read and edit files in your folders, run project commands, open terminals and "
-                     "send email. Always asks before changes.",
-             "deny": DESKTOP_TOOLS},
+             "text": "Everyday, plus edit files in your folders, run project commands, open Command Prompts, send "
+                     "email and run coding agents. Asks before risky changes."},
     "full": {"title": "Full control",
-             "text": "Work, plus click and type in other apps for you and take screenshots.",
-             "deny": ()},
+             "text": "Work, plus look at, click and type in other apps for you and take screenshots."},
 }
 
 
@@ -44,7 +37,9 @@ def needed(cfg: Optional[dict] = None) -> bool:
 
 
 def current_preset(cfg: dict) -> str:
-    preset = (cfg.get("tools", {}) or {}).get("preset", "")
+    """The choice matching the groups that are on now (the saved one if groups were changed one by one)."""
+    from src.tools import groups
+    preset = groups.preset_for(cfg) or (cfg.get("tools", {}) or {}).get("preset", "")
     return preset if preset in PRESETS else "everyday"
 
 
@@ -157,11 +152,8 @@ def save_step(step: str, data: dict, facts: Optional[dict] = None) -> dict:
             preset = data.get("preset", "everyday")
             if preset not in PRESETS:
                 return {"ok": False, "error": f"Unknown choice {preset!r}"}
-            cfg = config_store.load_config()
-            perms = {k: v for k, v in ((cfg.get("tools", {}) or {}).get("permissions", {}) or {}).items()
-                     if not (v == "deny" and k in DESKTOP_TOOLS + WORK_TOOLS)}
-            perms.update({tool: "deny" for tool in PRESETS[preset]["deny"]})
-            updates["tools.permissions"] = perms
+            from src.tools import groups
+            updates["tools.groups"] = groups.groups_setting(preset)
             updates["tools.preset"] = preset
         elif step == "startup":
             from src.core import startup

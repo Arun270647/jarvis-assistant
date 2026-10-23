@@ -6,6 +6,7 @@ import jsonschema
 from src.core.config_store import load_config
 from src.memory.store import MemoryStore
 from src.router.action_router import ActionRouter
+from src.tools.groups import groups_setting
 from src.tools.policy import PolicyExecutor
 from src.tools.registry import ToolContext, build_default_registry
 from tests.fakes import temp_db
@@ -16,6 +17,7 @@ class RegistryTests(unittest.TestCase):
     def setUpClass(cls):
         cls.cfg = load_config()
         cls.cfg["dry_run"] = True
+        cls.cfg["tools"]["groups"] = groups_setting("full")      # every tool (test_security covers the defaults)
         cls.router = ActionRouter()
         cls.router.dry_run = True
         cls.memory = MemoryStore(temp_db())

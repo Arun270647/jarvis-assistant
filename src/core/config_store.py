@@ -26,7 +26,7 @@ from src.core import paths
 
 DEFAULTS_PATH = paths.shipped_config_dir() / "defaults.json"
 PROFILE_DEFAULTS_PATH = paths.shipped_config_dir() / "profile_defaults.json"
-CONFIG_VERSION = 3
+CONFIG_VERSION = 4
 ENV_PREFIX = "JARVIS__"
 
 
@@ -79,8 +79,41 @@ def _v2_to_v3(raw: dict) -> dict:
     return raw
 
 
+# The wizard's per-tool denies before tool groups (Phase 3), dropped by _v3_to_v4.
+_OLD_PRESET_DENIES = {
+    "everyday": ("desktop_snapshot", "desktop_screenshot", "desktop_click", "desktop_type", "desktop_keys",
+                 "desktop_scroll", "desktop_focus", "edit_file", "write_file", "delete_file", "run_command",
+                 "process_output", "stop_process", "open_terminal", "terminal_type", "terminal_key", "terminal_read",
+                 "check_process", "http_check", "send_email", "delegate_to_coding_agent"),
+    "work": ("desktop_snapshot", "desktop_screenshot", "desktop_click", "desktop_type", "desktop_keys",
+             "desktop_scroll", "desktop_focus"),
+    "full": (),
+}
+
+
+def _v3_to_v4(raw: dict) -> dict:
+    """Tool groups arrived, with the risky ones off on new installs. An existing install keeps what it could
+    do: the wizard's choice becomes groups (its per-tool denies go), and without one every group stays on."""
+    from src.tools import groups
+    tools = raw.get("tools") if isinstance(raw.get("tools"), dict) else {}
+    if "groups" in tools:
+        return raw
+    preset = tools.get("preset")
+    if preset in groups.PRESETS:
+        tools["groups"] = groups.groups_setting(preset)
+        perms = tools.get("permissions")
+        if isinstance(perms, dict):
+            for tool in _OLD_PRESET_DENIES.get(preset, ()):
+                if perms.get(tool) == "deny":
+                    perms.pop(tool)
+    else:
+        tools["groups"] = groups.groups_setting("full")
+    raw["tools"] = tools
+    return raw
+
+
 # config_version -> function upgrading a user config.json from that version to the next one.
-MIGRATIONS = {1: _v1_to_v2, 2: _v2_to_v3}
+MIGRATIONS = {1: _v1_to_v2, 2: _v2_to_v3, 3: _v3_to_v4}
 
 _lock = threading.Lock()
 _MISSING = object()
@@ -133,6 +166,10 @@ EDITABLE = {
     "tools.approval_timeout_ms": (int, (3000, 120000)),
     "tools.default_timeout_s": (int, (1, 600)),
     "tools.permissions": (dict, None),
+    "tools.groups": (dict, None),
+    "tools.untrusted_asks": (bool, None),
+    "tools.extensions": (list, None),
+    "voice_approval.high_risk": (bool, None),
     "apps.discover": (bool, None),
     "updates.auto_check": (bool, None),
     "tools.profile": (str, ("auto", "full", "core", "custom")),
@@ -378,6 +415,18 @@ def validate_update(updates: dict) -> list:
             for tool, perm in value.items():
                 if perm not in PERMISSION_VALUES:
                     errors.append(f"tools.permissions.{tool}: must be allow, ask or deny")
+        if key == "tools.groups":
+            from src.tools.groups import GROUPS
+            for gid, on in value.items():
+                if gid not in GROUPS or GROUPS[gid].get("locked"):
+                    errors.append(f"tools.groups.{gid}: not a group that can be switched")
+                elif not isinstance(on, bool):
+                    errors.append(f"tools.groups.{gid}: must be true or false")
+        if key == "tools.extensions":
+            from src.tools.extensions import available_extensions
+            missing = [e for e in value if e not in available_extensions()]
+            if missing:
+                errors.append(f"tools.extensions: no such extension in tools_ext: {', '.join(missing)}")
         if key == "assistant.name" and check_assistant_name(value)[0]:
             errors.append(f"assistant.name: {check_assistant_name(value)[0]}")
         if key == "llm.main.provider" and value not in _provider_names():
