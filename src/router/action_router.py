@@ -1,4 +1,4 @@
-"""Executors behind the open_app, media_control, system_command and delegate_to_claude tools.
+"""Executors behind the open_app, media_control, system_command and delegate_to_coding_agent tools.
 
 Everything is config-driven via the profile (config_store.load_profile()). No hardcoded app paths
 or command strings in this module.
@@ -13,6 +13,31 @@ import time
 from typing import Optional
 
 from src.core import config_store, paths, winproc
+
+# Coding agents delegate_to_coding_agent can run hidden (print / one-shot mode; the task is appended).
+CODING_AGENTS = {
+    "claude": ("Claude Code", ["claude", "-p"]),
+    "codex": ("Codex", ["codex", "exec"]),
+    "aider": ("Aider", ["aider", "--yes-always", "--message"]),
+    "custom": ("The coding agent", []),
+}
+
+
+def coding_agent_command(config: dict) -> tuple:
+    """(label, command) for coding_agent.cli. Raises ValueError when delegation is off or not set up."""
+    ca = config.get("coding_agent", {}) or {}
+    cli = ca.get("cli", "claude")
+    if cli not in CODING_AGENTS:
+        raise ValueError("Coding agent delegation is off")
+    label, command = CODING_AGENTS[cli]
+    if cli == "custom":
+        command = [str(x) for x in (ca.get("custom_command") or [])]
+        if not command:
+            raise ValueError("No command set for the custom coding agent (coding_agent.custom_command)")
+    elif cli == "claude":
+        cli_path = ((config.get("llm", {}) or {}).get("providers", {}) or {}).get("claude_code", {}).get("cli_path")
+        command = [cli_path or "claude"] + command[1:]
+    return label, list(command)
 
 
 class ActionRouter:
@@ -134,90 +159,42 @@ class ActionRouter:
         except Exception as e:
             return self._result("system_command", False, f"System command failed: {e}")
 
-    def _handle_delegate(self, params: dict) -> dict:
-        task = params.get("task") or params.get("prompt") or ""
-        project_ref = params.get("project", "").strip()
-
-        if not task.strip():
-            return self._result("delegate_to_claude", False, "No task specified for delegation")
-
-        if self.dry_run:
-            return self._result("delegate_to_claude", False,
-                                f"[DRY RUN] Would delegate to Claude Code: {task}")
-
-        # Check if Claude Code is enabled
-        claude_cfg = self.config.get("claude_code", {})
-        if not claude_cfg.get("enabled", False):
-            return self._result("delegate_to_claude", False,
-                                "Claude Code delegation disabled in config")
-
-        # Resolve project reference to absolute path
-        project_resolution = _resolve_project(project_ref, claude_cfg, self.profile)
-
-        if not project_resolution["success"]:
-            # Return error for TTS to speak
-            return self._result("delegate_to_claude", False, project_resolution["error"])
-
-        project_name = project_resolution["project_name"]
-        project_path = project_resolution["path"]
-
-        # Rule 10: Require confirmation before launching (if enabled)
-        if claude_cfg.get("require_confirmation", True):
-            return {
-                "action_type": "delegate_to_claude",
-                "executed": False,
-                "dry_run": self.dry_run,
-                "detail": f"Run Claude in {project_name}?",
-                "requires_confirmation": True,
-                "confirmation_data": {
-                    "task": task,
-                    "project_name": project_name,
-                    "project_path": project_path,
-                }
-            }
-
-        # No confirmation required — delegate directly
-        try:
-            result_detail = _delegate_to_claude_code(task, project_name, project_path, claude_cfg)
-            return self._result("delegate_to_claude", True, result_detail)
-        except Exception as e:
-            return self._result("delegate_to_claude", False, f"Delegation failed: {e}")
-
     def resolve_delegation(self, params: dict) -> dict:
-        """Resolve a delegate_to_claude request without running it.
+        """Resolve a delegate_to_coding_agent request without running it.
 
-        Returns {"success": True, "task", "project_name", "project_path"} or
+        Returns {"success": True, "task", "project_name", "project_path", "agent"} or
         {"success": False, "error": str}.
         """
         task = (params.get("task") or params.get("prompt") or "").strip()
         if not task:
             return {"success": False, "error": "No task specified for delegation"}
-        claude_cfg = self.config.get("claude_code", {})
-        if not claude_cfg.get("enabled", False):
-            return {"success": False, "error": "Claude Code delegation disabled in config"}
-        res = _resolve_project((params.get("project") or "").strip(), claude_cfg, self.profile)
+        try:
+            label, _ = coding_agent_command(self.config)
+        except ValueError as e:
+            return {"success": False, "error": str(e)}
+        res = _resolve_project((params.get("project") or "").strip(), self.config.get("coding_agent", {}), self.profile)
         if not res["success"]:
             return res
-        return {"success": True, "task": task, "project_name": res["project_name"], "project_path": res["path"]}
+        return {"success": True, "task": task, "project_name": res["project_name"], "project_path": res["path"],
+                "agent": label}
 
     def execute_confirmed_delegation(self, confirmation_data: dict, cancel_event: Optional[threading.Event] = None) -> dict:
         """Execute delegation after confirmation (voice, typed, or GUI approval)."""
         task = confirmation_data["task"]
         project_name = confirmation_data["project_name"]
         project_path = confirmation_data["project_path"]
-
-        claude_cfg = self.config.get("claude_code", {})
+        label = confirmation_data.get("agent") or "the coding agent"
 
         if self.dry_run:
-            return self._result("delegate_to_claude", False,
-                                f"[DRY RUN] Would run Claude Code in {project_name}: {task}")
+            return self._result("delegate_to_coding_agent", False,
+                                f"[DRY RUN] Would run {label} in {project_name}: {task}")
 
         try:
-            result_detail = _delegate_to_claude_code(task, project_name, project_path, claude_cfg,
-                                                     cancel_event=cancel_event)
-            return self._result("delegate_to_claude", True, result_detail)
+            result_detail = _delegate_to_coding_agent(task, project_name, project_path, self.config,
+                                                      cancel_event=cancel_event)
+            return self._result("delegate_to_coding_agent", True, result_detail)
         except Exception as e:
-            return self._result("delegate_to_claude", False, f"Delegation failed: {e}")
+            return self._result("delegate_to_coding_agent", False, f"Delegation failed: {e}")
 
     def _result(self, action_type: str, executed: bool, detail: str) -> dict:
         return {
@@ -252,12 +229,12 @@ def _send_media_key(key_name: str):
     ctypes.windll.user32.keybd_event(vk, 0, KEYEVENTF_EXTENDEDKEY | KEYEVENTF_KEYUP, 0)
 
 
-def _resolve_project(project_ref: str, claude_cfg: dict, profile: dict) -> dict:
+def _resolve_project(project_ref: str, agent_cfg: dict, profile: dict) -> dict:
     """Resolve project reference to absolute path.
 
     Args:
         project_ref: Project name/alias from LLM (may be empty)
-        claude_cfg: claude_code config section
+        agent_cfg: coding_agent config section (default_project)
         profile: user_profile.json
 
     Returns:
@@ -277,7 +254,7 @@ def _resolve_project(project_ref: str, claude_cfg: dict, profile: dict) -> dict:
 
     # If no project specified, use default
     if not project_ref:
-        default_project = claude_cfg.get("default_project", "")
+        default_project = agent_cfg.get("default_project", "")
         if not default_project:
             return {
                 "success": False,
@@ -332,48 +309,43 @@ def _resolve_project(project_ref: str, claude_cfg: dict, profile: dict) -> dict:
     }
 
 
-def _delegate_to_claude_code(task: str, project_name: str, project_path: str, config: dict,
-                             cancel_event: Optional[threading.Event] = None) -> str:
-    """Delegate a task to Claude Code CLI.
+def _delegate_to_coding_agent(task: str, project_name: str, project_path: str, config: dict,
+                              cancel_event: Optional[threading.Event] = None) -> str:
+    """Run the configured coding agent CLI hidden in the project folder and wait for it.
 
-    Spawns claude CLI in the target project directory.
-    Output is always saved in Jarvis's cache folder, never in the target repo.
-
-    Args:
-        task: The prompt/task to give to Claude Code
-        project_name: Project key from user_profile.json
-        project_path: Absolute path to project directory
-        config: claude_code config section
+    The agent is coding_agent.cli (Claude Code `claude -p`, Codex `codex exec`, Aider `aider --message`
+    or a custom command); the task is appended as the last argument. Output is always saved in Jarvis's
+    cache folder, never in the target repo.
 
     Returns:
         Result detail string (for TTS and logging)
     """
     import datetime
 
-    cli_path = config.get("cli_path", "claude")
-    timeout = config.get("timeout_seconds", 300)
-    capture_output = config.get("capture_output", True)
+    label, command = coding_agent_command(config)
+    agent_cfg = config.get("coding_agent", {}) or {}
+    timeout = agent_cfg.get("timeout_seconds", 300)
+    capture_output = agent_cfg.get("capture_output", True)
 
     # Output always in Jarvis's cache folder, keyed by project name
-    output_dir_abs = paths.cache_dir() / "claude_outputs" / project_name
+    output_dir_abs = paths.cache_dir() / "coding_agent_outputs" / project_name
     output_dir_abs.mkdir(parents=True, exist_ok=True)
 
     # Generate output file name
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    output_file = output_dir_abs / f"claude_{timestamp}.txt"
+    output_file = output_dir_abs / f"{agent_cfg.get('cli', 'agent')}_{timestamp}.txt"
 
-    # Build command. Print mode (-p) is required: without it the CLI starts its
-    # interactive TUI, which has no terminal when launched from Jarvis.
-    cmd = [cli_path] + list(config.get("cli_args", ["-p"])) + [task]
+    # One-shot mode is required: an interactive TUI has no terminal when launched from Jarvis.
+    cmd = command + [task]
 
-    print(f"[DELEGATE] Spawning Claude Code CLI...")
+    print(f"[DELEGATE] Spawning {label}: {command[0]}")
     print(f"[DELEGATE] Project: {project_name}")
     print(f"[DELEGATE] Working dir: {project_path}")
     print(f"[DELEGATE] Task: {task}")
     print(f"[DELEGATE] Output: {output_file}")
 
     try:
-        # claude.exe is a console program: CREATE_NO_WINDOW keeps it from opening a
+        # Coding agent CLIs are console programs: CREATE_NO_WINDOW keeps them from opening a
         # CMD window under pythonw. Popen + poll so a cancel can stop it.
         proc = winproc.popen_hidden(
             cmd,
@@ -389,7 +361,7 @@ def _delegate_to_claude_code(task: str, project_name: str, project_path: str, co
         if capture_output:
             for stream, sink in ((proc.stdout, out), (proc.stderr, err)):
                 t = threading.Thread(target=lambda st=stream, sk=sink: sk.append(st.read()),
-                                     name="claude-delegate-output", daemon=True)
+                                     name="coding-agent-output", daemon=True)
                 t.start()
                 readers.append(t)
 
@@ -408,12 +380,15 @@ def _delegate_to_claude_code(task: str, project_name: str, project_path: str, co
         proc.wait(timeout=10)
         for t in readers:
             t.join(timeout=10)
+        for stream in (proc.stdout, proc.stderr):
+            if stream is not None:
+                stream.close()
         result = subprocess.CompletedProcess(cmd, proc.returncode, "".join(out), "".join(err))
 
         if cancelled:
             with open(output_file, "w", encoding="utf-8") as f:
                 f.write(f"Task: {task}\nTimestamp: {timestamp}\nCANCELLED by user\n\n{result.stdout}")
-            return f"Claude delegation cancelled. Partial output saved to {output_file.name}"
+            return f"{label} delegation cancelled. Partial output saved to {output_file.name}"
 
         # Save output to file
         output_text = ""
@@ -436,19 +411,19 @@ def _delegate_to_claude_code(task: str, project_name: str, project_path: str, co
                     summary = lines[-1]
                     if len(summary) > 100:
                         summary = summary[:97] + "..."
-                    detail = f"Claude completed. {summary}"
+                    detail = f"{label} completed. {summary}"
                 else:
-                    detail = f"Claude completed. Output saved to {output_file.name}"
+                    detail = f"{label} completed. Output saved to {output_file.name}"
             else:
-                detail = f"Claude completed. Output saved to {output_file.name}"
+                detail = f"{label} completed. Output saved to {output_file.name}"
         else:
-            detail = f"Claude exited with code {result.returncode}. Check {output_file.name}"
+            detail = f"{label} exited with code {result.returncode}. Check {output_file.name}"
 
         return detail
 
     except subprocess.TimeoutExpired:
-        return f"Claude timed out after {timeout}s"
+        return f"{label} timed out after {timeout}s"
     except FileNotFoundError:
-        return f"Claude Code CLI not found at: {cli_path}. Install: npm install -g @anthropic-ai/claude-code"
+        return f"{label} not found ({command[0]}). Install it, or choose another coding agent in Settings."
     except Exception as e:
         return f"Delegation failed: {e}"

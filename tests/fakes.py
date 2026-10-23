@@ -181,7 +181,7 @@ def test_config(base: dict) -> dict:
     cfg["greeting"] = dict(cfg.get("greeting", {}), enabled=False)    # never call the real Claude CLI
     cfg.setdefault("tts", {})["enabled"] = True
     cfg.setdefault("tools", {}).update({"approval_timeout_ms": 4000, "permissions": {}})
-    cfg.setdefault("claude_code", {})["confirmation_window_ms"] = 300
+    cfg.setdefault("voice_approval", {})["window_ms"] = 300
     return cfg
 
 

@@ -83,10 +83,15 @@
     <section class="view page" id="view-activity" role="tabpanel" aria-label="Activity">
       <div class="page-inner">
         <div class="page-head">
-          <div><h2>Activity</h2><div class="sub">Every tool Jarvis ran for you, with its real result. Live while a task runs.</div></div>
+          <div><h2>Activity</h2><div class="sub">Every tool Jarvis ran for you, with its real result, and what the AI used. Live while a task runs.</div></div>
           <div class="actions"><button class="btn btn-secondary" id="act-refresh">Refresh</button></div>
         </div>
         <div id="act-now"></div>
+        <div class="card blueprint section">
+          <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+          <div class="section-title">AI usage</div>
+          <div id="act-usage"><div class="empty">Loading…</div></div>
+        </div>
         <div class="card blueprint section">
           <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
           <div class="section-title">Tool runs</div>

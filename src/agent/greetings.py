@@ -3,13 +3,14 @@
 - Every greeting is the fixed line `greeting.prefix` ("Jarvis is back.", pre-rendered via
   tts.chatterbox.cache_phrases) followed by a unique line. When the profile has the user's name, that
   line always contains their first name; without a name it addresses nobody by name.
-- The unique lines are written by Claude in batches (the Claude Code CLI, `claude -p`, on a small
-  fast model), tagged with a time of day, and stored in SQLite (`greetings`; the unique line only,
-  not the prefix). Each one is marked used when spoken and is never picked again; the table's
-  UNIQUE text means a repeat from Claude is simply dropped, as is a line without the name.
-- When fewer than `greeting.min_pool` are left, a background thread asks Claude for more,
+- The unique lines are written in batches by the utility model (llm.utility: by default the main
+  provider's small, fast model, e.g. Haiku through `claude -p`), tagged with a time of day, and stored in
+  SQLite (`greetings`; the unique line only, not the prefix). Each one is marked used when spoken and is
+  never picked again; the table's UNIQUE text means a repeat is simply dropped, as is a line without the
+  name.
+- When fewer than `greeting.min_pool` are left, a background thread asks for more,
   passing the most recent ones so the style keeps moving.
-- If Claude is unreachable, a local mix-and-match fallback still produces a line that has never
+- If the model is unreachable, a local mix-and-match fallback still produces a line that has never
   been used.
 - prepare_next() hands the next unique line to the TTS engine (Chatterbox caches it), so it
   plays instantly when the window opens.
@@ -18,13 +19,10 @@ import datetime
 import json
 import random
 import re
-import tempfile
 import threading
 from typing import Callable, Optional
 
-from src.core import winproc
-
-SLOTS = ("morning", "afternoon", "evening", "night")
+SLOTS =("morning", "afternoon", "evening", "night")
 
 DEFAULT_PREFIX = "Jarvis is back."
 
@@ -46,7 +44,7 @@ Do not repeat or closely paraphrase any of these recent ones:
 
 Reply with only a JSON array: [{{"text": "...", "slot": "any"}}, ...]"""
 
-# Fallback pieces (Claude unavailable). Every opener has the name; combinations are checked
+# Fallback pieces (model unavailable). Every opener has the name; combinations are checked
 # against the table, so a used one is never spoken again.
 OPENERS = {
     "morning": ["Morning, {name}.", "Rise and grind, {name}.", "Good morning, {name}.", "Fresh day, {name}.",
@@ -89,7 +87,7 @@ def has_name(text: str, name: str) -> bool:
 
 
 def parse_batch(text: str, name: str = "") -> list:
-    """[(text, slot)] from Claude's reply (tolerates code fences and stray prose around the JSON).
+    """[(text, slot)] from the model's reply (tolerates code fences and stray prose around the JSON).
     With a name, lines that don't contain it are dropped."""
     m = re.search(r"\[.*\]", text or "", re.S)
     if not m:
@@ -116,11 +114,11 @@ class GreetingPool:
                  generator: Optional[Callable[[str], str]] = None,
                  clock: Callable[[], datetime.datetime] = datetime.datetime.now):
         self.cfg = config.get("greeting", {}) or {}
-        self.claude_cfg = config.get("llm", {}).get("claude", {}) or {}
+        self.config = config
         self.memory = memory
         self.tts = tts
         self.clock = clock
-        self.generator = generator or self._ask_claude
+        self.generator = generator or self._ask_utility
         user = (profile or {}).get("user") or {}
         self.name = (self.cfg.get("name") or user.get("name", "") or "").strip().split(" ")[0]   # "" = no name
         self.about = user.get("work", "")[:300]
@@ -207,22 +205,15 @@ class GreetingPool:
                                    recent="\n".join(f"- {t}" for t in recent) or "- (none yet)")
             items = parse_batch(self.generator(prompt), name=self.name)
             added = self.memory.add_greetings(items)
-            print(f"[GREETING] Claude wrote {len(items)} greetings, {added} new")
+            print(f"[GREETING] The utility model wrote {len(items)} greetings, {added} new")
         except Exception as e:
             print(f"[GREETING] Could not get new greetings: {e}")
         finally:
             self._refilling.clear()
 
-    def _ask_claude(self, prompt: str) -> str:
-        cli = self.claude_cfg.get("cli_path", "claude")
-        model = self.cfg.get("model", "claude-haiku-5-5")
-        # A neutral folder, so the CLI doesn't load a project's CLAUDE.md for a one-line job.
-        res = winproc.run_hidden([cli, "-p", prompt, "--model", model], timeout=float(self.cfg.get("timeout_s", 120)),
-                                 capture_output=True, text=True, encoding="utf-8", errors="replace",
-                                 cwd=tempfile.gettempdir())
-        if res.returncode != 0:
-            raise RuntimeError((res.stderr or res.stdout or "").strip()[:300] or f"exit {res.returncode}")
-        return res.stdout
+    def _ask_utility(self, prompt: str) -> str:
+        from src.agent.utility import utility_generator
+        return utility_generator(self.config, timeout_s=float(self.cfg.get("timeout_s", 120)))(prompt)
 
     # ------------------------------------------------------------ audio
 

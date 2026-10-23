@@ -163,8 +163,8 @@ def main() -> int:
     asked = wait_log(m4, "[APPROVAL] Asking", 90)
     time.sleep(1.0)
     ui("const b = document.querySelector('.dialog .btn-primary'); if (b) b.click();")
-    results["5 approved Claude Code delegation ran (claude -p)"] = asked and wait_log(m4, "[TOOL] delegate_to_claude", 400) and \
-        any("delegate_to_claude" in l and "-> done" in l for l in log_lines_since(m4))
+    results["5 approved Claude Code delegation ran (claude -p)"] = asked and wait_log(m4, "[TOOL] delegate_to_coding_agent", 400) and \
+        any("delegate_to_coding_agent" in l and "-> done" in l for l in log_lines_since(m4))
 
     # 5b. An agentic task: Claude runs the demo project's tests and build (python.exe children) and edits files.
     subprocess.run([sys.executable, str(ROOT / "sandbox" / "reset_demo.py")], capture_output=True)

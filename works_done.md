@@ -6,6 +6,138 @@ each entry names the phase it belongs to.
 
 ---
 
+## 2026-10-23 · Phase 2: several AI providers
+
+### What changed
+
+**Providers** (`src/agent/providers/`)
+- Neutral message types and the `ProviderAdapter` interface (`base.py`): text, tool calls, tool results
+  with images, usage (input, output, cache read, cache write), capability flags, and one `ProviderError`
+  with a `kind` (auth, rate_limit, overloaded, timeout, network, context_length, ...) and a spoken sentence.
+  Every request runs in a worker thread, so cancel returns at once and an open stream is closed.
+- `openai_compat.py`: chat completions with tools through the official `openai` SDK. One adapter for
+  OpenAI, OpenRouter, Groq, Gemini (OpenAI-compatible endpoint), Ollama, LM Studio and any compatible
+  server. Malformed tool arguments are flagged and sent back exactly as the model wrote them; images from a
+  tool follow the tool messages as a user message; a "basic" schema mode drops validation keywords for
+  servers that reject them; vision is set per provider or guessed from the model name.
+- `anthropic_api.py`: the Messages API through the official `anthropic` SDK, always streamed (the timeout
+  is a limit on silence). Prompt caching: a breakpoint on the system prompt (tools + system cached
+  together) plus automatic caching of the conversation. Assistant content, including signed thinking
+  blocks, goes back unchanged. Effort is sent and dropped for models that reject it. For Claude Fable 5.1,
+  Opus 5.5, Opus 5 and Sonnet 5.5 on the official API, a refused request is re-run on Anthropic's
+  recommended fallback model (`fallbacks: "default"`); blocks from a declined partial answer are neither run
+  nor sent back.
+- Settings › AI picks the provider; API keys live in Windows Credential Manager (`JARVIS/LLM/<provider>`),
+  with the provider's environment variable as a fallback for developers.
+
+**The agent for API providers** (`src/agent/tool_loop_backend.py`)
+- A generic tool-calling loop behind the existing `AgentBackend` interface. Every call goes through
+  `PolicyExecutor` (validation, permissions, approvals, dry run, audit log), one at a time. Unknown tools,
+  invalid or malformed arguments and denied calls come back as results the model can read; every call gets
+  a result, also when the user stops halfway or a tool raises.
+- Cancel and the task pause interrupt stop the request in flight; `agent.max_seconds` bounds the request;
+  max turns ends with the last thing the model said; screenshots go to models that can see and become a
+  text note otherwise (a server that refuses images is retried without them).
+- The conversation only grows (needed for signed thinking blocks, and it keeps prompt caching effective).
+  When the last request read more than `history_budget_tokens`, the next turn starts from a summary written
+  by the utility model, or a short note if that fails. A start-up request checks the key and model, loads a
+  local model and fills the prompt cache.
+- `create_agent()` reads `llm.main`: Claude Code for `claude_code`, the tool loop for everything else.
+- The Claude Code backend reads the new settings, honours the tool profile and records its token usage
+  (part of the Claude plan, so no cost).
+
+**Roles, tools, usage**
+- Utility role (`src/agent/utility.py`): greetings and conversation summaries run on `llm.utility`, by
+  default the main provider's small model (Haiku via `claude -p` for Claude). Greetings no longer call
+  `claude -p` themselves.
+- Tool profiles (`src/agent/toolsets.py`, `tools.profile`): `full`, `core` (apps, media, clock, memory, web
+  reading, read-only project files, tasks), `custom`, and `auto` (core for providers on this PC). A backend
+  refuses calls to tools it did not offer.
+- System prompt: sections about tools the model doesn't have are left out, so a model with the short list
+  isn't told about desktop control or terminals; the terminal section names the configured coding agent.
+- Usage and cost (`src/agent/usage.py`, table `llm_usage`): every request's tokens and estimated cost
+  (prices per model in `llm.prices`, Claude models listed; local models and the Claude plan cost 0) are
+  stored and sent as a `usage` event. Activity shows an "AI usage" card with daily totals. With
+  `llm.daily_budget_usd` set, new requests stop once today's estimate reaches it, with a spoken explanation.
+
+**Coding agent delegation**
+- `delegate_to_claude` became `delegate_to_coding_agent`, configured by `coding_agent.cli`: Claude Code
+  (`claude -p`), Codex (`codex exec`), Aider (`aider --yes-always --message`), a custom command, or off (the
+  tool is not offered). The approval dialog names the agent; output still goes to the cache folder
+  (`coding_agent_outputs/`), never into the project. The output pipes are now closed after each run.
+- The spoken yes/no words for approvals moved from `claude_code` to `voice_approval`.
+
+**Settings**
+- `config/defaults.json` (config version 2): `llm.main`, `llm.utility`, shared request settings and nine
+  provider presets (Claude through Claude Code as the default, Anthropic API, OpenAI, OpenRouter, Groq,
+  Gemini, Ollama, LM Studio, another OpenAI-compatible server), `llm.prices`, `coding_agent`,
+  `voice_approval`, `tools.profile`.
+- `migrate_user_config()` moves a version 1 file: `llm.claude` to `llm.providers.claude_code`,
+  `greeting.model` to its utility model, `claude_code` to `coding_agent` (off or a custom command when it
+  was disabled or pointed elsewhere) and `voice_approval`, and the tool permission to the new tool name.
+- New editable settings for the providers, roles, budget, tool profile and coding agent, with validation
+  (known provider names, nullable budget and vision, effort values).
+
+**UI**
+- Settings › AI replaces the Claude section: provider, model with Fetch models, effort, server address,
+  timeout, vision, API key (write-only: Save key / Forget key and where the key comes from), badges (cloud
+  or on this PC, tools, images, prompt caching), an estimated cost per request from the prompt size and the
+  price table, the background model, tool profile, limits, daily budget and Test connection (any provider:
+  the model has to use the clock tool).
+- Tools and permissions: the coding agent choice. Activity: the AI usage card.
+- Spoken errors use the provider's sentence ("The AI service rejected the API key ..."); the ready event
+  names the actual backend.
+
+**Live check**
+- `python -m src.agent check --provider <name> --model <id> [--base-url <url>]` runs against any
+  provider, with the planning tools registered like in the app.
+
+**Docs**
+- `docs/PROVIDERS.md`: choosing and setting up providers, local models (context length, short tool list),
+  the two roles, cost and the daily limit, coding agents, the live check, and how the code is organised.
+
+**Dependencies**
+- `anthropic` and `openai` (both Apache-2.0, imported only when that provider is used).
+
+### Verified
+- 300 automated tests pass (`python -m unittest discover -s tests -t .`), 92 of them new:
+  - `tests/test_providers.py`: both adapters against a fake HTTP server (`tests/fake_llm.py`): plain text,
+    single and parallel tool calls, a failed tool result, image results, cancel mid-request, timeout,
+    malformed tool JSON, 429 with retry-after, persistent rate limit, rejected key, unreachable server,
+    model list, prompt-cache breakpoints, thinking blocks sent back unchanged, effort retried without,
+    refusal fallback rules; plus provider roles, key lookup and readiness checks.
+  - `tests/test_tool_loop.py`: the loop with a scripted model and the real `PolicyExecutor`.
+  - `tests/test_backend_contract.py`: the same five conversations on four backends (scripted, OpenAI over
+    HTTP, Anthropic over HTTP, Claude Code with a fake SDK client).
+  - `tests/test_llm_setup.py` and `tests/test_config_store.py`: backend choice, utility role, tool
+    profiles, prices and the daily budget, coding agent presets and a real hidden run, the version 1 to 2
+    migration and the new settings' validation.
+- Phone app: `npx tsc --noEmit` clean (unchanged).
+- End to end: `python -m src.agent check` against fake OpenAI-compatible and Anthropic servers (real
+  registry with 45 tools, planning tools, memory, dry run): both PASS, with tool calls, a saved memory,
+  cached-token usage and cost. One real request through the default Claude Code path: PASS (clock tool used,
+  usage recorded).
+- GUI smoke run with a scratch data folder: Settings › AI renders, switching the provider shows that
+  provider's fields, Fetch models reports an unreachable server in plain words, and the Activity usage card
+  renders; no page errors after the fix below.
+- Personal-data scan over every changed or new file: 0 hits. `ruff check --select F` on the changed modules:
+  clean apart from one f-string in `src/pipeline.py` that predates this work.
+
+### Fixed along the way
+- Activity's loader could run unbound from a timer and fail to load the usage card.
+- The coding-agent run left its output pipes open (a ResourceWarning in tests).
+
+### Decided
+- The live check against real providers (an Anthropic API key, an OpenAI-compatible cloud service, a local
+  Ollama model) moves to the release checklist: which provider to use is each user's choice, so it is
+  verified once before the first release. Until then the adapters are tested against fake servers.
+
+### Not done yet
+- Signed-out and usage-limit banners, the Sign in with Claude flow and per-provider setup screens are part
+  of the setup wizard (Phase 3).
+
+---
+
 ## 2026-10-23 · Phase 5 start: first commit, private GitHub repository
 
 - First commit of the Phase 1 state, pushed to a private GitHub repository; it becomes public at

@@ -1,18 +1,18 @@
-"""Controlled agent loop around Claude.
+"""Controlled agent loop around the AI (any backend).
 
-Each user request goes to Claude (with memory + open-task context). Simple
-requests finish in one Claude run. When Claude turns the request into a task
+Each user request goes to the agent (with memory + open-task context). Simple
+requests finish in one run. When the model turns the request into a task
 (create_plan), the orchestrator keeps the task moving until it reaches a real
 end state:
 
-    run Claude -> look at the task in SQLite ->
+    run the agent -> look at the task in SQLite ->
         COMPLETED / FAILED / BLOCKED      -> report
         paused / cancelled by the user    -> PAUSED / CANCELLED
-        Claude error                      -> BLOCKED (with the error)
+        model or provider error           -> BLOCKED (with the error)
         time or tool-call budget used up  -> BLOCKED (resume to continue)
-        still RUNNING (Claude stopped)    -> continue prompt (at most agent.task.max_nudges)
+        still RUNNING (the model stopped) -> continue prompt (at most agent.task.max_nudges)
 
-Inside each run Claude itself loops over tools (Understand / Inspect / Plan /
+Inside each run the model itself loops over tools (Understand / Inspect / Plan /
 Execute / Observe / Adapt); the orchestrator enforces limits, persistence and
 the verification gate (finish_task in tasks.py).
 """
@@ -136,11 +136,12 @@ class Orchestrator:
                             "BLOCKED": f"I'm blocked: {task.get('blocked_reason') or 'I need your input.'}"}[status]
                 return self._final(res, tid, res.reply or fallback)
             if not res.ok:
-                reason = f"Claude stopped with an error: {res.error}"
+                reason = f"The AI stopped with an error: {res.error}"
                 self.tasks.set_status(tid, "BLOCKED", blocked_reason=reason[:1000])
                 self.tasks.event(tid, "blocked", reason[:500])
                 res.ok = True                     # reported through the task, spoken below
-                return self._final(res, tid, "I hit an error talking to Claude, so I paused the task. You can resume it.")
+                return self._final(res, tid, res.spoken or "I hit an error talking to the AI, so I paused the task. "
+                                                           "You can resume it.")
             elapsed = time.time() - started
             if elapsed > lim["max_seconds"] or (ctx.budget and ctx.budget.used >= ctx.budget.max_calls):
                 what = "time limit" if elapsed > lim["max_seconds"] else "tool-call limit"
@@ -148,11 +149,11 @@ class Orchestrator:
                 self.tasks.event(tid, "limit", f"Stopped at the {what}")
                 return self._final(res, tid, f"I stopped at the {what} before finishing. You can resume the task.")
             if nudges >= lim["max_nudges"]:
-                self.tasks.set_status(tid, "BLOCKED", blocked_reason="Claude kept stopping without finishing or verifying.")
+                self.tasks.set_status(tid, "BLOCKED", blocked_reason="The AI kept stopping without finishing or verifying.")
                 self.tasks.event(tid, "blocked", "Stopped without finishing after repeated continue prompts")
                 return self._final(res, tid, res.reply or "I stopped before finishing; the task is waiting for you.")
             nudges += 1
-            self.tasks.event(tid, "continue", f"Not finished yet ({status}); asking Claude to continue ({nudges}/{lim['max_nudges']})")
+            self.tasks.event(tid, "continue", f"Not finished yet ({status}); asking the AI to continue ({nudges}/{lim['max_nudges']})")
             prompt = ("[orchestrator] Task #%d is still %s and has not been verified. Continue with the remaining "
                       "steps now. When everything is done call finish_task; if you cannot proceed safely or need the "
                       "user, call block_task. Last thing you said: %r" % (tid, status, (res.reply or "")[:300]))

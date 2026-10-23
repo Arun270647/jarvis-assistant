@@ -221,7 +221,76 @@ class Bridge(QObject):
     def settingsGet(self) -> str:
         cfg = config_store.load_config()
         return _dumps({"config": cfg, "options": self._options(cfg), "startup_enabled": startup.is_startup_enabled(),
-                       "editable": list(config_store.EDITABLE)})
+                       "editable": list(config_store.EDITABLE), "ai": self._ai_status(cfg)})
+
+    # ------------------------------------------------------------ AI providers
+
+    def _ai_status(self, cfg: dict) -> dict:
+        """Every provider with what Settings › AI shows about it; keys only as where they come from."""
+        from src.agent import providers as P
+        from src.agent.providers.openai_compat import guess_vision
+        from src.agent.utility import describe
+        items = []
+        for name in P.providers(cfg):
+            try:
+                s = P.settings_for(cfg, name)
+            except Exception:
+                continue
+            source = P.api_key(name, s)[1] if s["kind"] != "claude_code" else None
+            vision = s.get("vision")
+            if s["kind"] != "openai_compat":
+                vision = True
+            items.append({"name": name, "label": s.get("label") or name, "kind": s["kind"],
+                          "needs_key": bool(s.get("needs_key")), "local": bool(s.get("local")),
+                          "key_source": source, "env_key": s.get("env_key") or "", "models": s.get("models") or [],
+                          "vision": vision, "vision_guess": guess_vision(str(s.get("model") or ""))})
+        return {"providers": items, "problems": P.problems(cfg, "main"), "utility": describe(cfg)}
+
+    @Slot(str, str, result=str)
+    def aiSaveKey(self, provider: str, key: str) -> str:
+        from src.agent import providers as P
+        try:
+            P.settings_for(config_store.load_config(), provider)
+            P.save_api_key(provider, key)
+            return _dumps({"ok": True})
+        except Exception as e:
+            return _dumps({"ok": False, "error": str(e)})
+
+    @Slot(str, result=bool)
+    def aiForgetKey(self, provider: str) -> bool:
+        from src.agent import providers as P
+        P.forget_api_key(provider)
+        return True
+
+    @Slot(str, str)
+    def aiFetchModels(self, provider: str, base_url: str) -> None:
+        """The provider's model list (GET /models), answered with an ai_models event."""
+        def run():
+            from src.agent import providers as P
+            cfg = config_store.load_config()
+            try:
+                if base_url:
+                    cfg["llm"]["providers"][provider]["base_url"] = base_url
+                adapter = P.adapter_for(cfg, provider)
+                try:
+                    models = adapter.list_models()
+                finally:
+                    adapter.close()
+                self.app.hub.emit_event({"type": "ai_models", "provider": provider, "ok": True, "models": models})
+            except Exception as e:
+                self.app.hub.emit_event({"type": "ai_models", "provider": provider, "ok": False, "error": str(e)})
+        threading.Thread(target=run, name="ai-models", daemon=True).start()
+
+    @Slot(result=str)
+    def usageSummary(self) -> str:
+        from src.agent.usage import UsageMeter
+        cfg = config_store.load_config()
+        meter = UsageMeter(self.controller.memory, lambda: cfg)
+        try:
+            days = self.controller.memory.usage_by_day(14)
+        except Exception as e:
+            return _dumps({"days": [], "error": str(e)})
+        return _dumps({"days": days, "today_usd": meter.spent_today(), "budget_usd": meter.budget()})
 
     @Slot(str, result=str)
     def settingsSave(self, updates_json: str) -> str:
@@ -322,10 +391,11 @@ class Bridge(QObject):
         self._restart_phone()
 
     @Slot()
-    def testClaude(self) -> None:
-        threading.Thread(target=self._test_claude, name="claude-test", daemon=True).start()
+    def testConnection(self) -> None:
+        threading.Thread(target=self._test_connection, name="ai-test", daemon=True).start()
 
-    def _test_claude(self):
+    def _test_connection(self):
+        """One request through the configured provider that has to use a tool (the clock), on saved settings."""
         import tempfile
         t0 = time.time()
         try:
@@ -356,8 +426,7 @@ class Bridge(QObject):
             self.app.hub.emit_event({"type": "settings_test", "ok": False, "detail": str(e), "seconds": round(time.time() - t0, 1)})
 
     def _options(self, cfg: dict) -> dict:
-        opts = {"devices": [], "voices": [], "whisper_models": [], "tools": [],
-                "models": cfg.get("llm", {}).get("claude", {}).get("model_options", [])}
+        opts = {"devices": [], "voices": [], "whisper_models": [], "tools": [], "prompt_tokens": {}}
         try:
             import sounddevice as sd
             default_in = sd.default.device[0] if isinstance(sd.default.device, (list, tuple)) else None
@@ -379,6 +448,7 @@ class Bridge(QObject):
             from src.router.action_router import ActionRouter
             from src.tools.registry import build_default_registry
             reg = build_default_registry(ActionRouter(), self.controller.memory, cfg)
+            opts["prompt_tokens"] = self._prompt_tokens(reg)
             overrides = cfg.get("tools", {}).get("permissions", {})
             for s in reg.specs():
                 opts["tools"].append({"name": s.name, "description": s.description.split(". ")[0].rstrip(".") + ".",
@@ -388,6 +458,20 @@ class Bridge(QObject):
         except Exception as e:
             opts["tools_error"] = str(e)
         return opts
+
+    @staticmethod
+    def _prompt_tokens(reg) -> dict:
+        """About how many tokens the system prompt and tool definitions take, per tool profile (for the cost
+        estimate in Settings › AI). Planning tools are added by the pipeline, so they count as ~1500."""
+        from src.agent.prompt import build_agent_system_prompt
+        from src.agent.toolsets import CORE_TOOLS
+        out = {}
+        for profile in ("full", "core"):
+            specs = [s for s in reg.specs() if profile == "full" or s.name in CORE_TOOLS]
+            chars = len(build_agent_system_prompt([s.name for s in specs], {}, False))
+            chars += sum(len(s.description) + len(json.dumps(s.input_schema)) for s in specs)
+            out[profile] = chars // 4 + 1500
+        return out
 
     # ------------------------------------------------------------ diagnostics
 

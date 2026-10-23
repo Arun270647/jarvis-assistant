@@ -1,4 +1,4 @@
-"""Jarvis agent: Claude (through the Claude Code login) driving the tool registry.
+"""Jarvis agent: the configured AI provider (llm.main) driving the tool registry.
 
     agent = create_agent(config, executor, memory)
     agent.load()
@@ -56,6 +56,18 @@ class Agent:
 
 
 def create_agent(config: dict, executor, memory=None) -> Agent:
-    """The Claude Code agent (one persistent session, tools exposed as an in-process MCP server)."""
-    from src.agent.claude_code_backend import ClaudeCodeAgentBackend
-    return Agent(ClaudeCodeAgentBackend(config, executor), memory=memory, config=config)
+    """The agent for llm.main: Claude Code (one persistent session, tools as an in-process MCP server) or,
+    for an API provider, the generic tool-calling loop with that provider's adapter."""
+    from src.agent.providers import create_adapter, role
+    from src.agent.usage import UsageMeter
+    meter = UsageMeter(memory, lambda: config)
+    _, _, settings = role(config, "main")
+    if settings["kind"] == "claude_code":
+        from src.agent.claude_code_backend import ClaudeCodeAgentBackend
+        backend = ClaudeCodeAgentBackend(config, executor, meter=meter)
+    else:
+        from src.agent.tool_loop_backend import ToolLoopBackend
+        from src.agent.utility import utility_generator
+        backend = ToolLoopBackend(config, executor, create_adapter(config, "main"),
+                                  summarizer=utility_generator(config, meter), meter=meter)
+    return Agent(backend, memory=memory, config=config)

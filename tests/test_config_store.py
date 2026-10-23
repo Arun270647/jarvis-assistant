@@ -34,15 +34,17 @@ class ConfigStoreTests(unittest.TestCase):
 
     def test_update_writes_only_what_differs_from_the_defaults(self):
         d = config_store.defaults()
-        cfg = config_store.update_config({"llm.claude.effort": "high", "pipeline.silence_timeout_ms": 600,
+        key = "llm.providers.claude_code.effort"
+        cfg = config_store.update_config({key: "high", "pipeline.silence_timeout_ms": 600,
                                           "tools.permissions": {"open_app": "ask"},
                                           "agent.max_turns": d["agent"]["max_turns"]}, self.path)
-        self.assertEqual(cfg["llm"]["claude"]["effort"], "high")
-        self.assertEqual(self.read(), {"llm": {"claude": {"effort": "high"}}, "pipeline": {"silence_timeout_ms": 600},
+        self.assertEqual(cfg["llm"]["providers"]["claude_code"]["effort"], "high")
+        self.assertEqual(self.read(), {"llm": {"providers": {"claude_code": {"effort": "high"}}},
+                                       "pipeline": {"silence_timeout_ms": 600},
                                        "tools": {"permissions": {"open_app": "ask"}},
                                        "config_version": config_store.CONFIG_VERSION})
         # Back to the default value: the key leaves the user's file.
-        config_store.update_config({"llm.claude.effort": d["llm"]["claude"]["effort"], "tools.permissions": {}},
+        config_store.update_config({key: d["llm"]["providers"]["claude_code"]["effort"], "tools.permissions": {}},
                                    self.path)
         self.assertEqual(self.read(), {"pipeline": {"silence_timeout_ms": 600},
                                        "config_version": config_store.CONFIG_VERSION})
@@ -102,6 +104,49 @@ class ConfigStoreTests(unittest.TestCase):
         config_store.migrate_user_config(self.dir / "missing.json")         # no file: nothing to migrate
         self.assertFalse((self.dir / "missing.json").exists())
 
+    def test_version_1_files_move_to_the_provider_settings(self):
+        v1 = {"config_version": 1,
+              "llm": {"claude": {"model": "claude-opus-5-5", "effort": "high", "timeout_seconds": 45,
+                                 "model_options": ["claude-opus-5-5"]}},
+              "greeting": {"model": "claude-haiku-4-5"},
+              "claude_code": {"enabled": True, "default_project": "shop", "require_confirmation": False,
+                              "timeout_seconds": 600, "confirm_affirmative": ["ja"], "confirmation_window_ms": 3000},
+              "tools": {"permissions": {"delegate_to_claude": "allow", "open_app": "ask"}}}
+        self.path.write_text(json.dumps(v1), encoding="utf-8")
+        config_store.migrate_user_config(self.path)
+        self.assertEqual(self.read(), {
+            "config_version": 2,
+            "llm": {"providers": {"claude_code": {"model": "claude-opus-5-5", "effort": "high", "timeout_seconds": 45,
+                                                  "utility_model": "claude-haiku-4-5"}}},
+            "coding_agent": {"default_project": "shop", "require_confirmation": False, "timeout_seconds": 600},
+            "voice_approval": {"affirmative": ["ja"], "window_ms": 3000},
+            "tools": {"permissions": {"delegate_to_coding_agent": "allow", "open_app": "ask"}}})
+        cfg = config_store.load_config(self.path)
+        self.assertEqual(cfg["llm"]["main"]["provider"], "claude_code")
+        self.assertEqual(cfg["llm"]["providers"]["claude_code"]["model"], "claude-opus-5-5")
+        self.assertEqual(cfg["coding_agent"]["cli"], "claude")
+
+    def test_version_1_delegation_off_or_custom_cli(self):
+        self.path.write_text(json.dumps({"config_version": 1, "claude_code": {"enabled": False}}), encoding="utf-8")
+        config_store.migrate_user_config(self.path)
+        self.assertEqual(self.read()["coding_agent"], {"cli": "off"})
+        self.path.write_text(json.dumps({"config_version": 1, "claude_code": {"cli_path": "D:/tools/claude.exe"}}),
+                             encoding="utf-8")
+        config_store.migrate_user_config(self.path)
+        self.assertEqual(self.read()["coding_agent"], {"cli": "custom", "custom_command": ["D:/tools/claude.exe", "-p"]})
+
+    def test_provider_settings_are_validated(self):
+        cfg = config_store.update_config({"llm.main.provider": "ollama", "llm.providers.ollama.model": "qwen3:8b",
+                                          "llm.daily_budget_usd": 2, "llm.providers.openai.vision": None}, self.path)
+        self.assertEqual((cfg["llm"]["main"]["provider"], cfg["llm"]["daily_budget_usd"]), ("ollama", 2.0))
+        config_store.update_config({"llm.daily_budget_usd": None}, self.path)        # back to no limit
+        for bad in ({"llm.main.provider": "skynet"}, {"llm.utility.provider": "nope"},
+                    {"llm.providers.claude_code.model": " "}, {"llm.providers.anthropic.effort": "turbo"},
+                    {"tools.profile": "everything"}, {"coding_agent.cli": "vim"}, {"llm.claude.model": "x"}):
+            with self.assertRaises(ValueError, msg=bad):
+                config_store.update_config(bad, self.path)
+        config_store.update_config({"llm.utility.provider": "", "llm.providers.openai.model": ""}, self.path)
+
     def test_wake_word_settings_are_gone(self):
         for key in ("wakeword.enabled", "wakeword.threshold", "pipeline.wake_ack", "gui.show_on_wake"):
             with self.assertRaises(ValueError, msg=key):
@@ -115,7 +160,7 @@ class ConfigStoreTests(unittest.TestCase):
         e = d["email"]
         self.assertEqual((e["username"], e["from_address"], e["from_name"]), ("", "", ""))
         self.assertEqual(d["tts"]["chatterbox"]["python"], "")
-        self.assertEqual(d["claude_code"]["default_project"], "")
+        self.assertEqual(d["coding_agent"]["default_project"], "")
         self.assertIsNone(d["audio"]["input_device_index"])                  # the system default microphone
         self.assertFalse(d["agent"]["full_access"])
         self.assertFalse(d["phone"]["enabled"])

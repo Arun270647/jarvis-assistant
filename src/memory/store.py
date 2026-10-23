@@ -6,6 +6,7 @@ Tables:
   tool_runs    every tool call the policy executor handled (audit, idempotency, Activity)
   tasks        agentic tasks: objective, status, plan, success checks, outcome
   task_events  the timeline of each task (accepted, plan, tool, approval, verification ...)
+  llm_usage    tokens and estimated cost of every model request (Activity totals, the daily budget)
 
 Schema changes are additive and applied on open (_migrate), so existing
 databases keep their data.
@@ -104,7 +105,21 @@ CREATE TABLE IF NOT EXISTS phone_devices (
     paired_at REAL NOT NULL,
     last_seen REAL
 );
+CREATE TABLE IF NOT EXISTS llm_usage (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    created_at REAL NOT NULL,
+    day TEXT NOT NULL,                          -- local date, YYYY-MM-DD
+    role TEXT NOT NULL DEFAULT 'main',          -- main | utility
+    provider TEXT NOT NULL,
+    model TEXT NOT NULL,
+    input_tokens INTEGER NOT NULL DEFAULT 0,    -- uncached input
+    output_tokens INTEGER NOT NULL DEFAULT 0,
+    cache_read INTEGER NOT NULL DEFAULT 0,
+    cache_write INTEGER NOT NULL DEFAULT 0,
+    cost_usd REAL                               -- estimate; NULL when the model has no price
+);
 CREATE INDEX IF NOT EXISTS idx_messages_created ON messages(created_at);
+CREATE INDEX IF NOT EXISTS idx_llm_usage_day ON llm_usage(day);
 CREATE INDEX IF NOT EXISTS idx_tool_runs_started ON tool_runs(started_at);
 CREATE INDEX IF NOT EXISTS idx_task_events_task ON task_events(task_id, id);
 """
@@ -501,8 +516,35 @@ def delete_phone_device(self, device_id: str) -> bool:
         return cur.rowcount > 0
 
 
+# ------------------------------------------------------------ model usage (src/agent/usage.py)
+
+def add_llm_usage(self, provider: str, model: str, input_tokens: int = 0, output_tokens: int = 0,
+                  cache_read: int = 0, cache_write: int = 0, cost_usd: Optional[float] = None,
+                  role: str = "main", day: Optional[str] = None) -> int:
+    now = time.time()
+    return self._write(
+        "INSERT INTO llm_usage(created_at, day, role, provider, model, input_tokens, output_tokens, cache_read, "
+        "cache_write, cost_usd) VALUES (?,?,?,?,?,?,?,?,?,?)",
+        (now, day or time.strftime("%Y-%m-%d", time.localtime(now)), role, provider, model, int(input_tokens),
+         int(output_tokens), int(cache_read), int(cache_write), cost_usd))
+
+
+def usage_by_day(self, days: int = 14) -> list:
+    """Totals per local day, newest first: requests, tokens, estimated cost (unpriced = requests without one)."""
+    return self._read(
+        "SELECT day, COUNT(*) AS requests, SUM(input_tokens) AS input_tokens, SUM(output_tokens) AS output_tokens, "
+        "SUM(cache_read) AS cache_read, SUM(cache_write) AS cache_write, COALESCE(SUM(cost_usd), 0) AS cost_usd, "
+        "SUM(cost_usd IS NULL) AS unpriced FROM llm_usage GROUP BY day ORDER BY day DESC LIMIT ?", (int(days),))
+
+
+def usage_cost_on(self, day: str) -> float:
+    rows = self._read("SELECT COALESCE(SUM(cost_usd), 0) AS c FROM llm_usage WHERE day = ?", (day,))
+    return float(rows[0]["c"]) if rows else 0.0
+
+
 for _fn in (create_task, get_task, update_task, list_tasks, add_task_event, task_events,
             interrupted_task_runs, reconcile_after_restart, add_greetings, unused_greetings,
             count_unused_greetings, mark_greeting_used, recent_greetings, add_phone_device,
-            get_phone_device, list_phone_devices, touch_phone_device, delete_phone_device):
+            get_phone_device, list_phone_devices, touch_phone_device, delete_phone_device,
+            add_llm_usage, usage_by_day, usage_cost_on):
     setattr(MemoryStore, _fn.__name__, _fn)

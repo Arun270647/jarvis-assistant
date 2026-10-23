@@ -30,8 +30,8 @@ class RegistryTests(unittest.TestCase):
         names = set(self.reg.names())
         for n in ("open_app", "media_control", "system_command", "open_chrome", "read_webpage", "search_web", "get_datetime", "remember", "recall", "forget"):
             self.assertIn(n, names)
-        if self.cfg.get("claude_code", {}).get("enabled"):
-            self.assertIn("delegate_to_claude", names)
+        if self.cfg.get("coding_agent", {}).get("cli", "claude") != "off":
+            self.assertIn("delegate_to_coding_agent", names)
 
     def test_every_schema_is_valid_json_schema_and_closed(self):
         for spec in self.reg.specs():
@@ -67,10 +67,10 @@ class RegistryTests(unittest.TestCase):
         self.assertEqual(r.status, "denied")
 
     def test_delegate_asks_when_required(self):
-        if "delegate_to_claude" not in self.reg.names():
+        if "delegate_to_coding_agent" not in self.reg.names():
             self.skipTest("delegation disabled")
-        expected = "ask" if self.cfg["claude_code"].get("require_confirmation", True) else "allow"
-        self.assertEqual(self.ex.permission_for("delegate_to_claude", {"task": "x"}), expected)
+        expected = "ask" if self.cfg["coding_agent"].get("require_confirmation", True) else "allow"
+        self.assertEqual(self.ex.permission_for("delegate_to_coding_agent", {"task": "x"}), expected)
 
     def test_memory_tools_round_trip(self):
         r = self.ex.execute("remember", {"content": "My printer is the HP in the hall", "kind": "fact"}, ToolContext())

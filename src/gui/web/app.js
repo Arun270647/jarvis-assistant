@@ -199,6 +199,8 @@
       case "mute": S.muted = !!ev.muted; break;
       case "stopped": S.info = null; break;
       case "settings_test": Settings.onTest(ev); return;
+      case "ai_models": Settings.onModels(ev); return;
+      case "usage": if (S.view === "activity") Activity.loadUsage(); return;
       case "email_test": { const l = $("email-line"); if (l) l.textContent = (ev.ok ? "✓ " : "✗ ") + ev.detail; return; }
       case "phone_status": Settings.renderPhone(); return;
       case "task_update": {
@@ -275,7 +277,26 @@
 
   // ───────────────────────────── Activity view
   const Activity = {
+    async loadUsage() {
+      const box = $("act-usage"); if (!box) return;
+      const raw = await call("usageSummary"); if (raw == null) return;
+      const u = JSON.parse(raw); box.textContent = "";
+      if (u.error) { box.appendChild(h("div", { class: "help", text: u.error })); return; }
+      const money = v => "$" + (v > 0 && v < 0.01 ? v.toFixed(4) : (v || 0).toFixed(2));
+      const k = n => (n || 0) >= 1e6 ? (n / 1e6).toFixed(1) + "M" : (n || 0) >= 1000 ? Math.round(n / 1000) + "k" : String(n || 0);
+      box.appendChild(h("div", { class: "help", text: `Today: ${money(u.today_usd)} estimated` +
+        (u.budget_usd ? ` of your ${money(u.budget_usd)} daily limit.` : ". No daily limit set (Settings › AI).") }));
+      if (!u.days.length) { box.appendChild(h("div", { class: "empty", text: "No AI requests recorded yet." })); return; }
+      box.appendChild(h("table", { class: "table" },
+        h("thead", {}, h("tr", {}, ["Day", "Requests", "Input", "Cached", "Output", "Estimated cost"].map((t, i) => h("th", { class: i ? "num" : "", text: t })))),
+        h("tbody", {}, u.days.map(d => h("tr", {},
+          h("td", { text: d.day }), h("td", { class: "num", text: String(d.requests) }),
+          h("td", { class: "num", text: k(d.input_tokens + d.cache_write) }), h("td", { class: "num", text: k(d.cache_read) }),
+          h("td", { class: "num", text: k(d.output_tokens) }),
+          h("td", { class: "num", text: money(d.cost_usd) + (d.unpriced ? ` (+${d.unpriced} without a price)` : "") }))))));
+    },
     async load() {
+      Activity.loadUsage();               // load() is also passed around unbound (setTimeout)
       const now = $("act-now"); now.textContent = "";
       if (S.approval) {
         const a = S.approval;
@@ -378,6 +399,8 @@
   const Settings = {
     data: null, changes: {},
     get(path) { return path.split(".").reduce((o, k) => (o == null ? undefined : o[k]), this.data.config); },
+    cur(path) { return path in this.changes ? this.changes[path] : this.get(path); },
+    editable(path) { return (this.data.editable || []).includes(path); },
     set(path, value) {
       const orig = path === "__startup__" ? this.data.startup_enabled : this.get(path);
       if (JSON.stringify(orig) === JSON.stringify(value)) delete this.changes[path]; else this.changes[path] = value;
@@ -389,10 +412,10 @@
       this.data = JSON.parse(raw); this.changes = {}; this.render();
     },
     field(label, path, control, help) {
-      return h("div", { class: "field", "data-field": path }, h("label", { text: label }), control, help ? h("div", { class: "help", text: help }) : null);
+      return h("div", { class: "field" + (path in this.changes ? " changed" : ""), "data-field": path }, h("label", { text: label }), control, help ? h("div", { class: "help", text: help }) : null);
     },
     select(path, options, label, help, cast) {
-      const cur = this.get(path);
+      const cur = this.cur(path);
       const sel = h("select", { class: "input" }, options.map(o => {
         const [v, t] = Array.isArray(o) ? o : [o, o];
         return h("option", { value: String(v), selected: String(v) === String(cur), text: t });
@@ -402,17 +425,17 @@
       return this.field(label, path, sel, help);
     },
     number(path, label, help, step, isFloat) {
-      const inp = h("input", { class: "input", type: "number", value: this.get(path), step: step || 1 });
+      const inp = h("input", { class: "input", type: "number", value: this.cur(path), step: step || 1 });
       inp.addEventListener("input", () => { const v = isFloat ? parseFloat(inp.value) : parseInt(inp.value, 10); if (!isNaN(v)) this.set(path, v); });
       return this.field(label, path, inp, help);
     },
     text(path, label, help, list) {
-      const inp = h("input", { class: "input", type: "text", value: this.get(path) == null ? "" : this.get(path), list: list || null, spellcheck: "false" });
+      const inp = h("input", { class: "input", type: "text", value: this.cur(path) == null ? "" : this.cur(path), list: list || null, spellcheck: "false" });
       inp.addEventListener("input", () => this.set(path, inp.value));
       return this.field(label, path, inp, help);
     },
     toggle(path, label, help) {
-      const cb = h("input", { type: "checkbox" }); cb.checked = path === "__startup__" ? !!this.data.startup_enabled : !!this.get(path);
+      const cb = h("input", { type: "checkbox" }); cb.checked = path === "__startup__" ? !!this.cur(path) || (!(path in this.changes) && !!this.data.startup_enabled) : !!this.cur(path);
       cb.addEventListener("change", () => this.set(path, cb.checked));
       return h("div", { class: "field", "data-field": path }, h("label", { class: "check", style: "font-size:13px; color:var(--color-text)" }, cb, label), help ? h("div", { class: "help", text: help }) : null);
     },
@@ -452,24 +475,16 @@
       const o = this.data.options, root = $("settings-root"); root.textContent = "";
       root.appendChild(h("div", { class: "page-head" }, h("div", {}, h("h2", { text: "Settings" }), h("div", { class: "sub", text: "Saved to config.json in your data folder (only what you change). Voice and model changes apply when the assistant restarts." }))));
 
-      const testLine = h("div", { id: "test-line", class: "help", text: "" });
-      root.appendChild(this.section("Claude", "The brain that understands requests and decides which tools to run. It uses your Claude Code login (subscription, no API key).",
-        h("div", { class: "grid-2" },
-          h("datalist", { id: "model-options" }, (o.models || []).map(m => h("option", { value: m }))),
-          this.text("llm.claude.model", "Model", "Any model id your account can use.", "model-options"),
-          this.select("llm.claude.effort", ["low", "medium", "high", "xhigh", "max"], "Effort", "Lower is faster; voice commands rarely need more than low."),
-          this.number("agent.max_turns", "Max steps per request", "Bounds multi-step tool use."),
-          this.number("llm.claude.timeout_seconds", "Idle timeout (s)", "Gives up if Claude is silent this long while no tool is running."),
-          this.number("agent.max_seconds", "Total time limit per request (s)"),
-          this.number("agent.memory_context_items", "Memories sent with each request")),
-        h("div", { class: "toolbar" }, h("button", { class: "btn btn-secondary", id: "btn-test", onclick: () => this.test(), text: "Test connection" }), testLine)));
+      root.appendChild(this.section("AI", "The brain that understands requests and decides which tools to run. Claude uses your Claude account through Claude Code; the other providers use an API key, or a model running on this PC.",
+        h("div", { id: "ai-body", class: "ai-body" })));
+      this.renderAI();
 
       const devices = [[null, "System default microphone"]].concat(
         (o.devices || []).map(d => [d.index, `[${d.index}] ${d.name}${d.default ? " · default" : ""}`]));
       root.appendChild(this.section("Microphone", o.devices_error ? "Could not list devices: " + o.devices_error : null,
         h("div", { class: "grid-2" },
           this.select("audio.input_device_index", devices, "Input device", null, v => v === "null" ? null : parseInt(v, 10)),
-          this.toggle("greeting.enabled", "Greet me when I open the window", "A new line every time, written by Claude."),
+          this.toggle("greeting.enabled", "Greet me when I open the window", "A new line every time, written by the background model."),
           this.number("pipeline.silence_timeout_ms", "End of speech after silence (ms)"),
           this.number("pipeline.max_recording_ms", "Longest command (ms)"))));
 
@@ -502,8 +517,9 @@
         h("div", { class: "grid-2" },
           this.toggle("dry_run", "Dry run (log actions instead of executing them)"),
           this.number("tools.approval_timeout_ms", "Approval timer (ms)", "Unanswered requests are denied."),
-          this.toggle("claude_code.require_confirmation", "Ask before delegating to Claude Code"),
-          this.number("claude_code.timeout_seconds", "Claude Code delegation limit (s)")),
+          this.select("coding_agent.cli", [["claude", "Claude Code (claude -p)"], ["codex", "Codex (codex exec)"], ["aider", "Aider (aider --message)"], ["custom", "Custom command (coding_agent.custom_command)"], ["off", "Off"]], "Coding agent for hidden runs", "What delegate_to_coding_agent runs in a project folder. Visible terminals work with any of them."),
+          this.toggle("coding_agent.require_confirmation", "Ask before delegating to the coding agent"),
+          this.number("coding_agent.timeout_seconds", "Coding agent time limit (s)")),
         o.tools_error ? h("div", { class: "help", text: o.tools_error }) : h("table", { class: "table" }, h("thead", {}, h("tr", {}, h("th", { text: "Tool" }), h("th", { text: "What it does" }), h("th", { text: "Risk" }), h("th", { text: "Permission" }))), h("tbody", {}, permRows))));
 
       const orbSeg = h("div", { class: "seg", role: "radiogroup", "aria-label": "Orb style" }, ["hud", "reticle", "waveform", "particles"].map(sty => {
@@ -598,9 +614,91 @@
       document.querySelectorAll(".field.changed").forEach(f => f.classList.remove("changed"));
       this.renderSaveBar(r.restart_needed ? "Saved. Restart the assistant to apply voice, model and tool changes." : "Saved.", r.restart_needed);
     },
+    provider() {
+      const list = (this.data.ai && this.data.ai.providers) || [];
+      return list.find(p => p.name === this.cur("llm.main.provider")) || list[0] || { name: "claude_code", kind: "claude_code", label: "Claude", models: [] };
+    },
+    renderAI() {
+      const box = $("ai-body"); if (!box) return; box.textContent = "";
+      const ai = this.data.ai || { providers: [], problems: [] };
+      const p = this.provider(), base = `llm.providers.${p.name}.`;
+      const provider = this.select("llm.main.provider", ai.providers.map(x => [x.name, x.label]), "Provider",
+        p.kind === "claude_code" ? "Sign in to Claude Code once with your Claude account; no API key needed." : null);
+      provider.querySelector("select").addEventListener("change", () => this.renderAI());
+      const listId = "ai-models-" + p.name;
+      const known = [...new Set([...(p.models || []), ...((this.fetched || {})[p.name] || [])])];
+      const fields = [provider, h("datalist", { id: listId }, known.map(m => h("option", { value: m }))),
+        this.text(base + "model", "Model", p.kind === "claude_code" ? "Any model id your Claude plan can use."
+          : p.local ? "The model's name as the server lists it (Fetch models, or `ollama list`)." : "A model id from the provider (Fetch models lists them).", listId)];
+      if (this.editable(base + "effort")) fields.push(this.select(base + "effort", ["low", "medium", "high", "xhigh", "max"], "Effort", "Lower is faster; voice commands rarely need more than medium."));
+      if (this.editable(base + "base_url")) fields.push(this.text(base + "base_url", "Server address (base URL)", p.local ? "Where the server listens on this PC." : null));
+      const timeout = this.editable(base + "timeout_seconds") ? base + "timeout_seconds" : "llm.timeout_seconds";
+      fields.push(this.number(timeout, p.kind === "claude_code" ? "Idle timeout (s)" : "Wait for the model (s)",
+        p.kind === "claude_code" ? "Gives up if Claude is silent this long while no tool is running." : "Longest silence while waiting for the model."));
+      if (this.editable(base + "vision")) fields.push(this.select(base + "vision", [[null, "Guess from the model name"], [true, "Yes"], [false, "No"]], "The model can see images",
+        "Screenshots go to models that can see; the others get a text note.", v => v === "null" ? null : v === "true"));
+      box.appendChild(h("div", { class: "grid-2" }, ...fields));
+      if (p.kind !== "claude_code") box.appendChild(this.keyRow(p));
+      box.appendChild(this.aiFacts(p, base));
+      const util = ai.providers.find(x => x.name === (this.cur("llm.utility.provider") || p.name)) || p;
+      const utilDefault = this.cur(`llm.providers.${util.name}.utility_model`) || this.cur(`llm.providers.${util.name}.model`) || "the main model";
+      box.appendChild(h("div", { class: "grid-2" },
+        this.select("llm.utility.provider", [["", "Same as the main provider"]].concat(ai.providers.map(x => [x.name, x.label])), "Background jobs (greetings, summaries)", "A small, cheap model writes greetings and shortens long conversations."),
+        this.text("llm.utility.model", "Background model", `Empty: ${utilDefault}.`),
+        this.select("tools.profile", [["auto", "Automatic (short list for models on this PC)"], ["full", "All tools"], ["core", "Short list (apps, media, memory, web, read-only files, tasks)"], ["custom", "Custom (tools.custom_list in config.json)"]], "Tools the model sees", "Small local models do better with the short list. Permissions apply either way."),
+        this.number("agent.max_turns", "Max steps per request", "Bounds multi-step tool use."),
+        this.number("agent.max_seconds", "Total time limit per request (s)"),
+        this.number("agent.memory_context_items", "Memories sent with each request"),
+        this.number("llm.history_budget_tokens", "Conversation size before summarizing (tokens)", "API providers; Claude Code manages its own."),
+        this.budgetField()));
+      if (ai.problems && ai.problems.length) box.appendChild(h("div", { class: "help", style: "color:var(--color-danger, #e5484d)", text: "Not ready (saved settings): " + ai.problems.join("; ") }));
+      box.appendChild(h("div", { class: "toolbar" }, h("button", { class: "btn btn-secondary", id: "btn-test", onclick: () => this.test(), text: "Test connection" }), h("div", { id: "test-line", class: "help", text: "" })));
+    },
+    keyRow(p) {
+      const status = p.key_source === "saved" ? "Key saved in Windows Credential Manager."
+        : p.key_source ? `Using ${p.key_source.slice(4)} from the environment.`
+        : p.needs_key ? "No API key saved yet." : "No key needed (save one if your server asks for it).";
+      const line = h("div", { class: "help", id: "ai-key-line", text: status });
+      const pw = h("input", { class: "input", type: "password", placeholder: "Paste the API key", autocomplete: "new-password", spellcheck: "false" });
+      return h("div", { class: "facts" }, h("div", { class: "toolbar" }, pw,
+        h("button", { class: "btn btn-primary btn-sm", onclick: async () => { const r = JSON.parse(await call("aiSaveKey", p.name, pw.value)); pw.value = ""; if (r.ok) p.key_source = "saved"; line.textContent = r.ok ? "Key saved in Windows Credential Manager." : "Not saved: " + r.error; }, text: "Save key" }),
+        h("button", { class: "btn btn-ghost btn-sm", onclick: async () => { await call("aiForgetKey", p.name); p.key_source = null; line.textContent = "Key removed."; }, text: "Forget key" }),
+        h("button", { class: "btn btn-secondary btn-sm", onclick: () => { line.textContent = "Asking the server for its models…"; call("aiFetchModels", p.name, this.cur(`llm.providers.${p.name}.base_url`) || ""); }, text: "Fetch models" })), line);
+    },
+    aiFacts(p, base) {
+      const model = this.cur(base + "model") || "";
+      let vision = p.kind !== "openai_compat" ? true : this.cur(base + "vision");
+      const guessed = vision == null; if (guessed) vision = !!p.vision_guess;
+      const tags = [p.kind === "claude_code" ? "Your Claude plan" : p.local ? "Runs on this PC" : "Cloud API", "Uses tools",
+        (vision ? "Sees images" : "Text only") + (guessed ? " (guess)" : "")];
+      if (p.kind === "anthropic") tags.push("Prompt caching");
+      const profile = this.cur("tools.profile"), short = profile === "core" || (profile === "auto" && p.local);
+      const tokens = (this.data.options.prompt_tokens || {})[short ? "core" : "full"] || 0, kt = Math.round(tokens / 1000);
+      let cost;
+      if (p.kind === "claude_code") cost = "Included in your Claude plan (its usage limits apply).";
+      else if (p.local) cost = "Free: the model runs on this PC, and nothing leaves it.";
+      else {
+        const price = ((this.data.config.llm || {}).prices || {})[model];
+        cost = !price ? `About ${kt}k tokens go with each request. No price is known for this model; add one under llm.prices in config.json to see costs.`
+          : `About ${kt}k tokens go with each request: ≈ $${(tokens * price.input / 1e6).toFixed(3)} for the first` +
+            (p.kind === "anthropic" ? `, ≈ $${(tokens * (price.cache_read != null ? price.cache_read : price.input * 0.1) / 1e6).toFixed(4)} for later ones with caching` : "") + ", plus the answer.";
+      }
+      return h("div", { class: "facts" }, h("div", { class: "toolbar" }, tags.map(t => h("span", { class: "tag tag-outline", text: t }))), h("div", { class: "help", text: cost }));
+    },
+    budgetField() {
+      const path = "llm.daily_budget_usd", v = this.cur(path);
+      const inp = h("input", { class: "input", type: "number", min: "0", step: "0.5", value: v == null ? "" : v, placeholder: "No limit" });
+      inp.addEventListener("input", () => { const s = inp.value.trim(); if (s === "") this.set(path, null); else { const n = parseFloat(s); if (!isNaN(n)) this.set(path, n); } });
+      return this.field("Daily spending limit (USD)", path, inp, "API providers. When today's estimated cost reaches it, Jarvis pauses until tomorrow.");
+    },
+    onModels(ev) {
+      if (ev.ok) { this.fetched = this.fetched || {}; this.fetched[ev.provider] = ev.models; if (this.provider().name === ev.provider) this.renderAI(); }
+      const l = $("ai-key-line");
+      if (l) l.textContent = ev.ok ? `${ev.models.length} model${ev.models.length === 1 ? "" : "s"} found: pick one in the Model field.` : "Could not list models: " + ev.error;
+    },
     test() {
-      $("btn-test").disabled = true; $("test-line").textContent = "Starting a Claude session and asking it to use the clock tool…";
-      call("testClaude");
+      $("btn-test").disabled = true; $("test-line").textContent = "Connecting and asking the model to use the clock tool…";
+      call("testConnection");
     },
     onTest(ev) {
       const b = $("btn-test"); if (b) b.disabled = false;

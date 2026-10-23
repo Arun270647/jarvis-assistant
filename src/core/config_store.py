@@ -25,22 +25,71 @@ from src.core import paths
 
 DEFAULTS_PATH = paths.shipped_config_dir() / "defaults.json"
 PROFILE_DEFAULTS_PATH = paths.shipped_config_dir() / "profile_defaults.json"
-CONFIG_VERSION = 1
+CONFIG_VERSION = 2
 ENV_PREFIX = "JARVIS__"
 
+
+def _v1_to_v2(raw: dict) -> dict:
+    """Several AI providers: llm.claude -> llm.providers.claude_code, greeting.model -> its utility_model,
+    claude_code (delegation) -> coding_agent, its yes/no words -> voice_approval, and the renamed
+    delegate_to_claude tool in tools.permissions."""
+    llm = raw.get("llm") if isinstance(raw.get("llm"), dict) else {}
+    old = llm.pop("claude", None)
+    cc = {}
+    if isinstance(old, dict):
+        cc.update({k: old[k] for k in ("model", "effort", "cli_path", "timeout_seconds", "session_reset_after")
+                   if k in old})
+    greeting = raw.get("greeting")
+    if isinstance(greeting, dict) and "model" in greeting:
+        cc["utility_model"] = greeting.pop("model")
+        if not greeting:
+            raw.pop("greeting")
+    if cc:
+        llm.setdefault("providers", {}).setdefault("claude_code", {}).update(cc)
+    if llm:
+        raw["llm"] = llm
+    else:
+        raw.pop("llm", None)
+    old = raw.pop("claude_code", None)
+    if isinstance(old, dict):
+        agent = {k: old[k] for k in ("default_project", "timeout_seconds", "capture_output", "summarize_for_tts",
+                                     "require_confirmation") if k in old}
+        if old.get("enabled") is False:
+            agent["cli"] = "off"
+        elif old.get("cli_path") not in (None, "", "claude"):
+            agent["cli"] = "custom"
+            agent["custom_command"] = [old["cli_path"]] + list(old.get("cli_args") or ["-p"])
+        voice = {new: old[k] for k, new in (("confirmation_window_ms", "window_ms"),
+                                            ("confirm_affirmative", "affirmative"),
+                                            ("confirm_negative", "negative")) if k in old}
+        if agent:
+            raw["coding_agent"] = agent
+        if voice:
+            raw["voice_approval"] = voice
+    perms = (raw.get("tools") or {}).get("permissions") if isinstance(raw.get("tools"), dict) else None
+    if isinstance(perms, dict) and "delegate_to_claude" in perms:
+        perms["delegate_to_coding_agent"] = perms.pop("delegate_to_claude")
+    return raw
+
+
 # config_version -> function upgrading a user config.json from that version to the next one.
-MIGRATIONS = {}
+MIGRATIONS = {1: _v1_to_v2}
 
 _lock = threading.Lock()
 _MISSING = object()
 
 # Editable settings: dotted path -> (type, constraint). Constraint is a tuple of
 # allowed values, a (min, max) range for numbers, or None.
+EFFORTS = ("low", "medium", "high", "xhigh", "max")
 EDITABLE = {
-    "llm.claude.model": (str, None),
-    "llm.claude.effort": (str, ("low", "medium", "high", "xhigh", "max")),
-    "llm.claude.timeout_seconds": (int, (5, 600)),
-    "llm.claude.session_reset_after": (int, (1, 10000)),
+    "llm.main.provider": (str, None),
+    "llm.utility.provider": (str, None),
+    "llm.utility.model": (str, None),
+    "llm.timeout_seconds": (int, (5, 3600)),
+    "llm.max_tokens": (int, (256, 128000)),
+    "llm.history_budget_tokens": (int, (2000, 2000000)),
+    "llm.daily_budget_usd": (float, (0, 100000)),
+    "llm.warmup": (bool, None),
     "agent.full_access": (bool, None),
     "agent.max_turns": (int, (1, 200)),
     "agent.max_seconds": (int, (10, 3600)),
@@ -65,8 +114,13 @@ EDITABLE = {
     "tools.approval_timeout_ms": (int, (3000, 120000)),
     "tools.default_timeout_s": (int, (1, 600)),
     "tools.permissions": (dict, None),
-    "claude_code.require_confirmation": (bool, None),
-    "claude_code.timeout_seconds": (int, (10, 3600)),
+    "tools.profile": (str, ("auto", "full", "core", "custom")),
+    "tools.custom_list": (list, None),
+    "coding_agent.cli": (str, ("claude", "codex", "aider", "custom", "off")),
+    "coding_agent.custom_command": (list, None),
+    "coding_agent.default_project": (str, None),
+    "coding_agent.require_confirmation": (bool, None),
+    "coding_agent.timeout_seconds": (int, (10, 3600)),
     "dry_run": (bool, None),
     "gui.orb_style": (str, ("hud", "reticle", "waveform", "particles")),
     "email.enabled": (bool, None),
@@ -91,8 +145,25 @@ EDITABLE = {
     "gui.close_to_tray": (bool, None),
     "gui.autostart_pipeline": (bool, None),
 }
-# Settings where null is a valid choice (null microphone = the system default).
-NULLABLE = {"audio.input_device_index"}
+# Settings where null is a valid choice (null microphone = the system default, null budget = none).
+NULLABLE = {"audio.input_device_index", "llm.daily_budget_usd"}
+
+
+def _provider_editables() -> None:
+    """Per-provider settings, for every provider the shipped defaults define (null vision = guess)."""
+    try:
+        shipped = (_read_json(DEFAULTS_PATH).get("llm", {}) or {}).get("providers", {}) or {}
+    except Exception:
+        return
+    specs = {"model": (str, None), "utility_model": (str, None), "base_url": (str, None), "cli_path": (str, None),
+             "timeout_seconds": (int, (5, 3600)), "session_reset_after": (int, (1, 10000)),
+             "effort": (str, EFFORTS), "vision": (bool, None)}
+    for name, entry in shipped.items():
+        for key, spec in specs.items():       # only what the provider defines (others use the llm.* value)
+            if key in entry:
+                EDITABLE[f"llm.providers.{name}.{key}"] = spec
+                if key == "vision":
+                    NULLABLE.add(f"llm.providers.{name}.{key}")
 
 PERMISSION_VALUES = ("allow", "ask", "deny")
 
@@ -237,11 +308,19 @@ def validate_update(updates: dict) -> list:
             for tool, perm in value.items():
                 if perm not in PERMISSION_VALUES:
                     errors.append(f"tools.permissions.{tool}: must be allow, ask or deny")
-        if typ is str and key in ("llm.claude.model",) and not value.strip():
+        if key == "llm.main.provider" and value not in _provider_names():
+            errors.append(f"{key}: unknown provider {value!r}")
+        if key == "llm.utility.provider" and value and value not in _provider_names():
+            errors.append(f"{key}: unknown provider {value!r}")
+        if key.startswith("llm.providers.") and key.endswith(".model") and not value.strip()                 and get_path(defaults(), key):
             errors.append(f"{key}: cannot be empty")
         if key == "phone.bind" and value.strip() in ("0.0.0.0", "::", "*", ""):
             errors.append("phone.bind: use tailscale, lan or one address; listening on every interface is not allowed")
     return errors
+
+
+def _provider_names() -> set:
+    return set(((load_config().get("llm", {}) or {}).get("providers", {}) or {}))
 
 
 def update_config(updates: dict, path: Optional[Path] = None) -> dict:
@@ -296,3 +375,6 @@ def _atomic_write(path: Path, data: dict) -> None:
         except OSError:
             pass
         raise
+
+
+_provider_editables()

@@ -15,7 +15,9 @@ from src.tools.policy import PolicyExecutor
 from src.tools.registry import ToolContext, ToolRegistry, ToolResult, ToolSpec
 from tests.fakes import temp_db
 
-CFG = {"llm": {"claude": {"model": "claude-test", "effort": "low", "timeout_seconds": 5}},
+CFG = {"llm": {"main": {"provider": "claude_code"},
+               "providers": {"claude_code": {"kind": "claude_code", "model": "claude-test", "effort": "low",
+                                             "timeout_seconds": 5}}},
        "agent": {"max_turns": 4, "memory_context_items": 5}, "tools": {"permissions": {}, "approval_timeout_ms": 1000}}
 
 

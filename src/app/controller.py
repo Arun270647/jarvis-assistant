@@ -198,9 +198,9 @@ class AssistantController:
         pending = self.broker.pending
         if pending is None or not text:
             return False
-        cfg = load_config().get("claude_code", {})
-        verdict = classify_reply(text, cfg.get("confirm_affirmative", ["yes"]) + ["allow", "y"],
-                                 cfg.get("confirm_negative", ["no"]) + ["deny", "n"])
+        cfg = load_config().get("voice_approval", {})
+        verdict = classify_reply(text, cfg.get("affirmative", ["yes"]) + ["allow", "y"],
+                                 cfg.get("negative", ["no"]) + ["deny", "n"])
         if verdict not in ("yes", "no"):
             return False
         self._emit({"type": "transcript", "text": text, "source": source})

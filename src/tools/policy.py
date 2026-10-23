@@ -195,11 +195,12 @@ class PolicyExecutor:
             rows = [{"k": "Tool", "v": spec.name, "sub": ""}] + [
                 {"k": k, "v": str(v), "sub": ""} for k, v in args.items()]
         purpose = spec.describe(args)
-        kind = {"delegate_to_claude": "Claude Code delegation", "system_command": "System command",
+        kind = {"delegate_to_coding_agent": "Coding agent delegation", "system_command": "System command",
                 "forget": "Memory deletion"}.get(spec.name, spec.risk.capitalize() + " action")
-        if spec.name == "delegate_to_claude":
+        if spec.name == "delegate_to_coding_agent":
             project = next((r["v"] for r in rows if r["k"] == "Project"), "the project")
-            title, spoken = f"Allow Claude Code to work in “{project}”?", f"Run Claude in {project}?"
+            agent = next((r["v"] for r in rows if r["k"] == "Agent"), "the coding agent")
+            title, spoken = f"Allow {agent} to work in “{project}”?", f"Run {agent} in {project}?"
         elif spec.name == "system_command":
             title, spoken = f"Allow “{args.get('command')}” on this PC?", f"{str(args.get('command', '')).replace('_', ' ').capitalize()} the PC?"
         else:

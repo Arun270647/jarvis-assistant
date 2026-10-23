@@ -1,4 +1,4 @@
-"""Tool registry: the only actions Claude can take on this PC.
+"""Tool registry: the only actions the AI can take on this PC.
 
 Each tool has an explicit JSON schema (validated before execution), a risk
 level, a default permission, a timeout, and a handler. Handlers wrap the
@@ -151,7 +151,7 @@ def build_default_registry(router, memory=None, config: Optional[dict] = None) -
     media = profile.get("media", {})
     system = profile.get("system", {})
     projects = profile.get("projects", {})
-    claude_cfg = config.get("claude_code", {})
+    agent_cfg = config.get("coding_agent", {}) or {}
     reg = ToolRegistry()
 
     app_lines = "; ".join(f"{k} ({', '.join(v.get('aliases', []))})" for k, v in apps.items())
@@ -200,7 +200,12 @@ def build_default_registry(router, memory=None, config: Optional[dict] = None) -
         approval_rows=_sys_rows,
     ))
 
-    if claude_cfg.get("enabled", False):
+    try:
+        from src.router.action_router import coding_agent_command
+        agent_label, agent_command = coding_agent_command(config)
+    except ValueError:                  # delegation off (coding_agent.cli = off) or not set up
+        agent_label = None
+    if agent_label:
         proj_lines = "; ".join(f"{k} ({', '.join(v.get('aliases', []))})" for k, v in projects.items())
 
         def _delegate(a, c: ToolContext) -> ToolResult:
@@ -212,34 +217,37 @@ def build_default_registry(router, memory=None, config: Optional[dict] = None) -
         def _delegate_rows(a):
             res = router.resolve_delegation(a)
             if not res["success"]:
-                return [{"k": "Tool", "v": "delegate_to_claude", "sub": ""}, {"k": "Problem", "v": res["error"], "sub": ""}]
+                return [{"k": "Tool", "v": "delegate_to_coding_agent", "sub": ""},
+                        {"k": "Problem", "v": res["error"], "sub": ""}]
             return [
-                {"k": "Tool", "v": "delegate_to_claude", "sub": ""},
+                {"k": "Tool", "v": "delegate_to_coding_agent", "sub": ""},
+                {"k": "Agent", "v": agent_label, "sub": " ".join(agent_command)},
                 {"k": "Project", "v": res["project_name"], "sub": res["project_path"]},
                 {"k": "Task", "v": f"“{res['task']}”", "sub": ""},
-                {"k": "Output", "v": f"claude_outputs/{res['project_name']}/ in Jarvis's cache folder",
+                {"k": "Output", "v": f"coding_agent_outputs/{res['project_name']}/ in Jarvis's cache folder",
                  "sub": "never written into the target repo"},
             ]
 
         reg.register(ToolSpec(
-            name="delegate_to_claude",
-            description="Run Claude Code hidden (claude -p, no window) in one of the user's project folders and wait "
-                        "for it to finish: nothing else can happen until it does (minutes), and the user sees nothing. "
-                        "Only when the user explicitly asks for a hidden/background run; otherwise use open_terminal "
-                        "and type claude into it with terminal_type. "
+            name="delegate_to_coding_agent",
+            description=f"Run {agent_label} hidden ({' '.join(agent_command)} <task>, no window) in one of the user's "
+                        "project folders and wait for it to finish: nothing else can happen until it does (minutes), "
+                        "and the user sees nothing. Only when the user explicitly asks for a hidden/background run; "
+                        "otherwise use open_terminal and type the coding agent's command into it with terminal_type. "
                         f"Projects (key and aliases): {proj_lines}. Default project: "
-                        f"{claude_cfg.get('default_project', '')}. The user approves first.",
+                        f"{agent_cfg.get('default_project', '')}. The user approves first.",
             input_schema={"type": "object", "properties": {
                 "task": {"type": "string", "minLength": 1, "maxLength": 4000},
                 "project": {"type": "string", "description": "Project key; omit for the default project"}},
                 "required": ["task"]},
             handler=_delegate,
             risk="sensitive",
-            permission="ask" if claude_cfg.get("require_confirmation", True) else "allow",
-            timeout_s=float(claude_cfg.get("timeout_seconds", 300)) + 15,
+            permission="ask" if agent_cfg.get("require_confirmation", True) else "allow",
+            timeout_s=float(agent_cfg.get("timeout_seconds", 300)) + 15,
             cancellable=True,
             idempotent=False,
-            purpose=lambda a: f"Claude Code in {a.get('project') or claude_cfg.get('default_project', '')}: {a.get('task')}",
+            purpose=lambda a: f"{agent_label} in {a.get('project') or agent_cfg.get('default_project', '')}: "
+                              f"{a.get('task')}",
             approval_rows=_delegate_rows,
         ))
 

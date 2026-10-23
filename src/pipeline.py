@@ -1,7 +1,7 @@
 """Jarvis voice pipeline — production entry point.
 
 Orb click (VAD capture), push-to-talk or a typed command → STT →
-Agent (Claude + tool registry via PolicyExecutor) → TTS → idle.
+Agent (the configured AI + tool registry via PolicyExecutor) → TTS → idle.
 There is no wake word: the floating orb is always on screen. Opening the window
 queues a greeting (src/agent/greetings.py), spoken here like a reply.
 
@@ -9,7 +9,7 @@ Error handling:
   - Each stage catches its own exceptions and logs them
   - Individual command failures return to idle, never crash the loop
   - Audio device errors attempt reconnect
-  - Config validation at startup (only what cannot degrade: the Claude Code CLI); a missing
+  - Config validation at startup (only what cannot degrade: the AI connection, llm.main); a missing
     microphone, speech model or voice falls back to text-only / no speech instead
   - Every command cycle logged to command_log.jsonl in the cache folder
 """
@@ -67,20 +67,13 @@ def load_config():
 def validate_config(cfg: dict) -> list:
     """Return a list of config errors that stop the pipeline. Empty means it can start.
 
-    Only the brain is required. The microphone (null = the system default), the speech model and the
-    voice are checked where they load: if one is missing the pipeline runs text-only or silent and
-    reports why, instead of not starting at all.
+    Only the brain (llm.main) is required: the Claude Code CLI for Claude, or a model, server address and
+    (where the provider needs one) an API key. The microphone (null = the system default), the speech
+    model and the voice are checked where they load: if one is missing the pipeline runs text-only or
+    silent and reports why, instead of not starting at all.
     """
-    errors = []
-    import shutil
-    cli = cfg.get("llm", {}).get("claude", {}).get("cli_path") or "claude"
-    if not shutil.which(cli):
-        errors.append(f"Claude Code CLI not found: {cli} — install it and log in with your Claude account")
-    try:
-        import claude_agent_sdk  # noqa: F401
-    except ImportError:
-        errors.append("claude-agent-sdk not installed — run: pip install claude-agent-sdk")
-    return errors
+    from src.agent.providers import problems
+    return problems(cfg, "main")
 
 
 def report_vram(label: str):
@@ -109,8 +102,7 @@ def log_command(entry: dict):
 def listen_for_confirmation(stream, chunk_size, sample_rate,
                             chunk_has_speech, transcriber, cfg):
     """Capture a spoken yes/no reply to an approval prompt. Returns lowercase text."""
-    claude_cfg = cfg.get("claude_code", {})
-    window_ms = claude_cfg.get("confirmation_window_ms", 5000)
+    window_ms = cfg.get("voice_approval", {}).get("window_ms", 5000)
 
     chunk_duration_s = chunk_size / sample_rate
     window_chunks = int((window_ms / 1000.0) / chunk_duration_s)
@@ -417,7 +409,7 @@ def main(state_callback=None, stop_event=None, duration=None,
         if executor.registry.get("create_plan") is None:
             task_manager.register_tools(executor.registry)
 
-    # --- Agent (Claude + tools) wrapped by the orchestrator ---
+    # --- Agent (the AI + tools) wrapped by the orchestrator ---
     print("[INIT] Loading agent...")
     agent = components.get("agent")
     try:
@@ -460,7 +452,7 @@ def main(state_callback=None, stop_event=None, duration=None,
     set_state(STATE_IDLE)
     emit(
         type="ready",
-        backend="claude",
+        backend=getattr(agent, "name", ""),
         model=getattr(agent, "model", ""),
         voice=voice_ok,
         tts=tts is not None,
@@ -547,9 +539,9 @@ def main(state_callback=None, stop_event=None, duration=None,
         return result
 
     # --- Approval prompts: speak the question, accept spoken or typed yes/no ---
-    claude_cfg = cfg.get("claude_code", {})
-    affirmative = claude_cfg.get("confirm_affirmative", ["yes"]) + ["allow", "approve", "approved", "y"]
-    negative = claude_cfg.get("confirm_negative", ["no"]) + ["deny", "denied", "n"]
+    voice_cfg = cfg.get("voice_approval", {})
+    affirmative = voice_cfg.get("affirmative", ["yes"]) + ["allow", "approve", "approved", "y"]
+    negative = voice_cfg.get("negative", ["no"]) + ["deny", "denied", "n"]
 
     def approval_prompter(req):
         phase("approval", tool=req.tool, title=req.title)
@@ -557,7 +549,7 @@ def main(state_callback=None, stop_event=None, duration=None,
         if not remote:          # a phone command gets the question as Approve/Deny buttons instead
             speak(req.spoken, record=True)
         deferred = []
-        window_end = 0 if remote else time.time() + claude_cfg.get("confirmation_window_ms", 5000) / 1000.0
+        window_end = 0 if remote else time.time() + voice_cfg.get("window_ms", 5000) / 1000.0
         try:
             while not req.resolved and time.time() < req.deadline and not cancel_event.is_set():
                 # Typed yes/no from front-ends that only have the command queue.
@@ -608,7 +600,7 @@ def main(state_callback=None, stop_event=None, duration=None,
             print(f"[WARN] Could not store message: {e}")
 
     def process_command(text, source, t_start, capture_ms, stt_ms, runner=None, ref=None):
-        """Agent (Claude + tools) -> spoken reply -> history -> log, for one transcript."""
+        """Agent (AI + tools) -> spoken reply -> history -> log, for one transcript."""
         current.update(source=source, ref=ref)
         try:
             run_command(text, source, t_start, capture_ms, stt_ms, runner)
@@ -644,7 +636,11 @@ def main(state_callback=None, stop_event=None, duration=None,
             print(f"[ERROR] Agent failed ({agent_ms:.0f}ms): {detail}")
             emit(type="error", stage=(result.stage if result else "llm"), detail=detail, **origin())
             remember_message("error", detail, meta={"stage": "llm"})
-            speak("Sorry, I couldn't reach Claude" if "Claude" in detail or result is None else "Sorry, something went wrong")
+            if result is not None and result.spoken:
+                speak(result.spoken)
+            else:
+                speak("Sorry, I couldn't reach Claude" if "Claude" in detail else
+                      "Sorry, I couldn't reach the AI" if result is None else "Sorry, something went wrong")
             log_command({"text": text, "source": source, "error": "agent_failed", "detail": detail})
             return
         if result.cancelled or cancel_event.is_set():
@@ -833,7 +829,11 @@ def main(state_callback=None, stop_event=None, duration=None,
     if greeter is None and cfg.get("greeting", {}).get("enabled", True):
         try:
             from src.agent.greetings import GreetingPool
-            greeter = GreetingPool(cfg, memory, tts, profile=getattr(router, "profile", None))
+            from src.agent.usage import UsageMeter
+            from src.agent.utility import utility_generator
+            generator = utility_generator(cfg, UsageMeter(memory, lambda: cfg),
+                                          timeout_s=float(cfg.get("greeting", {}).get("timeout_s", 120)))
+            greeter = GreetingPool(cfg, memory, tts, profile=getattr(router, "profile", None), generator=generator)
             greeter.refill_async()
         except Exception as e:
             print(f"[WARN] Greetings unavailable: {e}")

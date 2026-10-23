@@ -19,6 +19,9 @@ from typing import Callable, Optional
 
 from src.agent.base import AgentBackend, AgentResult
 from src.agent.prompt import build_agent_system_prompt
+from src.agent.providers.base import Usage
+from src.agent.toolsets import tool_names
+from src.tools.registry import ToolContext
 
 
 def _profile() -> dict:
@@ -27,20 +30,30 @@ def _profile() -> dict:
         return load_profile()
     except Exception:
         return {}
-from src.tools.registry import ToolContext
+
+
+def _settings(config: dict) -> tuple:
+    """(provider key, model, settings) of the main role when it runs on Claude Code."""
+    from src.agent.providers import role
+    try:
+        return role(config, "main")
+    except Exception:
+        return "claude_code", "", {}
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 SERVER_NAME = "jarvis"
 
 
 class ClaudeCodeAgentBackend(AgentBackend):
-    name = "claude"
+    name = "claude_code"
 
-    def __init__(self, config: dict, executor):
-        ccfg = config.get("llm", {}).get("claude", {})
+    def __init__(self, config: dict, executor, meter=None):
+        self.name, model, ccfg = _settings(config)
         acfg = config.get("agent", {})
-        self.model = ccfg.get("model", "claude-sonnet-5-5")
-        self.effort = ccfg.get("effort", "low")
+        self.settings = ccfg
+        self.meter = meter
+        self.model = model or "claude-sonnet-5-5"
+        self.effort = ccfg.get("effort") or "medium"
         self.cli_path = ccfg.get("cli_path") or None
         self.step_timeout = float(ccfg.get("timeout_seconds", 30))     # max silence from Claude between events
         self.session_reset_after = int(ccfg.get("session_reset_after", 100))
@@ -49,8 +62,10 @@ class ClaudeCodeAgentBackend(AgentBackend):
         # Within a task Claude may think for a long time before a big edit; allow a longer silence.
         self.task_step_timeout = float(acfg.get("task", {}).get("idle_timeout_seconds", 180))
         self.executor = executor
-        self._system_prompt = build_agent_system_prompt(executor.registry.names(), _profile(),
-                                                       bool(acfg.get("full_access")))
+        self.tool_names = tool_names(executor.registry, config, ccfg)
+        self._system_prompt = build_agent_system_prompt(
+            self.tool_names, _profile(), bool(acfg.get("full_access")),
+            coding_cli=(config.get("coding_agent", {}) or {}).get("cli", "claude"))
         self._loop: Optional[asyncio.AbstractEventLoop] = None
         self._thread: Optional[threading.Thread] = None
         self._client = None
@@ -59,6 +74,7 @@ class ClaudeCodeAgentBackend(AgentBackend):
         self._tools_running = 0
         self._cancel = threading.Event()
         self._busy = threading.Lock()
+        self._last_usage = None
 
     # ------------------------------------------------------------ loop plumbing
 
@@ -89,7 +105,10 @@ class ClaudeCodeAgentBackend(AgentBackend):
         from claude_agent_sdk import create_sdk_mcp_server, tool
 
         tools = []
+        offered = set(self.tool_names)
         for spec in self.executor.registry.specs():
+            if spec.name not in offered:
+                continue
             tools.append(tool(spec.name, spec.description, spec.input_schema)(self._make_handler(spec.name)))
         return create_sdk_mcp_server(name=SERVER_NAME, version="2.0.0", tools=tools)
 
@@ -110,7 +129,7 @@ class ClaudeCodeAgentBackend(AgentBackend):
 
     def _options(self):
         from claude_agent_sdk import ClaudeAgentOptions
-        allowed = [f"mcp__{SERVER_NAME}__{n}" for n in self.executor.registry.names()]
+        allowed = [f"mcp__{SERVER_NAME}__{n}" for n in self.tool_names]
         return ClaudeAgentOptions(
             system_prompt=self._system_prompt,
             tools=[],                       # no built-in Claude Code tools (Bash, Read, ...)
@@ -155,7 +174,7 @@ class ClaudeCodeAgentBackend(AgentBackend):
         except ImportError as e:
             raise RuntimeError("claude-agent-sdk not installed: pip install claude-agent-sdk") from e
         print(f"[AGENT] Starting Claude Code session ({self.model}, effort={self.effort}, "
-              f"{len(self.executor.registry.names())} tools)...")
+              f"{len(self.tool_names)} tools)...")
         t0 = time.time()
         self._start_loop()
         try:
@@ -186,6 +205,7 @@ class ClaudeCodeAgentBackend(AgentBackend):
                 self._call(self._disconnect(), timeout=30)
                 self._call(self._connect(), timeout=60)
             t0 = time.time()
+            self._last_usage = None
             try:
                 res = self._call(self._run(user_turn, ctx), timeout=self.max_seconds + 30)
             except Exception as e:
@@ -193,7 +213,21 @@ class ClaudeCodeAgentBackend(AgentBackend):
                 self._recover()
             res.llm_ms = (time.time() - t0) * 1000
             self._turns += 1
+            self._record_usage(emit)
             return res
+
+    def _record_usage(self, emit) -> None:
+        """Tokens of the last command (part of the Claude subscription: recorded without a cost)."""
+        u = self._last_usage
+        if self.meter is None or not isinstance(u, dict):
+            return
+        usage = Usage(input_tokens=int(u.get("input_tokens") or 0), output_tokens=int(u.get("output_tokens") or 0),
+                      cache_read=int(u.get("cache_read_input_tokens") or 0),
+                      cache_write=int(u.get("cache_creation_input_tokens") or 0))
+        try:
+            emit(self.meter.record(self.name, self.model, usage, dict(self.settings, kind="claude_code")))
+        except Exception as e:
+            print(f"[AGENT] Usage not recorded: {e}")
 
     async def _run(self, user_turn: str, ctx: ToolContext) -> AgentResult:
         from claude_agent_sdk import AssistantMessage, ResultMessage, TextBlock, ToolUseBlock
@@ -249,6 +283,7 @@ class ClaudeCodeAgentBackend(AgentBackend):
                             calls.append({"tool": block.name.split("__")[-1], "args": block.input})
                 elif isinstance(msg, ResultMessage):
                     result = msg
+                    self._last_usage = getattr(msg, "usage", None)
         finally:
             if not pump_task.done():
                 pump_task.cancel()
@@ -257,8 +292,8 @@ class ClaudeCodeAgentBackend(AgentBackend):
             return AgentResult(reply="", ok=False, cancelled=True, error="Cancelled", tool_calls=calls)
         if interrupted == "timeout":
             return AgentResult(reply="", ok=False, error=f"No answer from Claude within the time limit "
-                               f"(llm.claude.timeout_seconds={self.step_timeout:.0f}s idle, agent.max_seconds="
-                               f"{self.max_seconds:.0f}s total)", tool_calls=calls)
+                               f"(llm.providers.claude_code.timeout_seconds={self.step_timeout:.0f}s idle, "
+                               f"agent.max_seconds={self.max_seconds:.0f}s total)", tool_calls=calls)
         if result is None:
             return AgentResult(reply="", ok=False, error="Claude Code ended without a result", tool_calls=calls)
         turns = getattr(result, "num_turns", 0) or 0

@@ -17,6 +17,7 @@ class AgentResult:
     turns: int = 0
     task_id: Optional[int] = None        # set when the request became (or resumed) a tracked task
     task_status: Optional[str] = None
+    spoken: Optional[str] = None         # on failure: one plain sentence for the voice (else a generic apology)
 
 
 class AgentCancelled(Exception):
