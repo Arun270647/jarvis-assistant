@@ -101,6 +101,19 @@ groups from the defaults.
   - A registry test only passed on a PC with Chrome profiles. It now brings a fake profile.
   - A phone-command test sent its next command right after the reply event, before the assistant was idle
     again, and got "queued" instead of "sent" on a slow runner. It now waits for idle first.
+- Dependabot's first run opened 13 pull requests, one per package. They were applied by hand in one commit and
+  closed:
+  - `sounddevice` 0.5.1 → 0.5.6, with `requirements.lock` regenerated so only that package moved. Dependabot
+    edits `requirements.txt` but not the lock CI installs from, so its pull request would have tested the old
+    version. `tests/test_requirements_lock.py` now fails when the two disagree. Recording from the microphone
+    with 0.5.6 was checked on a real PC.
+  - The four pull requests that only raised minimum versions (aiohttp, pywin32, setuptools, pip-audit) were not
+    applied, because the code doesn't need the newer versions.
+  - Phone app: `npx expo install --fix` aligned every Expo SDK 58 package (11 patch releases, more than
+    Dependabot found). React stays at 19.3.0, the version Expo SDK 58 pins. Type check and tests pass.
+  - CI: `actions/checkout`, `setup-python` and `setup-node` v7.
+  - `dependabot.yml` now opens one grouped pull request per ecosystem and only raises minimums when necessary.
+    It leaves out React and major versions, because Expo SDK upgrades go through `expo install`.
 - GitGuardian flagged three "secrets" in `tests/test_security.py`. They are the made-up keys and bearer
   tokens the redaction tests use. No real credential was committed.
 

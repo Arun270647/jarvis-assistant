@@ -68,7 +68,7 @@ Installed by `requirements.txt` ("yes" in the last column) and what those requir
 | segno | 1.6.6 | BSD License | https://github.com/heuer/segno/ | yes |
 | shiboken6 | 6.12.0 | LGPL-3.0-only OR GPL-2.0-only OR GPL-3.0-only | https://pyside.org |  |
 | sniffio | 1.3.1 | MIT OR Apache-2.0 | https://github.com/python-trio/sniffio |  |
-| sounddevice | 0.5.1 | MIT | http://python-sounddevice.readthedocs.io/ | yes |
+| sounddevice | 0.5.6 | MIT | https://github.com/spatialaudio/python-sounddevice/ | yes |
 | sse-starlette | 3.5.0 | BSD-3-Clause | https://github.com/sysid/sse-starlette |  |
 | starlette | 1.9.0 | BSD-3-Clause | https://github.com/Kludex/starlette |  |
 | tokenizers | 0.23.3 | Apache Software License | https://github.com/huggingface/tokenizers |  |

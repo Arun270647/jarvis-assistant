@@ -1877,12 +1877,13 @@ sniffio==1.3.1 \
     #   anthropic
     #   claude-agent-sdk
     #   openai
-sounddevice==0.5.1 \
-    --hash=sha256:09ca991daeda8ce4be9ac91e15a9a81c8f81efa6b695a348c9171ea0c16cb041 \
-    --hash=sha256:4313b63f2076552b23ac3e0abd3bcfc0c1c6a696fc356759a13bd113c9df90f1 \
-    --hash=sha256:d16cb23d92322526a86a9490c427bf8d49e273d9ccc0bd096feecd229cde6031 \
-    --hash=sha256:d84cc6231526e7a08e89beff229c37f762baefe5e0cc2747cbe8e3a565470055 \
-    --hash=sha256:e2017f182888c3f3c280d9fbac92e5dbddac024a7e3442f6e6116bd79dab8a9c
+sounddevice==0.5.6 \
+    --hash=sha256:7f4162f514f007b0bf25a3ccfed3f1705bc2ec311888a90232729eec4f57a4f4 \
+    --hash=sha256:8ec9fbfde2e32f020b167e348f3ab3bac6625a5f15af524d790108ac7147a410 \
+    --hash=sha256:b36b807eb02abd257198bf84b2af05e4fea199a9d2f0019014169c7136d45e9c \
+    --hash=sha256:c8ae19173e5f27f8c12d4b5eee2dbfe542cee125d591e663e0fb4dfb75246d45 \
+    --hash=sha256:de099612311ad81e55d31ccbd83f43ea6bf4d87b48f9b6ea55a1fbcde0eee4e0 \
+    --hash=sha256:e3aef00ad8b1d1740eb66d9a7671eab88a4d2b8fa4ab33498d742e63b65c309c
     # via -r requirements.txt
 sse-starlette==3.5.0 \
     --hash=sha256:3e6e1070df3f0f5d9cea81496de92dbb72f6721871d99748ece67441dd8b7997 \

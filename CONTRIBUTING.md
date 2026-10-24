@@ -74,7 +74,12 @@ uv pip compile requirements.txt --universal --python-version 3.11 --generate-has
 python scripts/third_party_licenses.py
 ```
 
-and keep the comment header at the top of `requirements.lock`.
+and keep the comment header at the top of `requirements.lock`. Running the compile against the existing lock
+keeps every other version where it is; add `--upgrade-package <name>` to move one package.
+
+Dependabot's weekly pull requests for Python packages change `requirements.txt` only, so their tests fail until
+the lock is regenerated. Apply the new versions with the commands above in your own pull request. For the phone
+app, update Expo's packages with `npx expo install --fix` in `mobile/` so they stay matched to the SDK.
 
 ## Pull requests
 

@@ -1,16 +1,38 @@
+# One grouped pull request per ecosystem and schedule.
+# pip: Dependabot edits requirements.txt but not requirements.lock, which CI installs from. Its pull request fails
+# tests/test_requirements_lock.py until the lock is regenerated (the command is in CONTRIBUTING.md), so take the
+# version from the pull request and update both by hand. Minimum versions only move when a new version needs it.
+# npm: Expo pins react, react-dom and react-native for each SDK, and an SDK upgrade is done with
+# `npx expo install expo@<sdk> --fix`, so those and major versions are left out here.
 version: 2
 updates:
   - package-ecosystem: pip
     directory: /
     schedule:
       interval: weekly
-    open-pull-requests-limit: 5
+    versioning-strategy: increase-if-necessary
+    groups:
+      python:
+        patterns: ["*"]
+
   - package-ecosystem: npm
     directory: /mobile
     schedule:
       interval: weekly
-    open-pull-requests-limit: 5
+    ignore:
+      - dependency-name: react
+      - dependency-name: react-dom
+      - dependency-name: react-native
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+    groups:
+      phone-app:
+        patterns: ["*"]
+
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: monthly
+    groups:
+      actions:
+        patterns: ["*"]
