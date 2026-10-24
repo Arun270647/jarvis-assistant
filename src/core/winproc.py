@@ -161,6 +161,13 @@ def launch_program(command: Cmd, show_console: bool = False, cwd: Optional[str] 
     )
 
 
+def python_executable() -> str:
+    """Path to python.exe next to the running interpreter, for helpers such as pip (pythonw has no console)."""
+    exe = Path(sys.executable)
+    candidate = exe.with_name(exe.name.lower().replace("pythonw", "python"))
+    return str(candidate) if candidate.exists() else str(exe)
+
+
 def pythonw_executable() -> str:
     """Path to pythonw.exe next to the running interpreter (falls back to sys.executable)."""
     exe = Path(sys.executable)

@@ -1,8 +1,9 @@
 # Installing Jarvis
 
-There is no packaged download yet: it comes with the first release, as a signed zip with its own Python, so
-you won't need to install anything else. Until then, Jarvis runs from source. Once it's running, the setup
-wizard takes over ([GETTING_STARTED.md](GETTING_STARTED.md)).
+Jarvis comes as a zip for Windows with its own Python inside, so you don't need to install anything else. The
+first release isn't published yet: until then, run it from source (below) or build the zip yourself
+([CONTRIBUTING.md](../CONTRIBUTING.md#building-the-windows-zip)). Once it's running, the setup wizard takes over
+([GETTING_STARTED.md](GETTING_STARTED.md)).
 
 ## What you need
 
@@ -14,6 +15,26 @@ wizard takes over ([GETTING_STARTED.md](GETTING_STARTED.md)).
   faster but isn't needed.
 - One way to reach an AI model: a Claude account (the default, through Claude Code), an API key for another
   provider, or a local model in Ollama or LM Studio. See [PROVIDERS.md](PROVIDERS.md).
+
+## Install from the zip
+
+1. Download `Jarvis-<version>-windows-x64.zip` (about 300 MB).
+2. Right-click it, choose **Extract All**, then **Extract**. Jarvis can't start from inside the zip; if you try,
+   it says so.
+3. Open the extracted **Jarvis** folder and double-click **Jarvis.exe**.
+4. Windows may say "Windows protected your PC". Jarvis isn't code-signed (it's free and has no budget for a
+   certificate), so SmartScreen warns the first time. Click **More info**, then **Run anyway**.
+5. At the end of the setup wizard, **Install for me** copies Jarvis to `%LOCALAPPDATA%\Programs\Jarvis`, adds it
+   to the Start Menu and to Settings › Apps, and deletes the extracted copy. No administrator rights are needed.
+   **Keep it here** leaves it where it is (a portable copy); Settings › About offers Install for me later too.
+
+**Check the download.** The release page lists the zip's SHA-256. In PowerShell, in your Downloads folder, run
+`Get-FileHash Jarvis-<version>-windows-x64.zip` and compare the result with it. If they differ, delete the file
+and download it again.
+
+The zip contains `Jarvis.exe` (a small launcher), `Jarvis-Updater.exe`, `runtime` (Python 3.13 with the packages
+Jarvis uses) and `app` (Jarvis itself). Your settings, memories and models are not in that folder, so updating
+or moving it keeps them.
 
 ## Install from source
 
@@ -66,7 +87,14 @@ useful for a portable copy or for development. The app folder itself is never wr
 The setup wizard asks, and Settings › Windows and tray changes it later. Jarvis adds a shortcut to your
 Startup folder, and nothing else.
 
-## Updating a source install
+## Updating
+
+The zip updates itself. Once the download site is live, Jarvis checks for a new version when it starts
+(Settings › About turns this off), downloads it in the background, checks its SHA-256 and shows
+**Restart to update**. Jarvis then closes, `Jarvis-Updater.exe` puts the new version in place and starts it
+again. If something goes wrong, the updater puts the old version back and Jarvis says why.
+
+### Updating a source install
 
 ```
 git pull
@@ -77,5 +105,7 @@ Your settings carry over: Jarvis upgrades its settings file by itself when the f
 
 ## Uninstalling
 
-Settings › About › **Uninstall Jarvis** removes the shortcuts and, if you tick it, your data, models and saved
-keys. A source install doesn't delete its own folder: delete the `jarvis-assistant` folder yourself afterwards.
+Settings › About › **Uninstall Jarvis** removes the shortcuts, the entry in Settings › Apps and, if you tick it,
+your data, models and saved keys. The zip's Jarvis folder is deleted once Jarvis has closed. Settings › Apps ›
+Jarvis › **Uninstall** opens the same page. A source install doesn't delete its own folder: delete the
+`jarvis-assistant` folder yourself afterwards.

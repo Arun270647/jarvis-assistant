@@ -9,6 +9,7 @@ Screens: name → models → connect → microphone → voice → about → perm
 import json
 import re
 import shutil
+import sys
 from pathlib import Path
 from typing import Optional
 
@@ -76,6 +77,14 @@ def _chosen_options(cfg: dict) -> dict:
     return {g: o for g, o in picks.items() if isinstance(o, str)}
 
 
+def _install_offer() -> dict:
+    """Install for me on the last screen: only for the Windows zip run from where it was extracted."""
+    if sys.platform != "win32":
+        return {"available": False}
+    from src.app import install
+    return install.state()
+
+
 def state(cfg: Optional[dict] = None, facts: Optional[dict] = None) -> dict:
     cfg = config_store.load_config() if cfg is None else cfg
     facts = hardware.detect() if facts is None else facts
@@ -91,7 +100,8 @@ def state(cfg: Optional[dict] = None, facts: Optional[dict] = None) -> dict:
             "preset": current_preset(cfg), "startup": startup.is_startup_enabled(),
             "microphone": (cfg.get("audio", {}) or {}).get("input_device_index"),
             "speak": bool((cfg.get("tts", {}) or {}).get("enabled", True)),
-            "provider": ((cfg.get("llm", {}) or {}).get("main") or {}).get("provider", "claude_code")}
+            "provider": ((cfg.get("llm", {}) or {}).get("main") or {}).get("provider", "claude_code"),
+            "install": _install_offer()}
 
 
 def use_model(option_id: str, facts: dict) -> dict:

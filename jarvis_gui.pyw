@@ -3,6 +3,7 @@
     pythonw jarvis_gui.pyw              # no console window (double-click the file or the shortcut)
     pythonw jarvis_gui.pyw --minimized  # start as the floating orb (used by the Windows startup shortcut)
     python jarvis_gui.pyw --diagnose    # save a redacted diagnostic report for a bug report, and show it
+    python jarvis_gui.pyw --version     # print the version (the Windows build checks it)
 
 Settings, profile, database and logs live in the user's data folder (%APPDATA%\\Jarvis, or JARVIS_HOME);
 logs: logs/jarvis.log there (also visible in Settings > Diagnostics).
@@ -42,6 +43,10 @@ def _diagnose() -> int:
 
 
 if __name__ == "__main__":
+    if "--version" in sys.argv:
+        from src.version import __version__
+        print(__version__)
+        sys.exit(0)
     if "--diagnose" in sys.argv:
         sys.exit(_diagnose())
     try:

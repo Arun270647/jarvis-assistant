@@ -91,6 +91,15 @@ Installed only when the user chooses them, from their own sources, and never shi
 | Kokoro-82M voice model and voices (ONNX export from kokoro-onnx) | Apache-2.0 |
 | Piper voices | per voice, see each voice's model card (linked in Settings › Models) |
 
+## Bundled in the Windows zip
+
+The zip (packaging/build_windows.py) also carries its own Python, so Jarvis needs nothing else installed:
+
+| Component | License |
+|---|---|
+| Python 3.13.16 (python.org's embeddable package) | PSF License 2.0; the libraries it includes are listed in `runtime\LICENSE.txt` |
+| pip 26.2.1 | MIT |
+
 ## Bundled fonts
 
 | Font | License |

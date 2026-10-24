@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Download Jarvis</title>
+<meta name="description" content="Jarvis is a free, open-source voice assistant for your PC.">
+<!-- The download page template (website/README.md). It reads latest.json from the same folder: the file the
+     release workflow attaches to every GitHub Release, which the app's updater reads too. -->
+<style>
+  :root {
+    --bg: #f6f8fa; --surface: #ffffff; --text: #14202b; --muted: #5a6b7a; --line: #d9e1e8;
+    --accent: #0a7bb8; --accent-text: #ffffff; --warn-bg: #fff7e0; --warn-line: #e9c46a; --code-bg: #eef2f5;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #071019; --surface: #0d1b27; --text: #e6eef5; --muted: #93a6b6; --line: #1f3344;
+      --accent: #38b6f0; --accent-text: #04121c; --warn-bg: #2a2410; --warn-line: #8a6d1f; --code-bg: #12263a;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #071019; --surface: #0d1b27; --text: #e6eef5; --muted: #93a6b6; --line: #1f3344;
+    --accent: #38b6f0; --accent-text: #04121c; --warn-bg: #2a2410; --warn-line: #8a6d1f; --code-bg: #12263a;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.55 system-ui, "Segoe UI", sans-serif; }
+  main { max-width: 760px; margin: 0 auto; padding: 48px 16px 64px; }
+  h1 { font-size: 2rem; margin: 0 0 4px; }
+  h2 { font-size: 1.15rem; margin: 36px 0 12px; }
+  p { margin: 8px 0; }
+  a { color: var(--accent); }
+  .lead { color: var(--muted); margin-bottom: 28px; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 20px; }
+  .button { display: inline-block; background: var(--accent); color: var(--accent-text); text-decoration: none;
+            font-weight: 600; font-size: 1.1rem; padding: 14px 24px; border-radius: 10px; }
+  .button:focus-visible { outline: 3px solid var(--text); outline-offset: 3px; }
+  .meta { color: var(--muted); font-size: .9rem; margin-top: 10px; }
+  ol.steps { list-style: none; counter-reset: step; padding: 0; margin: 0; display: grid; gap: 12px; }
+  ol.steps li { counter-increment: step; display: flex; gap: 14px; align-items: flex-start; }
+  ol.steps li::before { content: counter(step); flex: 0 0 32px; height: 32px; border-radius: 50%; display: grid;
+                        place-items: center; background: var(--accent); color: var(--accent-text); font-weight: 700; }
+  .warn { background: var(--warn-bg); border: 1px solid var(--warn-line); border-radius: 10px; padding: 14px 16px; }
+  code { background: var(--code-bg); padding: 2px 6px; border-radius: 5px; font-size: .9em; overflow-wrap: anywhere; }
+  table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+  th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  td.hash { font-family: ui-monospace, Consolas, monospace; font-size: .8rem; overflow-wrap: anywhere; }
+  .table-wrap { overflow-x: auto; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Jarvis</h1>
+  <p class="lead">A free, open-source voice assistant for your PC. It hears and speaks on your computer, and works
+    with your own Claude account or another AI.</p>
+
+  <section class="card" aria-labelledby="get">
+    <h2 id="get" style="margin-top:0">Download</h2>
+    <div id="windows">
+      <a class="button" id="download" href="#">Download Jarvis for Windows</a>
+      <p class="meta" id="meta">Windows 10 or 11, 64-bit. About 300 MB; the setup downloads the speech and voice
+        models after that.</p>
+    </div>
+    <p id="other-os" hidden>Jarvis runs on Windows 10 and 11 for now; a Mac version is planned. Open this page on
+      your Windows PC to download it.</p>
+    <p id="error" hidden>The download list couldn't be loaded. Try again in a moment.</p>
+  </section>
+
+  <h2>Install it in three steps</h2>
+  <ol class="steps">
+    <li><span>Open your <strong>Downloads</strong> folder, right-click the zip file and choose <strong>Extract
+      All</strong>, then <strong>Extract</strong>.</span></li>
+    <li><span>Open the extracted <strong>Jarvis</strong> folder and double-click <strong>Jarvis.exe</strong>.</span></li>
+    <li><span>The setup asks for a name, downloads the models and connects your AI. At the end, <strong>Install for
+      me</strong> moves Jarvis out of Downloads and adds it to the Start Menu.</span></li>
+  </ol>
+
+  <h2>"Windows protected your PC"</h2>
+  <div class="warn">
+    <p>Jarvis is free and has no budget for a code-signing certificate, so Windows SmartScreen warns the first time
+      you open it. Click <strong>More info</strong>, then <strong>Run anyway</strong>. Windows only asks once.</p>
+    <p>To make sure the file is the one published here, open PowerShell in your Downloads folder and run:</p>
+    <p><code id="hash-cmd">Get-FileHash Jarvis-windows-x64.zip</code></p>
+    <p>The result must match this SHA-256: <code id="sha">see the table below</code></p>
+  </div>
+
+  <h2>All downloads</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th scope="col">File</th><th scope="col">Version</th><th scope="col">Size</th><th scope="col">SHA-256</th></tr></thead>
+      <tbody id="files"><tr><td colspan="4">Loading…</td></tr></tbody>
+    </table>
+  </div>
+  <p class="meta"><a id="notes" href="#" hidden>What's new in this version</a></p>
+</main>
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const ua = navigator.userAgent || "";
+  const windows = /Windows/i.test(ua) && !/Windows Phone/i.test(ua);
+  if (!windows) { $("windows").hidden = true; $("other-os").hidden = false; }
+
+  const mb = bytes => `${Math.round(bytes / 1e6)} MB`;
+  const fileName = url => decodeURIComponent(url.split("?")[0].split("/").pop());
+
+  fetch("latest.json", { cache: "no-cache" })
+    .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
+    .then(latest => {
+      const win = latest.windows;
+      const rows = $("files");
+      rows.textContent = "";
+      if (win && win.url) {
+        const name = fileName(win.url);
+        $("download").href = win.url;
+        $("download").textContent = `Download Jarvis ${latest.version} for Windows`;
+        $("meta").textContent = `Windows 10 or 11, 64-bit · ${name} · ${mb(win.size)}. The setup downloads the speech and voice models after that.`;
+        $("hash-cmd").textContent = `Get-FileHash ${name}`;
+        $("sha").textContent = win.sha256;
+        const tr = document.createElement("tr");
+        [name, latest.version, mb(win.size), win.sha256].forEach((text, i) => {
+          const td = document.createElement("td");
+          if (i === 3) td.className = "hash";
+          if (i === 0) { const a = document.createElement("a"); a.href = win.url; a.textContent = text; td.appendChild(a); }
+          else td.textContent = text;
+          tr.appendChild(td);
+        });
+        rows.appendChild(tr);
+      }
+      if (/^https:\/\//.test(latest.notes || "")) { $("notes").href = latest.notes; $("notes").hidden = false; }
+    })
+    .catch(() => { $("error").hidden = false; $("files").textContent = ""; });
+})();
+</script>
+</body>
+</html>

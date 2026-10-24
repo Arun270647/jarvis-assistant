@@ -6,6 +6,124 @@ each entry names the phase it belongs to.
 
 ---
 
+## 2026-10-24 · Phase 6: the Windows zip, updates and Install for me
+
+The maintainer's decisions for this phase: no code signing (Jarvis is free and has no budget for it), and all
+live testing waits for a separate phase after everything is built.
+
+### What changed
+
+**The Windows zip** (`packaging/build_windows.py`, about 300 MB, 752 MB unpacked)
+- `runtime/`: python.org's embeddable Python 3.13.16 and pip 26.2.1, both pinned by SHA-256 in
+  `packaging/runtime.json`. `requirements.lock` is installed with its hashes and wheels only. The runtime's
+  `python313._pth` is its whole module search path (standard library, its own site-packages, `..\app`), so
+  nothing installed on the PC leaks in. pip stays, because the Kokoro and Piper engines are pip-installed at run
+  time.
+- `app/`: only the tracked files the app reads at run time (code, shipped settings, the getting-started guide).
+- Pruning took the folder from 1.4 GB to 752 MB:
+  - Qt: only the DLLs that the app's seven Qt modules import, followed through their import tables (the build
+    reads the PE headers itself), plus the few that Qt loads at run time. Qt's tools, QML, debug resources,
+    translations other than WebEngine's English, and type stubs are left out.
+  - The Agent SDK's bundled copy of Claude Code (298 MB): the wizard installs Claude Code with Anthropic's
+    official installer, so Jarvis doesn't redistribute Anthropic's program.
+- Before zipping, the build:
+  - runs the updater's tests;
+  - checks that the runtime imports every core package from its own folders;
+  - renders a page in Qt WebEngine offscreen (this catches a DLL pruned by mistake);
+  - checks that the app reports its version.
+  The zip is reproducible: same commit, same file times. The build also writes the `.sha256` file and
+  `latest.json`.
+- **`Jarvis.exe`** (`packaging/windows/launcher.c`, 0.1 MB) starts `runtime\pythonw.exe app\jarvis_gui.pyw`.
+  When started from inside a zip or a temporary folder, it shows "Please extract the zip first" with the steps.
+- Both programs embed a manifest with `asInvoker`. Without it, Windows takes a program called "…Updater" for an
+  installer and asks for administrator rights.
+
+**Updates** (`src/app/updates.py`, `packaging/windows/updater.c`)
+- At start (and from Settings › About), a newer version in `latest.json` is downloaded in the background,
+  checked against its SHA-256 and unpacked into `Jarvis\.update` (unsafe paths in the zip are refused). A bar
+  then offers **Restart to update**.
+- **`Jarvis-Updater.exe`** runs from a copy in the temporary folder. It waits for Jarvis to quit, then moves each
+  item of the new version into place and keeps the old one in `Jarvis\.old`; retries cover antivirus scans. If a
+  move fails, it puts everything back. Then it starts Jarvis, which shows "updated to version …" or why it
+  failed, and deletes `.old`.
+- A downloaded update that hasn't been installed yet is kept and offered again at the next start.
+- Run from source, or from a folder Jarvis can't write to, a new version is offered as a download, as before.
+
+**Install for me** (`src/app/install.py`): on the wizard's last screen (**Install for me** / **Keep it here**)
+and in Settings › About.
+- Copies the folder to `%LOCALAPPDATA%\Programs\Jarvis` without administrator rights.
+- Adds a Start Menu shortcut (and a Desktop one if asked) and an entry in Settings › Apps, whose Uninstall opens
+  Settings › About (`Jarvis.exe --uninstall`).
+- Points the start-up shortcut at the new copy, starts that copy once this one has quit, and deletes the
+  extracted folder.
+- It never overwrites a folder that isn't a Jarvis folder.
+
+**Uninstall and start-up**: shortcuts start `Jarvis.exe` in the zip (pythonw and the script from source).
+Uninstall deletes the whole Jarvis folder of the zip after exit, and only a folder that has Jarvis.exe, runtime
+and app in it.
+
+**Release workflow** (`.github/workflows/release.yml`)
+- A `v*` tag must match `src/version.py`. The workflow builds the zip on GitHub and drafts a release with the
+  zip, its SHA-256 and `latest.json`.
+- The release notes explain SmartScreen and how to check the SHA-256. Build provenance is attested once the
+  repository is public (on private repositories it needs a paid plan).
+- Run by hand, the workflow only builds the zip as an artifact.
+
+**Download page** (`website/`): a static template.
+- It reads `latest.json` and shows the download button, size and SHA-256.
+- It covers the three steps, the "Windows protected your PC" warning, and how to check the download.
+- Visitors on other systems see a note. It follows the light or dark theme and works at phone width.
+
+**Link check** (`scripts/check_links.py`) covers model downloads (and their sizes), model pages, licenses and
+samples, add-on versions on PyPI, the build's pinned downloads, the providers' API addresses and the links in the
+code.
+
+**Docs**:
+- INSTALL: install from the zip, SmartScreen, the SHA-256 check, Install for me and updates.
+- GETTING_STARTED: step 1. TROUBLESHOOTING: three new entries. ARCHITECTURE: the zip's parts.
+- CONTRIBUTING: building the zip and releasing. CHANGELOG.
+- NOTICE and THIRD_PARTY_LICENSES now list the bundled Python and pip.
+- `jarvis_gui.pyw --version` prints the version.
+
+### Verified
+- All 421 automated tests pass (21 new):
+  - unpacking an update (and refusing unsafe or incomplete zips), keeping it across restarts, reporting the
+    result, and the updater's command line;
+  - Install for me, with copies, shortcuts, the Apps entry and the relaunch script, and that it never overwrites
+    a folder that isn't Jarvis's;
+  - the start-up shortcut and uninstall in the zip layout;
+  - the PE import reader, and the link checker against a fake server.
+- The compiled updater, run for real on a fake Jarvis folder:
+  - it swaps in the new version and keeps the old one;
+  - with a file held open, it puts everything back and says so;
+  - an incomplete update is refused.
+  The build runs these too.
+- The real packaged app, end to end in a scratch folder:
+  - `Jarvis.exe` started it on its own Python 3.13.16;
+  - with version 0.1.1 waiting, the bar offered Restart to update;
+  - clicking it quit the app, the updater swapped the folders and started 0.1.1, the bar said "updated to
+    version 0.1.1", and `.old` and `.update` were gone.
+- The launcher, started from a folder like the one Explorer uses for a program inside a zip, showed "Please
+  extract the zip first" and started no Python.
+- The packaged runtime's pip installed the Kokoro engine add-on (6 seconds), and Kokoro spoke from it.
+- The link check: 86 links, none broken. The download page renders with the real `latest.json`, wide and at
+  phone width.
+
+### Not done here (Phase 8, the maintainer's testing)
+- Install for me for real (it creates a Start Menu shortcut, an Apps entry and a folder in the user's profile):
+  covered by tests with mocks.
+- The zip on a clean Windows 11 PC or VM, with and without an NVIDIA card, including SmartScreen.
+
+### Decided (review welcome)
+- python.org's embeddable Python rather than a frozen app (PyInstaller): add-ons need a real Python with pip, and
+  unsigned frozen apps are often flagged by antivirus.
+- Python 3.13.16 rather than 3.13.17, which was three days old.
+- Small C programs for the launcher and the updater, compiled with the Visual Studio build tools (GitHub's
+  Windows runners have them).
+- The release workflow drafts the release; publishing stays a person's step.
+
+---
+
 ## 2026-10-24 · Kokoro is the default voice
 
 The maintainer chose Kokoro as the default voice. Jarvis stays Apache-2.0.

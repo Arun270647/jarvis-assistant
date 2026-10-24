@@ -5,7 +5,8 @@ plan(delete_data) lists exactly what will go, so the confirmation can show it; r
   (Install for me creates the last three);
 - with "delete my data": the saved keys and passwords (Credential Manager) and the data, models and cache
   folders;
-- an installed copy also removes its own app folder; a copy run from source never deletes itself.
+- a copy from the Windows zip (installed or not) also removes its Jarvis folder; a copy run from source never
+  deletes itself.
 Folders still in use (the database, the log) are deleted by a small script that waits for Jarvis to exit.
 A folder is only deleted if it is clearly Jarvis's: never a drive root, the user's home folder or a folder
 that contains the app.
@@ -23,8 +24,15 @@ UNINSTALL_KEY = r"Software\Microsoft\Windows\CurrentVersion\Uninstall\Jarvis"
 
 
 def installed_copy() -> bool:
-    """True for a copy made by Install for me (or a packaged build), false when running from source."""
-    return bool(getattr(sys, "frozen", False)) or (paths.APP_ROOT / "installed.json").exists()
+    """True for a copy from the Windows zip (installed or not), false when running from source."""
+    return paths.install_root() is not None
+
+
+def app_folder() -> Optional[Path]:
+    """The Jarvis folder to delete after exit: the zip's folder (Jarvis.exe, runtime, app), never source code."""
+    from src.app.install import is_jarvis_folder
+    root = paths.install_root()
+    return root if root and is_jarvis_folder(root) else None
 
 
 def _data_roots() -> list:
@@ -74,11 +82,12 @@ def _credential_targets(cfg: dict) -> list:
 def plan(delete_data: bool, cfg: Optional[dict] = None) -> dict:
     cfg = config_store.load_config() if cfg is None else cfg
     folders = [str(f) for f in _data_roots() if f.exists() and safe_to_delete(f)] if delete_data else []
-    app_folder = str(paths.APP_ROOT) if installed_copy() and safe_to_delete(paths.APP_ROOT) else None
+    folder = app_folder()
     from src.core import startup
     return {"delete_data": delete_data, "startup": startup.is_startup_enabled(),
             "shortcuts": [str(p) for p in _shortcuts()], "apps_entry": _has_apps_entry(),
-            "credentials": _credential_targets(cfg) if delete_data else [], "folders": folders, "app_folder": app_folder}
+            "credentials": _credential_targets(cfg) if delete_data else [], "folders": folders,
+            "app_folder": str(folder) if folder else None}
 
 
 def _has_apps_entry() -> bool:
@@ -115,7 +124,7 @@ def run(p: dict, pid: Optional[int] = None) -> dict:
     for target in p.get("credentials", []):
         credentials.delete(target)
     folders = [f for f in p.get("folders", []) if safe_to_delete(Path(f))]
-    if p.get("app_folder") and safe_to_delete(Path(p["app_folder"])):
+    if p.get("app_folder") and app_folder() and Path(p["app_folder"]).resolve() == app_folder().resolve():
         folders.append(p["app_folder"])
     script = cleanup_script(folders, pid or os.getpid()) if folders else None
     if script:

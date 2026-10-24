@@ -363,11 +363,21 @@
     const send = () => { if (input.value.trim()) { call("send", input.value.trim()); input.value = ""; } };
     input.addEventListener("keydown", e => { if (e.key === "Enter") send(); });
     const downloading = Object.values(W.jobs).some(j => ["queued", "downloading", "verifying", "installing"].includes(j.state));
+    const finish = async () => { if (await save("finish", {})) { close(); A.toast(`${T.name} is ready.`); } };
+    const offer = W.st.install || {}, desktop = h("input", { type: "checkbox" });
+    const install = async e => {           // the settings are saved first: the installed copy starts set up
+      if (!await save("finish", {})) return;
+      e.target.disabled = true; $("install-line").textContent = "Copying… (this takes a minute)";
+      call("installForMe", desktop.checked, true);
+    };
     page("You're ready. Try it now.", `Click the orb and say: “What time is it?”`,
       [h("div", { class: "toolbar" }, secondary("🎙 Talk", () => call("listen")), input, secondary("Send", send)),
        h("div", { class: "help", id: "try-state", text: W.tryState || "" }),
-       downloading ? note("Voice turns on by itself when the downloads finish; typing works now.") : null, out],
-      [primary("Finish", async () => { if (await save("finish", {})) { close(); A.toast(`${T.name} is ready.`); } })]);
+       downloading ? note("Voice turns on by itself when the downloads finish; typing works now.") : null, out,
+       offer.available ? h("div", { class: "install-offer" }, note(T.t("setup.install", { from: offer.from })),
+         h("label", { class: "check" }, desktop, "Also put a shortcut on the desktop"),
+         h("div", { class: "help", id: "install-line", role: "status" })) : null],
+      offer.available ? [primary("Install for me", install), secondary("Keep it here", finish)] : [primary("Finish", finish)]);
   }
 
   // ───────────────────────────── downloads bar
@@ -408,6 +418,9 @@
         if (W.screen === "connect") render(); break;
       case "mic_level": W.level = ev.v; { const m = $("mic-meter"); if (m) m.style.width = Math.round(ev.v * 100) + "%"; } break;
       case "mic_test": onMicTest(ev); break;
+      case "install": { const l = $("install-line"); if (!l) break;
+        l.textContent = ev.state === "done" ? T.t("about.install.done") : ev.state === "failed" ? (ev.error || "Installing didn't work.") : l.textContent;
+        break; }
       case "voice_sample": if (W.screen !== "voice") break;
         if (ev.url && W.sample) { W.sample.src = ev.url; W.sample.play(); W.orbPhase = "speaking"; }
         else { const n = $("voice-note"); if (n) n.textContent = "You can hear this voice once it has downloaded."; }

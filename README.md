@@ -10,9 +10,10 @@ click / hold Space ─► VAD ─► Whisper (local) ─► AI model (your choic
                                         typed text joins here ───┘
 ```
 
-> **Status: in development, not released yet.** There is no download yet: you run it from source on
-> Windows 11, and a setup wizard walks you through the rest. A macOS version comes after the first Windows
-> release.
+> **Status: in development, not released yet.** The Windows download (a zip with its own Python, no installer
+> and no administrator rights needed) comes with the first release. Until then you run it from source on
+> Windows 11, or build the zip yourself, and a setup wizard walks you through the rest. A macOS version comes
+> after the first Windows release.
 
 ## What works today
 

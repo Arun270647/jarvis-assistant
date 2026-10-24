@@ -8,7 +8,7 @@ needs it, the model downloader installs it from PyPI with pip into its own folde
 app folder or its requirements; an update leaves it alone, and "delete my data" removes it with the models.
 
 A copy already importable from Jarvis's own Python (a developer who ran pip install kokoro-onnx) counts as
-installed. The packaged app (Phase 6) will need a Python to run pip with; until then this uses sys.executable.
+installed. pip runs in the app's own Python (in the Windows zip, runtime\\python.exe, which includes pip).
 """
 import importlib
 import importlib.util
@@ -48,7 +48,7 @@ def install(name: str, timeout: float = 900) -> None:
     s = spec(name)
     target = folder(name)
     target.mkdir(parents=True, exist_ok=True)
-    cmd = [sys.executable, "-m", "pip", "install", "--disable-pip-version-check", "--no-input", "--no-deps",
+    cmd = [winproc.python_executable(), "-m", "pip", "install", "--disable-pip-version-check", "--no-input", "--no-deps",
            "--upgrade", "--target", str(target), *s["packages"]]
     try:
         r = winproc.run_hidden(cmd, capture_output=True, text=True, timeout=timeout)

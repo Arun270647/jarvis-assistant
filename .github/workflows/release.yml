@@ -1,0 +1,77 @@
+name: Release
+
+# A tag v* builds the Windows zip and drafts a GitHub Release with the zip, its SHA-256 and latest.json (for the
+# website's updater feed). Publishing the draft is the maintainer's step. Started by hand (Actions › Release › Run
+# workflow), it only builds the zip and keeps it as a downloadable artifact for testing.
+# Nothing is code-signed (no signing budget); the SHA-256 and, once the repository is public, GitHub's build
+# provenance let people check the download.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    name: Windows zip
+    runs-on: windows-latest
+    permissions:
+      contents: write        # draft the release
+      id-token: write        # build provenance
+      attestations: write
+    env:
+      PYTHONIOENCODING: utf-8
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      - name: The tag matches the app's version
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: python
+        run: |
+          import os, re
+          version = re.search(r'__version__\s*=\s*"([^"]+)"', open("src/version.py", encoding="utf-8").read()).group(1)
+          tag = os.environ["GITHUB_REF_NAME"]
+          assert tag == "v" + version, f"tag {tag} but src/version.py says {version}"
+      - name: Build the zip (runtime, app, launcher, updater; checks included)
+        run: >
+          python packaging/build_windows.py
+          --base-url "https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}"
+          --notes "https://github.com/${{ github.repository }}/releases/tag/${{ github.ref_name }}"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: jarvis-windows
+          path: |
+            dist/*.zip
+            dist/*.sha256
+            dist/latest.json
+          retention-days: 14
+      - name: Build provenance (public repositories)
+        if: startsWith(github.ref, 'refs/tags/') && github.event.repository.visibility == 'public'
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-path: dist/*.zip
+      - name: Draft the release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          $zip = Get-ChildItem dist/*.zip | Select-Object -First 1
+          $sha = (Get-Content "$($zip.FullName).sha256").Split(" ")[0]
+          $notes = @"
+          Download **$($zip.Name)**, right-click it, choose **Extract All**, then open **Jarvis.exe** in the extracted folder.
+
+          Jarvis isn't code-signed, so Windows may say "Windows protected your PC" the first time: click **More info**, then **Run anyway**.
+          To check the download, run ``Get-FileHash $($zip.Name)`` in PowerShell and compare it with this SHA-256:
+
+          ``$sha``
+
+          What changed: see CHANGELOG.md.
+          "@
+          gh release create "$env:GITHUB_REF_NAME" $zip.FullName "$($zip.FullName).sha256" dist/latest.json `
+            --draft --title "Jarvis $env:GITHUB_REF_NAME" --notes $notes

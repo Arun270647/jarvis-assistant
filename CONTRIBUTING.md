@@ -79,6 +79,38 @@ keeps every other version where it is; add `--upgrade-package <name>` to move on
 Dependabot's weekly pull requests for Python packages change `requirements.txt` only, so their tests fail until
 the lock is regenerated. Apply the new versions with the commands above in your own pull request.
 
+## Building the Windows zip
+
+On Windows, with the Visual Studio C++ build tools installed (for `cl` and `rc`):
+
+```
+python packaging/build_windows.py
+```
+
+It builds `build\windows\Jarvis` and writes `dist\Jarvis-<version>-windows-x64.zip`, its `.sha256` file and
+`latest.json`. The zip holds:
+
+- `runtime`: python.org's embeddable Python (pinned with its SHA-256 in `packaging/runtime.json`), pip, and
+  `requirements.lock` installed with hashes. Parts of Qt that Jarvis never loads are left out (the build follows
+  the DLL imports of the Qt modules the app uses).
+- `app`: the files from `git ls-files` that Jarvis reads at run time.
+- `Jarvis.exe` and `Jarvis-Updater.exe`, compiled from `packaging/windows/`.
+
+Before zipping, the build runs the updater's tests (`tests/test_packaging.py`), checks that the runtime imports
+every package, that Qt WebEngine renders a page and that the app reports its version. `--reuse-runtime` skips
+the slow part when only the app changed. The zip is about 300 MB.
+
+## Releasing
+
+1. Set the version in `src/version.py` and move the `[Unreleased]` notes in CHANGELOG.md under it.
+2. Tag the commit `v<version>` and push the tag. The Release workflow builds the zip on GitHub and drafts a
+   release with the zip, its SHA-256 and `latest.json`.
+3. Check the draft, download the zip once, then publish it. Copy `latest.json` to the website
+   ([website/README.md](website/README.md)).
+
+Releases aren't code-signed: the release notes and the download page explain Windows SmartScreen and how to
+check the SHA-256.
+
 ## Pull requests
 
 - One logical change per pull request, with tests.

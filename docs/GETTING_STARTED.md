@@ -9,15 +9,21 @@ This guide takes about 5 minutes. You don't need any technical knowledge once Ja
 connection, and a **Claude Pro or Max** plan (sign up at claude.ai). No Claude plan? See
 [Other ways to connect](#5-other-ways-to-connect).
 
-> Jarvis isn't released yet. Until there is a download, it runs from its source code: see
-> [Running from source](../README.md#running-from-source). The steps below start once it opens.
+> Jarvis isn't released yet. Until the first download is published, it runs from its source code: see
+> [Running from source](../README.md#running-from-source). The setup steps below are the same either way.
 
 ---
 
 ## 1. Install
 
-For now, follow [Running from source](../README.md#running-from-source) in the README. With the first
-release this becomes: download the zip from the website, extract it, double-click **Jarvis**.
+1. Download the Jarvis zip from the website.
+2. Open your **Downloads** folder, right-click the zip and choose **Extract All**, then **Extract**.
+3. Open the extracted **Jarvis** folder and double-click **Jarvis.exe**.
+4. If Windows says "Windows protected your PC", click **More info**, then **Run anyway**. Jarvis is free and
+   isn't code-signed, so Windows asks this once.
+
+The setup wizard opens. On its last screen, **Install for me** moves Jarvis out of your Downloads folder and adds
+it to the Start Menu.
 
 ## 2. Set up (the setup wizard)
 
@@ -149,7 +155,8 @@ that fixes it.
 
 ## 7. Update and uninstall
 
-- **Updates:** **Settings › About › Check for updates** (automatic checks start with the first release).
+- **Updates:** Jarvis checks when it starts and downloads a new version in the background. When it's ready, a
+  bar says so: click **Restart to update**. **Settings › About › Check for updates** checks now.
 - **Uninstall:** **Settings › About › Uninstall**. Tick the box first if you also want your settings,
   memories, downloaded models and saved keys deleted.
 

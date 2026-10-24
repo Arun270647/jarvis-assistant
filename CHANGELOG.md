@@ -23,6 +23,10 @@ Nothing has been released yet. The first release will be `0.1.0-alpha.1`, with:
 - Agentic tasks with plans, independently verified success checks, and pause, resume and retry.
 - Desktop app with a floating orb, tray icon, global hotkey, setup wizard, error messages with fix buttons,
   update check and uninstall.
+- Windows download: a zip with its own Python, so nothing else needs installing. Jarvis.exe starts it (and says
+  so if it's still inside the zip), Install for me adds it to the Start Menu and Settings › Apps without
+  administrator rights, and updates download in the background and install with Restart to update (the old
+  version comes back if anything fails). Releases aren't code-signed; each one lists its SHA-256.
 
 ### Licensing
 - Apache License 2.0. Nothing GPL ships with Jarvis: the Kokoro voice engine (which uses espeak-ng and

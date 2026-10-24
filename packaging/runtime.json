@@ -1,0 +1,15 @@
+{
+  "_comment": "What packaging/build_windows.py puts in the zip's runtime folder: the official embeddable CPython from python.org and pip (add-ons such as the Kokoro voice engine are pip-installed at run time). Both are pinned by SHA-256. Python 3.13 because the Kokoro engine doesn't support 3.14 yet.",
+  "python": {
+    "version": "3.13.16",
+    "url": "https://www.python.org/ftp/python/3.13.16/python-3.13.16-embed-amd64.zip",
+    "sha256": "97dae5274cc54867065e8d5a3226e48c35017ed332a0fdb0e27d5b5821961297",
+    "size": 11439094
+  },
+  "pip": {
+    "version": "26.2.1",
+    "url": "https://files.pythonhosted.org/packages/f3/6e/1736e5b4ae2b778ef2f81c47d797de9f891d4d8acb047a24ca37a60294dd/pip-26.2.1-py3-none-any.whl",
+    "sha256": "71138adf1f4ca900cdb7d289c21b7494329f2332b6d85f0e1c42108c0384ed3e",
+    "size": 1816632
+  }
+}

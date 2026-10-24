@@ -214,6 +214,7 @@ class JarvisQtApp:
         self.name = config_store.assistant_name()       # what the user calls the assistant (Settings › General)
         self.hub = EventHub()
         self.hub.quit_requested.connect(qapp.quit)
+        self.hub.quit_later.connect(lambda ms: QTimer.singleShot(ms, self.quit))
         self.controller = AssistantController()
         self.controller.add_listener(self._on_controller_event)
         logging_setup.add_listener(self.hub.emit_log)
@@ -241,17 +242,69 @@ class JarvisQtApp:
             QTimer.singleShot(400, self.controller.start)
         if not self.setup_needed:
             threading.Thread(target=self._check_claude, name="claude-check", daemon=True).start()
+        QTimer.singleShot(3000, self._after_update)
         updates_cfg = full_cfg.get("updates", {}) or {}
         if updates_cfg.get("auto_check", True) and updates_cfg.get("url"):
             threading.Thread(target=self._check_updates, args=(updates_cfg["url"],), name="update-check", daemon=True).start()
 
+    def _after_update(self) -> None:
+        """Say how the last update went, and offer one that was downloaded earlier but not installed yet."""
+        from src.app import updates
+        from src.version import __version__
+        try:
+            result = updates.after_start()
+            waiting = updates.staged_version()
+        except Exception as e:
+            print(f"[UPDATE] Cleanup after an update failed: {e}")
+            return
+        if result == "updated":
+            self.hub.emit_event({"type": "banner", "code": "updated", "message": f"{self.name} was updated to version {__version__}."})
+        elif result:
+            self.hub.emit_event({"type": "banner", "code": "update_failed",
+                                 "message": "The update didn't install: " + result.removeprefix("failed: ")})
+        if waiting:
+            self._update_ready(waiting)
+
+    def _update_ready(self, version: str) -> None:
+        self.hub.emit_event({"type": "update_ready", "version": version})
+        self.hub.emit_event({"type": "banner", "code": "update", "message": f"Version {version} is ready to install.",
+                             "fix": {"label": "Restart to update", "action": "update_restart"}})
+
     def _check_updates(self, url: str) -> None:
-        """Once per start (the app is restarted at least daily for most people): offer a newer version."""
+        """Once per start (the app is restarted at least daily for most people): get a newer version ready, or
+        offer its download when Jarvis can't update itself (run from source, or from a read-only folder)."""
         from src.app import updates
         result = updates.check(url)
-        if result.get("available"):
+        if not result.get("available") or updates.staged_version() == result.get("version"):
+            return
+        if updates.updater_available():
+            self.prepare_update(result)
+        else:
             self.hub.emit_event({"type": "banner", "code": "update", "message": f"Version {result['version']} is available.",
-                                 "fix": {"label": "Get it", "action": "open_url", "arg": result["download"]["url"]}})
+                                 "fix": {"label": "Get it", "action": "open_url", "arg": result.get("notes") or result["download"]["url"]}})
+
+    def prepare_update(self, result: dict = None) -> None:
+        """Download, check and unpack a newer version (worker thread), reporting progress as update_* events."""
+        from src.app import updates
+        result = result or updates.check(config_store.load_config().get("updates", {}).get("url", ""))
+        if not result.get("available"):
+            self.hub.emit_event(dict(result, type="update_check", can_install=updates.updater_available()))
+            return
+        last = [0]
+
+        def progress(done: int, total: int) -> None:
+            percent = int(done * 100 / total) if total else 0
+            if percent != last[0]:
+                last[0] = percent
+                self.hub.emit_event({"type": "update_progress", "version": result["version"], "percent": percent})
+
+        try:
+            updates.prepare(result["download"], progress)
+        except Exception as e:
+            self.hub.emit_event({"type": "update_check", "available": True, "version": result["version"],
+                                 "error": f"Downloading version {result['version']} failed: {e}"})
+            return
+        self._update_ready(result["version"])
 
     def _check_claude(self) -> None:
         """With Claude as the brain: say at once when Claude Code is missing or signed out (a banner)."""
@@ -404,6 +457,11 @@ class JarvisQtApp:
             print("[GUI] Hotkey: opening the main window")
             self.show_main(force=True, reason="hotkey")
 
+    def open_uninstall(self) -> None:
+        """Settings › About, where Uninstall is (asked for by Settings › Apps)."""
+        self.show_main(force=True, greet=False)
+        QTimer.singleShot(600, lambda: self.hub.emit_event({"type": "open_settings", "section": "about"}))
+
     def toggle_maximized(self):
         self.main.showNormal() if self.main.isMaximized() else self.main.showMaximized()
 
@@ -512,6 +570,8 @@ def run(argv=None) -> int:
         message = f"screenshot|{target}|{view}".encode("utf-8")
     elif "--quit" in argv:
         message = b"quit"
+    elif "--uninstall" in argv:                   # Settings › Apps › Uninstall (src/app/install.py registers it)
+        message = b"uninstall"
     elif "--eval" in argv:
         # Dev only (honoured when the running instance was started with JARVIS_DEV=1):
         # run JavaScript in the main page, e.g. to drive the real UI in end-to-end checks.
@@ -519,7 +579,7 @@ def run(argv=None) -> int:
     if _another_instance_running(message):
         print("[GUI] Another Jarvis is already running — forwarded: " + message.decode("utf-8"))
         return 0
-    if message != b"show":
+    if message not in (b"show", b"uninstall"):
         print("[GUI] --screenshot needs a running Jarvis")
         return 1
     server = QLocalServer()
@@ -527,6 +587,8 @@ def run(argv=None) -> int:
     server.listen(INSTANCE_KEY)
 
     app = JarvisQtApp(qapp, start_minimized="--minimized" in argv)
+    if message == b"uninstall":
+        QTimer.singleShot(2500, app.open_uninstall)
 
     def _handle(data: bytes):
         text = bytes(data).decode("utf-8", errors="replace")
@@ -535,6 +597,8 @@ def run(argv=None) -> int:
             app.save_screenshots(Path(target), view)
         elif text == "quit":
             app.quit()
+        elif text == "uninstall":
+            app.open_uninstall()
         elif text.startswith("js|"):
             if os.environ.get("JARVIS_DEV") == "1":
                 app.main.view.page().runJavaScript(text[3:])

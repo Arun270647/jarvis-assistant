@@ -38,6 +38,10 @@
     "about.uninstall": "Uninstall {name}",
     "about.uninstall.confirm": "Click again to uninstall {name}",
     "about.uninstall.done": "Uninstalled. {name} closes now; what's left is removed once it has closed.",
+    "about.install.help": "Install for me copies {name} to {to}, adds it to the Start Menu and to Settings › Apps, and deletes the copy in {from}. No administrator rights needed.",
+    "about.install.done": "Installed. {name} closes and opens again from its new folder.",
+    "about.update.done": "{name} was updated to version {version}.",
+    "setup.install": "{name} is running from {from}. Install it so it's in the Start Menu and Settings › Apps instead of your downloads.",
     "standalone": `This page is the ${PRODUCT} desktop UI.<br>Start it with <b>pythonw jarvis_gui.pyw</b>.`,
   };
   let name = PRODUCT;

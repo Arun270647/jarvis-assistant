@@ -7,6 +7,7 @@ onto the UI thread.
 """
 import json
 import os
+import sys
 import threading
 import time
 from pathlib import Path
@@ -27,6 +28,7 @@ class EventHub(QObject):
     event = Signal(str)
     log = Signal(str)
     quit_requested = Signal()
+    quit_later = Signal(int)          # quit after this many ms (from a worker thread)
 
     def emit_event(self, ev: dict) -> None:
         self.event.emit(_dumps(ev))
@@ -557,20 +559,55 @@ class Bridge(QObject):
 
     @Slot(result=str)
     def aboutInfo(self) -> str:
-        from src.app import uninstall, updates
+        from src.app import install, uninstall, updates
         from src.version import __version__
         cfg = config_store.load_config()
         return _dumps({"version": __version__, "data": str(paths.home()), "models": str(paths.models_dir()),
                        "installed": uninstall.installed_copy(), "updates_url": bool(cfg.get("updates", {}).get("url")),
-                       "updater": updates.updater_available()})
+                       "updater": updates.updater_available(), "update_ready": updates.staged_version(),
+                       "install": install.state() if sys.platform == "win32" else {"available": False}})
 
     @Slot()
     def checkUpdates(self) -> None:
         def run():
             from src.app import updates
             result = updates.check(config_store.load_config().get("updates", {}).get("url", ""))
-            self.app.hub.emit_event(dict(result, type="update_check"))
+            self.app.hub.emit_event(dict(result, type="update_check", can_install=updates.updater_available()))
         threading.Thread(target=run, name="update-check", daemon=True).start()
+
+    @Slot()
+    def updateInstall(self) -> None:
+        """Settings › About › Download and install: download, check and unpack the new version in the background,
+        then offer Restart to update."""
+        threading.Thread(target=self.app.prepare_update, name="update-download", daemon=True).start()
+
+    @Slot(result=str)
+    def updateRestart(self) -> str:
+        """Restart to update: the updater swaps in the new version after Jarvis quits, then starts it again."""
+        from src.app import updates
+        try:
+            updates.launch_updater()
+        except Exception as e:
+            return _dumps({"ok": False, "error": str(e)})
+        from PySide6.QtCore import QTimer
+        QTimer.singleShot(300, self.app.quit)
+        return _dumps({"ok": True})
+
+    @Slot(bool, bool)
+    def installForMe(self, desktop: bool, remove_copy: bool) -> None:
+        """Install for me: copy to %LOCALAPPDATA%\Programs\Jarvis in the background (about a gigabyte), then quit
+        so the installed copy can start."""
+        def run():
+            from src.app import install
+            self.app.hub.emit_event({"type": "install", "state": "copying", "to": install.state()["to"]})
+            try:
+                result = install.install(desktop=desktop, remove_copy=remove_copy)
+            except Exception as e:
+                result = {"ok": False, "error": str(e)}
+            self.app.hub.emit_event(dict(result, type="install", state="done" if result.get("ok") else "failed"))
+            if result.get("ok"):
+                self.app.hub.quit_later.emit(1500)
+        threading.Thread(target=run, name="install", daemon=True).start()
 
     @Slot(bool, result=str)
     def uninstallPlan(self, delete_data: bool) -> str:

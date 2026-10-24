@@ -9,7 +9,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from src.core import addons, models, paths
+from src.core import addons, models, paths, winproc
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -96,7 +96,7 @@ class PiperAddOnTests(unittest.TestCase):
                 mock.patch.object(addons, "installed", return_value=True):
             addons.install("piper")
         cmd = run.call_args[0][0]
-        self.assertEqual(cmd[:4], [sys.executable, "-m", "pip", "install"])
+        self.assertEqual(cmd[:4], [winproc.python_executable(), "-m", "pip", "install"])
         self.assertIn("--no-deps", cmd)
         self.assertEqual(cmd[cmd.index("--target") + 1], str(paths.models_dir() / "addons" / "piper"))
         self.assertIn("piper-tts==1.8.0", cmd)

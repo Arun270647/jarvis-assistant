@@ -1,7 +1,8 @@
 """Where Jarvis keeps its files.
 
 - The app folder (APP_ROOT) holds the code and the shipped config/ (defaults.json, profile_defaults.json).
-  It is never written at run time, so an update can replace it.
+  It is never written at run time, so an update can replace it. In the Windows zip it is Jarvis\\app, next to
+  Jarvis.exe and the Python runtime; install_root() is that Jarvis folder.
 - The user's data folder, home(): config.json (only the settings that differ from the defaults),
   user_profile.json, jarvis.db and logs/. By default the OS's per-user folder (%APPDATA%\\Jarvis).
 - Large local files: models/ (downloaded speech and voice models) and cache/ (TTS cache, edit backups,
@@ -64,6 +65,14 @@ def db_file() -> Path:
 
 def log_dir() -> Path:
     return home() / "logs"
+
+
+def install_root() -> Optional[Path]:
+    """The Jarvis folder of the Windows zip (Jarvis.exe, runtime/, app/) when running from it; None from source."""
+    root = APP_ROOT.parent
+    if APP_ROOT.name == "app" and (root / "Jarvis.exe").is_file() and (root / "runtime").is_dir():
+        return root
+    return None
 
 
 def shipped_config_dir() -> Path:

@@ -91,6 +91,8 @@ def cell(text: str) -> str:
 
 
 def render() -> str:
+    import json
+    runtime = json.loads((ROOT / "packaging" / "runtime.json").read_text(encoding="utf-8"))
     core = top_level(ROOT / "requirements.txt")
     dists = closure(core)
     missing = [n for n in core if n not in dists]
@@ -135,6 +137,16 @@ def render() -> str:
         "| Silero VAD | MIT |",
         "| Kokoro-82M voice model and voices (ONNX export from kokoro-onnx) | Apache-2.0 |",
         "| Piper voices | per voice, see each voice's model card (linked in Settings › Models) |",
+        "",
+        "## Bundled in the Windows zip",
+        "",
+        "The zip (packaging/build_windows.py) also carries its own Python, so Jarvis needs nothing else installed:",
+        "",
+        "| Component | License |",
+        "|---|---|",
+        f"| Python {runtime['python']['version']} (python.org's embeddable package) | PSF License 2.0; the libraries "
+        "it includes are listed in `runtime\\LICENSE.txt` |",
+        f"| pip {runtime['pip']['version']} | MIT |",
         "",
         "## Bundled fonts",
         "",

@@ -206,7 +206,8 @@
       case "settings_test": Settings.onTest(ev); return;
       case "ai_models": Settings.onModels(ev); return;
       case "banner": Banners.show(ev); return;
-      case "update_check": { const l = $("update-line"); if (l) l.textContent = ev.available ? `Version ${ev.version} is available.` : ev.error || "You have the latest version."; return; }
+      case "update_check": case "update_progress": case "update_ready": case "install": Settings.onUpdate(ev); return;
+      case "open_settings": Settings.open(ev.section); return;
       case "claude_login": Banners.onClaudeLogin(ev); return;
       case "claude_install": Banners.onClaudeInstall(ev); return;
       case "download":
@@ -440,6 +441,7 @@
       else if (action === "restart") { call("restart"); this.clear(b.code); toast("Restarting the assistant…"); }
       else if (action === "download") { call("setupDownload", arg); this.clear(b.code); }
       else if (action === "open_url") call("openUrl", arg);
+      else if (action === "update_restart") { this.note(b.code, "Restarting to update…"); call("updateRestart").then(raw => { const r = JSON.parse(raw || "{}"); if (!r.ok) this.show({ code: "update", message: r.error }); }); }
       else if (action === "claude_login") { call("claudeLogin"); this.note(b.code, "Finish signing in in your browser, then come back here."); }
       else if (action === "claude_install") { call("claudeInstall"); this.note(b.code, "Getting Claude ready… (about a minute)"); }
     },
@@ -779,17 +781,54 @@
         planLine.textContent = r.ok ? t("about.uninstall.done") : "Couldn't uninstall: " + r.error;
       });
       wipe.addEventListener("change", () => { delete uninstallBtn.dataset.armed; uninstallBtn.textContent = t("about.uninstall"); planLine.textContent = ""; });
+      const updateActions = h("div", { class: "toolbar", id: "update-actions" });
+      const installBox = h("div", { id: "install-box" });
       call("aboutInfo").then(raw => {
         if (!raw) return; const a = JSON.parse(raw);
-        [["Version", a.version], ["Settings and memories", a.data], ["Models", a.models], ["Running", a.installed ? "installed copy" : "from source"]]
+        const running = a.install && a.install.installed ? "installed copy" : a.installed ? `from ${a.install && a.install.from || "the zip's folder"}` : "from source";
+        [["Version", a.version], ["Settings and memories", a.data], ["Models", a.models], ["Running", running]]
           .forEach(([k, v]) => info.appendChild(h("div", { class: "kv-row" }, h("span", { class: "k", text: k }), h("span", { class: "v", text: v }))));
         if (!a.updates_url) updateLine.textContent = "Update checks start once the download site is set up.";
+        if (a.update_ready) this.onUpdate({ type: "update_ready", version: a.update_ready });
+        if (a.install && a.install.available) {
+          const desktop = h("input", { type: "checkbox" });
+          installBox.append(h("div", { class: "help", text: t("about.install.help", { to: a.install.to, from: a.install.from }) }),
+            h("label", { class: "check", style: "font-size:13px" }, desktop, "Also put a shortcut on the desktop"),
+            h("div", { class: "toolbar" }, h("button", { class: "btn btn-secondary btn-sm", id: "install-btn", text: "Install for me",
+              onclick: e => { e.target.disabled = true; call("installForMe", desktop.checked, true); } }), h("div", { class: "help", id: "install-line" })));
+        }
       });
       return this.section("About", null, info,
-        h("div", { class: "toolbar" }, h("button", { class: "btn btn-secondary btn-sm", onclick: () => { updateLine.textContent = "Checking…"; call("checkUpdates"); }, text: "Check for updates" }), updateLine),
+        h("div", { class: "toolbar" }, h("button", { class: "btn btn-secondary btn-sm", onclick: () => { updateLine.textContent = "Checking…"; updateActions.textContent = ""; call("checkUpdates"); }, text: "Check for updates" }), updateLine),
+        updateActions, installBox,
         this.toggle("updates.auto_check", "Check for updates when the app starts"),
         h("label", { class: "check", style: "font-size:13px" }, wipe, "When uninstalling, also delete my settings, memories, downloaded models and saved keys"),
         h("div", { class: "toolbar" }, uninstallBtn), planLine);
+    },
+    onUpdate(ev) {
+      const line = $("update-line"), actions = $("update-actions");
+      if (ev.type === "install") {
+        const l = $("install-line"), b = $("install-btn");
+        if (ev.state === "copying") { if (l) l.textContent = `Copying to ${ev.to}… (this takes a minute)`; }
+        else if (ev.state === "done") { if (l) l.textContent = t("about.install.done"); }
+        else { if (l) l.textContent = ev.error || "Installing didn't work."; if (b) b.disabled = false; }
+        return;
+      }
+      if (!line || !actions) return;
+      actions.textContent = "";
+      if (ev.type === "update_progress") { line.textContent = `Downloading version ${ev.version}… ${ev.percent}%`; return; }
+      if (ev.type === "update_ready") {
+        line.textContent = `Version ${ev.version} is ready.`;
+        actions.appendChild(h("button", { class: "btn btn-primary btn-sm", text: "Restart to update", onclick: async () => {
+          line.textContent = "Restarting to update…";
+          const r = JSON.parse(await call("updateRestart") || "{}"); if (!r.ok) line.textContent = r.error; } }));
+        return;
+      }
+      line.textContent = ev.error ? ev.error : ev.available ? `Version ${ev.version} is available.` : "You have the latest version.";
+      if (ev.available && ev.can_install)
+        actions.appendChild(h("button", { class: "btn btn-primary btn-sm", text: "Download and install", onclick: () => { line.textContent = "Starting the download…"; actions.textContent = ""; call("updateInstall"); } }));
+      else if (ev.available && ev.download && ev.download.url)
+        actions.appendChild(h("button", { class: "btn btn-secondary btn-sm", text: "Get it", onclick: () => call("openUrl", ev.notes || ev.download.url) }));
     },
     async renderModels() {
       const box = $("models-body"); if (!box) return;

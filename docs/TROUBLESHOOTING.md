@@ -24,6 +24,17 @@ fixes it. This page lists those messages and a few problems that don't show a ba
 
 ## Problems without a message
 
+**"Windows protected your PC" when opening Jarvis.exe.** Jarvis isn't code-signed, so SmartScreen warns the first
+time. Click **More info**, then **Run anyway**. To be sure the file is genuine, compare its SHA-256 with the one on
+the release page ([INSTALL.md](INSTALL.md#install-from-the-zip)).
+
+**"Please extract the zip first".** Jarvis.exe was opened from inside the zip, or from a temporary folder. Close
+the message, right-click the zip, choose **Extract All**, then open Jarvis.exe in the extracted folder.
+
+**"The update didn't install: …".** Jarvis put the old version back, so it keeps working. The message says what
+was in the way, often a file another program had open. Restart the PC and try **Settings › About › Check for
+updates** again. If it keeps failing, download the new zip and extract it over the old Jarvis folder.
+
 **It hears me, but nothing happens.** Look at the Activity view. If a tool was **denied**, its group may be off
 (Settings › Tools and permissions › What it may do) or the tool is set to deny. If it **timed out**, nobody
 answered the approval in time.
