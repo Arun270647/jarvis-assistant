@@ -1,5 +1,9 @@
 """The default registry: schemas, router-backed tools in dry-run, confirmation rules."""
+import json
+import shutil
+import tempfile
 import unittest
+from pathlib import Path
 
 import jsonschema
 
@@ -18,6 +22,10 @@ class RegistryTests(unittest.TestCase):
         cls.cfg = load_config()
         cls.cfg["dry_run"] = True
         cls.cfg["tools"]["groups"] = groups_setting("full")      # every tool (test_security covers the defaults)
+        cls.chrome_dir = Path(tempfile.mkdtemp(prefix="jarvis-chrome-"))     # open_chrome needs a profile, not this PC's
+        (cls.chrome_dir / "Local State").write_text(json.dumps(
+            {"profile": {"info_cache": {"Default": {"name": "Person 1"}}, "last_used": "Default"}}), encoding="utf-8")
+        cls.cfg.setdefault("chrome", {})["user_data_dir"] = str(cls.chrome_dir)
         cls.router = ActionRouter()
         cls.router.dry_run = True
         cls.memory = MemoryStore(temp_db())
@@ -27,6 +35,7 @@ class RegistryTests(unittest.TestCase):
     @classmethod
     def tearDownClass(cls):
         cls.memory.close()
+        shutil.rmtree(cls.chrome_dir, ignore_errors=True)
 
     def test_expected_tools(self):
         names = set(self.reg.names())

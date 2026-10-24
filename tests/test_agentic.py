@@ -403,7 +403,7 @@ class WorkspaceSafetyTests(unittest.TestCase):
         shutil.rmtree(self.dir, ignore_errors=True)
 
     def test_paths_confined_to_authorized_roots(self):
-        self.assertEqual(self.ws.resolve("a.txt", "p"), (self.dir / "proj" / "a.txt").resolve())
+        self.assertEqual(self.ws.resolve("a.txt", "p").resolve(), (self.dir / "proj" / "a.txt").resolve())
         for bad in [str(self.dir / "other.txt"), "..\\..\\x.txt", "C:\\Windows\\win.ini"]:
             with self.assertRaises(WorkspaceError):
                 self.ws.resolve(bad, "p")

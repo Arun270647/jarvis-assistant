@@ -89,11 +89,20 @@ groups from the defaults.
   personal-data scan). Clone instructions say `<this repository>`.
 - Code of Conduct reports go through GitHub's private reporting until there's a project email address.
 
-### Not done yet
-- The repository secret `PERSONAL_DATA_PATTERNS` has to be set by the maintainer.
-- The provenance of `src/gui/web/ds/styles.css` (the "Industry" design-system tokens) is still to be
-  confirmed.
-- CI itself has only run locally, step by step; its first run on GitHub comes with the push.
+### Follow-up after the first CI run on GitHub
+- The repository secret `PERSONAL_DATA_PATTERNS` is set, and the personal-data scan passed on GitHub.
+- `src/gui/web/ds/styles.css` (the "Industry" design-system tokens) is the project's own work, so it ships
+  under Apache-2.0.
+- The first run failed four tests on every Python version. They were test bugs, not app bugs:
+  - The runner's temp folder is an 8.3 short name (`RUNNER~1`). Two tests compared a path the app had kept in
+    that form with a fully resolved one. The folder check itself resolves both sides, so it was never fooled.
+    Both tests now compare resolved paths. The failure was reproduced locally with a short-name TEMP, and the
+    full suite passes under it.
+  - A registry test only passed on a PC with Chrome profiles. It now brings a fake profile.
+  - A phone-command test sent its next command right after the reply event, before the assistant was idle
+    again, and got "queued" instead of "sent" on a slow runner. It now waits for idle first.
+- GitGuardian flagged three "secrets" in `tests/test_security.py`. They are the made-up keys and bearer
+  tokens the redaction tests use. No real credential was committed.
 
 ---
 

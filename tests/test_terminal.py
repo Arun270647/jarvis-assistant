@@ -118,7 +118,7 @@ class TerminalToolFlowTests(unittest.TestCase):
         self.assertTrue(argv[0].lower().endswith("cmd.exe"))
         self.assertEqual(len(argv), 1)
         self.assertTrue(kw["show_console"])
-        self.assertEqual(Path(kw["cwd"]), self.proj.resolve())
+        self.assertEqual(Path(kw["cwd"]).resolve(), self.proj.resolve())   # the temp folder may be an 8.3 name
         r = self.run_tool("open_terminal", {"project": "p", "path": "C:\\Windows"})
         self.assertEqual(r.status, "denied")
         self.assertEqual(len(self.launched), 1)

@@ -80,6 +80,7 @@ class ControllerTests(unittest.TestCase):
         self.assertTrue(wait_for(lambda: c.ready_info))
         self.assertEqual(c.send_remote(text="hello", ref="ph:1:2"), "sent")
         self.assertTrue(wait_for(lambda: self.has("reply", text="Done.", ref="ph:1:2", source="phone")))
+        self.assertTrue(wait_for(lambda: not c.busy))             # the reply goes out just before busy clears
         c.set_muted(True)                                      # muting the mic doesn't block phone commands
         self.assertEqual(c.send_remote(text="forget that", ref="ph:1:3"), "sent")
         self.assertTrue(wait_for(lambda: c.broker.pending is not None))
