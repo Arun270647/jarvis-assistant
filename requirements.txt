@@ -9,7 +9,7 @@ jsonschema>=4.20          # tool argument validation (PolicyExecutor)
 platformdirs>=4.2         # per-user data / models / cache folders (src/platform)
 # Desktop app (jarvis_gui.pyw)
 PySide6>=6.10             # Qt 6 + Qt WebEngine: main window, floating orb, tray (abi3 wheels support Python 3.14)
-pywin32>=306              # startup/desktop shortcuts via COM (no powershell console)
+pywin32>=312              # startup/desktop shortcuts via COM (no powershell console)
 uiautomation>=2.0.29      # desktop control: UI Automation tree of any window (incl. Chrome pages)
 pillow>=10                # desktop screenshots
 # Phone app server (src/remote/phone_server.py)
