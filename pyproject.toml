@@ -24,7 +24,7 @@ classifiers = [
 
 [project.optional-dependencies]
 # Tools for development and CI.
-dev = ["ruff==0.17.2", "pip-audit>=2.9"]
+dev = ["ruff==0.17.2", "pip-audit>=2.10.1"]
 # The Piper voice engine is GPL-3.0-or-later and not part of Jarvis. The app installs it on request into the
 # models folder (src/core/addons.py); this extra is only for developers who want it in their own environment.
 piper = ["piper-tts==1.8.0"]
