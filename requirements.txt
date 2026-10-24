@@ -13,5 +13,5 @@ pywin32>=306              # startup/desktop shortcuts via COM (no powershell con
 uiautomation>=2.0.29      # desktop control: UI Automation tree of any window (incl. Chrome pages)
 pillow>=10                # desktop screenshots
 # Phone app server (src/remote/phone_server.py)
-aiohttp>=3.13             # WebSocket server on the Tailscale address (websockets 10 is pinned by pyppeteer)
+aiohttp>=3.14.5             # WebSocket server on the Tailscale address (websockets 10 is pinned by pyppeteer)
 segno>=1.6                # pairing QR code (SVG)
