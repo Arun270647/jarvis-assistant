@@ -303,17 +303,18 @@
   // ───────────────────────────── 4. Voice
   function screenVoice() {
     const g = W.st.groups.find(x => x.id === "tts");
-    const audio = h("audio", { preload: "none" });
+    const audio = W.sample = h("audio", { preload: "none" });
     const cards = (g ? g.options : []).map(o => h("label", { class: "voice-card" + (o.id === W.voice ? " on" : "") },
       h("input", { type: "radio", name: "voice", checked: o.id === W.voice, onchange: () => { W.voice = o.id; render(); } }),
       h("span", { class: "option-name", text: o.name }),
       h("button", { class: "btn btn-ghost btn-sm", title: "Play a sample", "aria-label": `Play a sample of ${o.name}`,
-        onclick: e => { e.preventDefault(); if (o.id === "system") call("hearName", T.name); else if (o.sample) { audio.src = o.sample; audio.play(); W.orbPhase = "speaking"; } }, text: "▶" }),
-      h("span", { class: "help", text: o.summary + (o.size_mb ? ` · ${o.size_mb} MB` : " · nothing to download") })));
+        onclick: e => { e.preventDefault(); const n = $("voice-note"); if (n) n.textContent = ""; call("hearVoice", o.id, T.name); }, text: "▶" }),
+      h("span", { class: "help", text: o.summary + (!o.size_mb ? " · nothing to download" : o.status === "installed" ? " · downloaded"
+        : ` · ${o.size_mb} MB` + (o.shared ? `, one download for this and ${o.shared} more` : "")) })));
     audio.addEventListener("ended", () => { W.orbPhase = "idle"; });
     const quiet = h("input", { type: "checkbox" }); quiet.checked = !W.speak;
     quiet.addEventListener("change", () => { W.speak = !quiet.checked; });
-    page("Pick a voice", null, [h("div", { class: "voices" }, cards), audio,
+    page("Pick a voice", null, [h("div", { class: "voices" }, cards), audio, h("div", { class: "help", id: "voice-note", role: "status" }),
       h("label", { class: "check" }, quiet, "Don't speak, just show text")],
       [primary("Continue", async () => { if (await save("voice", { option: W.voice, speak: W.speak })) next(); })]);
   }
@@ -407,6 +408,10 @@
         if (W.screen === "connect") render(); break;
       case "mic_level": W.level = ev.v; { const m = $("mic-meter"); if (m) m.style.width = Math.round(ev.v * 100) + "%"; } break;
       case "mic_test": onMicTest(ev); break;
+      case "voice_sample": if (W.screen !== "voice") break;
+        if (ev.url && W.sample) { W.sample.src = ev.url; W.sample.play(); W.orbPhase = "speaking"; }
+        else { const n = $("voice-note"); if (n) n.textContent = "You can hear this voice once it has downloaded."; }
+        break;
       case "phase": W.orbPhase = ev.phase; if (W.screen === "try") { W.tryState = { listening: "Listening…", transcribing: "Listening…", thinking: "Thinking…", executing: "Working…", speaking: "Speaking…", loading: "Starting up…" }[ev.phase] || ""; const s = $("try-state"); if (s) s.textContent = W.tryState; } break;
       case "reply": if (W.screen === "try" && !ev.greeting) { W.tried = ev.text; render(); } break;
       case "settings_changed": if (ev.assistant_name) T.setName(ev.assistant_name); break;

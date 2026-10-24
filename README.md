@@ -16,9 +16,9 @@ click / hold Space ─► VAD ─► Whisper (local) ─► AI model (your choic
 
 ## What works today
 
-- **Local ears and voice**: Silero VAD and faster-whisper (GPU or CPU) for speech recognition; the Windows
-  voice, Piper voices (an add-on installed on request) or Chatterbox. Without a microphone or voice, Jarvis
-  still works by typing.
+- **Local ears and voice**: Silero VAD and faster-whisper (GPU or CPU) for speech recognition; Kokoro voices
+  by default (natural, and quick on the processor), or the Windows voice, Piper voices or Chatterbox. Without a
+  microphone or voice, Jarvis still works by typing.
 - **Your choice of AI** (Settings › AI): Claude through your own Claude account (the default), the
   Anthropic API, OpenAI, OpenRouter, Groq, Google Gemini, Ollama or LM Studio on your PC, or any other
   OpenAI-compatible server. API keys are stored in Windows Credential Manager. See
@@ -112,6 +112,6 @@ user-visible changes are in [CHANGELOG.md](CHANGELOG.md).
 ## License
 
 Jarvis is licensed under the [Apache License 2.0](LICENSE); see also [NOTICE](NOTICE). The packages it uses
-keep their own licenses, listed in [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md). Optional add-ons that
-you choose to install, such as the Piper voice engine (GPL-3.0), are not part of Jarvis and are installed
-separately, on request.
+keep their own licenses, listed in [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md). The Kokoro and Piper
+voice engines include GPL-3.0 parts (for Kokoro: espeak-ng and phonemizer), so they are not part of Jarvis: the
+app installs them from PyPI, on request, when you download one of their voices.

@@ -535,9 +535,11 @@
       root.appendChild(this.section("Voice", null,
         h("div", { class: "grid-2" },
           this.toggle("tts.enabled", "Speak replies aloud"),
-          this.select("tts.engine", [["chatterbox", "Chatterbox-Turbo (natural, slower; Piper while it loads)"], ["piper", "Piper (instant; engine is a GPL-3.0 add-on)"], ["system", "Windows voice (built in, nothing to download)"]], "Voice engine"),
+          this.select("tts.engine", [["kokoro", "Kokoro (the default)"], ["chatterbox", "Chatterbox-Turbo"], ["piper", "Piper"], ["system", "Windows voice"]], "Voice engine", "Kokoro sounds natural and runs on the processor. Chatterbox sounds the most natural but is slow without an NVIDIA card (Kokoro speaks while it loads). Piper is the quickest. The Windows voice needs no download. Kokoro and Piper install their engine the first time you download one of their voices in Models below."),
+          this.select("tts.kokoro.voice", o.kokoro_voices || [], "Kokoro voice", "The first letter is the accent (a: American, b: British) and the second is f or m. Download Kokoro in Models below to get all its voices."),
+          this.number("tts.kokoro.speed", "Kokoro speed", "1 is normal; 0.5 to 2.", 0.1, true),
           this.select("tts.system.voice", [["", "Windows default"]].concat((o.system_voices || []).map(v => [v, v])), "Windows voice", "Also used whenever the chosen voice can't start."),
-          this.select("tts.piper.voice", o.voices || [], "Piper voice", "Voices in the piper folder of the models folder (python scripts/setup_piper.py adds more)."))));
+          this.select("tts.piper.voice", o.voices || [], "Piper voice", "Voices in the piper folder of the models folder."))));
 
       root.appendChild(this.section("Models", "The AI models that hear and speak, on this computer. Changes apply when the assistant restarts.",
         h("div", { id: "models-body" }, h("div", { class: "empty", text: "Loading…" }))));

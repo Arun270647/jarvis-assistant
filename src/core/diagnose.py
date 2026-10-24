@@ -16,9 +16,9 @@ from pathlib import Path
 from src.core import paths
 from src.core.redact import redact
 
-PACKAGES = ("PySide6", "faster-whisper", "ctranslate2", "onnxruntime", "sounddevice", "numpy", "piper-tts",
-            "claude-agent-sdk", "anthropic", "openai", "jsonschema", "platformdirs", "pywin32", "uiautomation",
-            "torch")
+PACKAGES = ("PySide6", "faster-whisper", "ctranslate2", "onnxruntime", "sounddevice", "numpy", "kokoro-onnx",
+            "phonemizer", "espeakng-loader", "piper-tts", "claude-agent-sdk", "anthropic", "openai", "jsonschema",
+            "platformdirs", "pywin32", "uiautomation", "torch")
 EMAIL = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
 
 
@@ -43,6 +43,9 @@ def _safe(fn, *args):
 
 
 def _packages() -> list:
+    from src.core import addons, models
+    for addon in models.catalogue().get("addons", {}):
+        addons.activate(addon)                  # the voice engines' packages live in the models folder
     out = []
     for name in PACKAGES:
         try:
@@ -81,8 +84,8 @@ def _settings(cfg: dict) -> list:
             lines.append(f"AI {which}: {e}")
     stt, tts = cfg.get("stt", {}), cfg.get("tts", {})
     lines += [f"speech recognition: {stt.get('model_path')} on {stt.get('device')} ({stt.get('compute_type')})",
-              f"voice: {tts.get('engine')} (piper voice {tts.get('piper', {}).get('voice')}, fallback "
-              f"{tts.get('fallback')}), enabled={tts.get('enabled')}",
+              f"voice: {tts.get('engine')} ({(tts.get(tts.get('engine'), {}) or {}).get('voice') or 'default voice'}, "
+              f"fallback {tts.get('fallback')}), enabled={tts.get('enabled')}",
               f"microphone index: {cfg.get('audio', {}).get('input_device_index')}",
               f"tools: profile={cfg.get('tools', {}).get('profile')} dry_run={cfg.get('dry_run')} "
               f"full_access={cfg.get('agent', {}).get('full_access')} coding_agent={cfg.get('coding_agent', {}).get('cli')}",

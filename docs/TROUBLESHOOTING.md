@@ -12,7 +12,7 @@ fixes it. This page lists those messages and a few problems that don't show a ba
 | "Your microphone was disconnected or isn't available" | The chosen microphone is gone | **Choose another microphone** in Settings › Microphone, or plug it back in. Typing works meanwhile |
 | "Speech recognition isn't downloaded yet" | The Whisper model isn't on disk | **Open Models** and download it, or wait for the download to finish |
 | "Voice input isn't working right now" | The voice pipeline couldn't start | **Open Settings** › Microphone, then the log (Settings › Logging and diagnostics) shows the reason |
-| "…'s voice couldn't start, so answers are shown as text" | The chosen voice can't load: not downloaded, or the Piper engine isn't installed | **Open Models** and click **Download** on the voice. For Piper voices this also installs the engine. Or pick the Windows voice |
+| "…'s voice couldn't start, so answers are shown as text" | The chosen voice can't load: not downloaded, or its engine isn't installed | **Open Models** and click **Download** on the voice. For Kokoro and Piper voices this also installs the engine. Or pick the Windows voice |
 | "Claude needs Claude Code, Anthropic's app, which isn't installed" | Sign in with Claude uses Claude Code | **Get Claude ready** installs it; or install it from Anthropic's setup page |
 | "You're signed out of Claude" | Claude Code's login expired | **Sign in** and finish in the browser |
 | "Claude's usage limit is reached" | Your Claude plan's limit for now | Wait until the time shown, or **Use an API key instead** |
@@ -45,11 +45,16 @@ Settings › Models shows what suits your computer. Answers depend on the AI pro
 slower and less reliable with tools; Settings › AI has the options. The Chatterbox voice is slow without an
 NVIDIA graphics card: about 10 seconds before each answer starts.
 
-**The voice sounds robotic.** That's the built-in Windows voice. Pick a Piper voice in Settings › Models.
+**The voice sounds robotic.** That's the built-in Windows voice, which speaks until the Kokoro voice has
+downloaded. Check Settings › Models: the Kokoro row should say it's installed.
 
-**A Piper voice doesn't install.** The engine comes from PyPI, so the PC needs internet access while it
-installs. The error in Settings › Models gives pip's reason. From a source install you can also run
-`python scripts/setup_piper.py --engine`.
+**A Kokoro or Piper voice doesn't install.** The voice's engine comes from PyPI, so the PC needs internet
+access while it installs. The error in Settings › Models gives pip's reason. From a source install you can also
+run `python -m pip install -e .[kokoro]`, or `python scripts/setup_piper.py --engine` for Piper.
+
+**Kokoro starts each answer late.** It runs on the processor, and a slow or busy processor takes longer. The
+first sentence plays as soon as it's ready while the next one is made. Settings › Voice › Kokoro speed doesn't
+change this; the Piper or Windows voices start sooner.
 
 ## Reporting a problem
 

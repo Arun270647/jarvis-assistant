@@ -37,11 +37,14 @@ AI.
 .venv\Scripts\python -m pip install --require-hashes -r requirements.lock
 ```
 
-## Optional voices
+## Voices
 
-- **Piper voices** sound natural and start instantly. The Piper engine is GPL-3.0, so Jarvis doesn't include
-  it. Picking a Piper voice in the wizard or in Settings › Models installs the engine from PyPI into the models
-  folder, together with the voice. From the command line: `.venv\Scripts\python scripts\setup_piper.py`.
+- **Kokoro** is the default: natural voices that run on the processor. Its engine uses espeak-ng and
+  phonemizer, which are GPL-3.0, so Jarvis doesn't include it. Picking a Kokoro voice in the wizard or in
+  Settings › Models downloads the voice model and installs the engine from PyPI into the models folder. For a
+  source install you can also put it in your environment: `.venv\Scripts\python -m pip install -e .[kokoro]`.
+- **Piper voices** are quicker still and sound a little flatter. The Piper engine is GPL-3.0 too, and installs
+  the same way. From the command line: `.venv\Scripts\python scripts\setup_piper.py`.
 - **Chatterbox** sounds the most natural, but needs PyTorch (several GB) and is slow without an NVIDIA graphics
   card. It gets its own Python environment: `.venv\Scripts\python scripts\setup_chatterbox.py --cuda --use`
   (leave out `--cuda` without an NVIDIA card).

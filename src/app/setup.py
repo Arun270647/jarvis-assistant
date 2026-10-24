@@ -51,14 +51,17 @@ def catalogue_view(name: str, facts: dict, cfg: dict) -> list:
     out = []
     for g in models.groups():
         options = []
+        files_of = {o["id"]: (o.get("dir"), sorted(f["name"] for f in o.get("files", []))) for o in g["options"]}
         for o in g["options"]:
             st = models.status(o)
+            shared = sum(1 for k, v in files_of.items() if k != o["id"] and v == files_of[o["id"]] and v[1])
             options.append({**{k: o.get(k) for k in ("id", "name", "summary", "about", "license", "license_url", "page",
                                                     "size_mb", "sample")},
                             "summary": models.text(o.get("summary"), name), "about": models.text(o.get("about"), name),
                             "files": [{"name": f["name"], "url": f["url"], "size": f["size"]} for f in o.get("files", [])],
                             "status": st["state"], "have": st["have"], "total": st["total"],
                             "addon_missing": bool(st.get("addon")) and not st.get("addon_installed"),
+                            "shared": shared,                  # other options that use the same download
                             "recommended": rec.get(g["id"], {}).get("option") == o["id"]})
         out.append({"id": g["id"], "icon": g.get("icon"), "title": models.text(g["title"], name),
                     "explain": models.text(g["explain"], name), "options": options,

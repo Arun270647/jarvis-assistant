@@ -11,7 +11,8 @@ Nothing has been released yet. The first release will be `0.1.0-alpha.1`, with:
 
 ### Added
 - Voice pipeline: local speech detection (Silero VAD) and recognition (faster-whisper), the AI, and spoken
-  answers (the Windows voice, Piper voices as an add-on, or Chatterbox).
+  answers: Kokoro voices by default, or the Windows voice, Piper voices or Chatterbox. Kokoro and Piper install
+  their engines on request, because those include GPL-3.0 code.
 - Sign in with Claude (the default, through Claude Code) and other ways to connect: an Anthropic API key, or
   any OpenAI-compatible provider (OpenAI, OpenRouter, Groq, Google Gemini, Ollama, LM Studio).
 - Tools for apps, media, system commands, the web, memory, project folders, Command Prompts, desktop control,
@@ -24,5 +25,6 @@ Nothing has been released yet. The first release will be `0.1.0-alpha.1`, with:
   update check and uninstall.
 
 ### Licensing
-- Apache License 2.0. The Piper voice engine (GPL-3.0) is no longer a requirement: the app installs it on
-  request when a Piper voice is chosen.
+- Apache License 2.0. Nothing GPL ships with Jarvis: the Kokoro voice engine (which uses espeak-ng and
+  phonemizer, GPL-3.0) and the Piper voice engine (GPL-3.0) are installed from PyPI on request, when one of
+  their voices is chosen.

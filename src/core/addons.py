@@ -1,12 +1,13 @@
 """Optional add-ons that Jarvis does not ship (config/models.json "addons").
 
 Jarvis is Apache-2.0. Some engines it can use are under licenses that don't allow shipping them inside it: the
-Piper voice engine (piper-tts) is GPL-3.0-or-later. Such an engine is an add-on. When the user picks a voice that
+Kokoro voice engine needs phonemizer and espeak-ng, and the Piper voice engine (piper-tts) is GPL-3.0-or-later.
+Such an engine is an add-on. When the user picks a voice that
 needs it, the model downloader installs it from PyPI with pip into its own folder in the models folder
 (models/addons/<name>), and the engine puts that folder on sys.path only when it loads. It is never part of the
 app folder or its requirements; an update leaves it alone, and "delete my data" removes it with the models.
 
-A copy already importable from Jarvis's own Python (a developer who ran pip install piper-tts) counts as
+A copy already importable from Jarvis's own Python (a developer who ran pip install kokoro-onnx) counts as
 installed. The packaged app (Phase 6) will need a Python to run pip with; until then this uses sys.executable.
 """
 import importlib

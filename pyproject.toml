@@ -25,8 +25,10 @@ classifiers = [
 [project.optional-dependencies]
 # Tools for development and CI.
 dev = ["ruff==0.17.2", "pip-audit>=2.9"]
-# The Piper voice engine is GPL-3.0-or-later and not part of Jarvis. The app installs it on request into the
-# models folder (src/core/addons.py); this extra is only for developers who want it in their own environment.
+# The Kokoro and Piper voice engines need GPL-3.0-or-later packages (Kokoro: phonemizer and espeak-ng) and are not
+# part of Jarvis. The app installs them on request into the models folder (src/core/addons.py); these extras are
+# only for developers who want them in their own environment.
+kokoro = ["kokoro-onnx==0.6.1"]
 piper = ["piper-tts==1.8.0"]
 
 [tool.setuptools.dynamic]

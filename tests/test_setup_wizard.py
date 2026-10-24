@@ -71,6 +71,14 @@ class SetupWizardTests(unittest.TestCase):
         self.assertEqual((cfg["tts"]["engine"], cfg["tts"]["piper"]["voice"], cfg["tts"]["enabled"]),
                          ("piper", "en_GB-alba-medium", False))
         self.assertEqual(r["downloads"], ["piper-en_GB-alba-medium"])
+        voices = {o["id"]: o for o in next(g for g in setup.state(facts=FACTS)["groups"] if g["id"] == "tts")["options"]}
+        self.assertEqual((voices["kokoro-bf_emma"]["shared"], voices["piper-en_GB-alba-medium"]["shared"],
+                          voices["system"]["shared"]), (3, 0, 0), "one Kokoro download holds all four voices")
+        r = setup.save_step("voice", {"option": "kokoro-bf_emma", "speak": True}, FACTS)
+        cfg = self.cfg()
+        self.assertEqual((cfg["tts"]["engine"], cfg["tts"]["kokoro"]["voice"], cfg["tts"]["enabled"]),
+                         ("kokoro", "bf_emma", True))
+        self.assertEqual(r["downloads"], ["kokoro-bf_emma"])
 
     def test_about_you_writes_the_profile(self):
         folder = Path(tempfile.mkdtemp(prefix="Shop Site "))

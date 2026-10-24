@@ -32,8 +32,8 @@ typed text ───────────────────────
 3. **Acting.** Every tool call goes through `PolicyExecutor.execute()`. It validates the arguments, applies
    permissions and the safety rules, asks for approval through `ApprovalBroker`, runs the handler with a time
    limit, masks secrets, and records the call. Nothing else in the code performs actions on the PC.
-4. **Answering.** The reply is spoken by `src/tts` (Piper, Chatterbox or the Windows voice) and shown in the
-   window.
+4. **Answering.** The reply is spoken by `src/tts` (Kokoro by default; Piper, Chatterbox or the Windows voice)
+   and shown in the window.
 
 Multi-step goals become **tasks** (`src/agent/tasks.py`). A task has a plan, success checks that are verified
 independently, and can be paused, resumed or retried. See [AGENTIC_TASKS.md](AGENTIC_TASKS.md).
@@ -68,8 +68,8 @@ including which AI provider is configured.
 - `config/profile_defaults.json` plus the user's `user_profile.json` describe their apps, projects and system
   commands.
 - `config/models.json` is the model catalogue: each speech and voice model with its size, license, download
-  URLs and SHA-256. It also lists optional add-ons, such as the Piper engine, which Jarvis installs on request
-  but doesn't ship (`src/core/addons.py`).
+  URLs and SHA-256. It also lists add-ons, the Kokoro and Piper voice engines, which Jarvis installs on request
+  but doesn't ship because they include GPL code (`src/core/addons.py`).
 - `src/core/paths.py` decides where files go: settings, profile, database and logs in `%APPDATA%\Jarvis`;
   models and cache in `%LOCALAPPDATA%\Jarvis`; everything in one folder when `JARVIS_HOME` is set. The app
   folder is never written to.

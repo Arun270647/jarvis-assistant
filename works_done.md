@@ -6,6 +6,64 @@ each entry names the phase it belongs to.
 
 ---
 
+## 2026-10-24 · Kokoro is the default voice
+
+The maintainer chose Kokoro as the default voice. Jarvis stays Apache-2.0.
+
+### What changed
+- **Kokoro engine** (`src/tts/kokoro.py`, `tts.engine = "kokoro"`): Kokoro-82M through kokoro-onnx on ONNX Runtime,
+  on the CPU. The voice's first letter picks espeak-ng's accent (a: American, b: British). Replies are voiced a
+  sentence at a time, and the next sentence is made while the current one plays. Stopping drops the sentences not
+  played yet.
+- **Licensing: the engine is an add-on.** kokoro-onnx is MIT and the model is Apache-2.0, but the engine needs
+  phonemizer (GPL-3.0-or-later) and espeakng-loader, which bundles espeak-ng (GPL-3.0). Installing kokoro-onnx with
+  pip pulls both in, so the whole engine is an add-on, like Piper's: `config/models.json` "addons" › `kokoro` (six
+  pinned packages, about 22 MB). The downloader installs it from PyPI into `models/addons/kokoro` with the first
+  Kokoro voice. Nothing GPL is in `requirements.txt` or the lock file, and a test checks both.
+- **The model file is the full-precision one** (`kokoro-v1.0.onnx`, 325 MB, plus the 28 MB voices file, from the
+  kokoro-onnx release `model-files-v1.1`, pinned by SHA-256). Measured on an i7-12700H with ONNX Runtime 1.31:
+  - full precision: 3.7× real time when the PC was quiet, 1.2–2× with other programs busy; "Hi, I'm Jarvis." took
+    0.4–1.7 s;
+  - the int8 file (114 MB): 0.7× real time;
+  - the fp16 file (164 MB): about 1× real time.
+
+  The smaller files are slower than real time on the CPU, so they aren't offered.
+- **Catalogue and wizard**: four Kokoro voices (Heart and Michael, US; Emma and George, UK) share one download.
+  The wizard recommends Kokoro · Heart to everyone. Voice cards say "downloaded" once a voice is on disk, or that
+  one download covers several voices. ▶ on a downloaded voice now says "Hi, I'm {name}" in that voice; a voice
+  that isn't downloaded yet plays its online sample if it has one (Kokoro has one, for Heart).
+- **Settings**: the defaults are `tts.engine = "kokoro"` with the voice `af_heart`. Settings › Voice adds the
+  Kokoro voice (every voice in the downloaded file) and its speed (0.5–2). Chatterbox's fallback voice can now be
+  any engine, and it is Kokoro by default (`tts.chatterbox.fallback`). Until Kokoro is downloaded, the Windows
+  voice speaks, as before.
+- `src/tts`: one `build_engine()` for all engines, `preview_engine()` for hearing a voice before choosing it, and
+  `split_sentences()` shared by Kokoro and Chatterbox. Diagnostics list the add-on packages and the voice in use.
+- Docs: README, INSTALL, GETTING_STARTED (sizes), TROUBLESHOOTING, ARCHITECTURE, CONTRIBUTING, NOTICE,
+  THIRD_PARTY_LICENSES (the add-on row and the model's license) and CHANGELOG. `pyproject.toml` has a `kokoro`
+  extra for developers (`pip install -e .[kokoro]`).
+
+### Verified
+- All 400 automated tests pass (12 new). They use a stand-in for kokoro-onnx and cover the accent, the voices file,
+  the error when the voice or its engine is missing, the fallback to the Windows voice, speaking in order, stop,
+  previews, Chatterbox's fallback, the add-on in the catalogue and the defaults matching the catalogue's files. The
+  suite ran with Kokoro's packages uninstalled, as in CI. Ruff is clean, and the third-party list is complete.
+- End to end on Python 3.13, in an environment that had never had kokoro-onnx:
+  - the voice files went in through "I already have this file", and their checksums were checked;
+  - the downloader installed the engine add-on from PyPI in 6 seconds (21.7 MB, with the packages' license
+    files);
+  - the app's engine factory loaded Kokoro from the add-on folder and synthesized speech; a preview of a British
+    voice worked too.
+- The setup wizard's voice step, Settings › Voice and Settings › Models, checked in screenshots from a scratch data
+  folder. The engine names in Settings › Voice were shortened because they were cut off.
+
+### Decided (review welcome)
+- The full-precision model, because the smaller files are slower than real time on the CPU (numbers above).
+- Four Kokoro voices in the wizard (the best-rated American and British voices, one female and one male each);
+  Settings › Voice lists all the others in the file.
+- No int8/fp16 choice in the catalogue for now. A GPU build of ONNX Runtime could change that later.
+
+---
+
 ## 2026-10-24 · Desktop only: the phone app is removed
 
 The maintainer decided that people get the Windows and Mac app only, without a phone companion.

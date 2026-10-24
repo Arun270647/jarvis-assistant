@@ -149,12 +149,12 @@ class Transcriber:
             audio = audio[:32000]
             return audio.astype(np.float32) / 32768.0
 
-        # Synthesize a phrase with Piper if available
+        # Synthesize a phrase with the voice engine if one can start
         try:
             from src.tts import create_tts_engine
             tts = create_tts_engine()
             audio = tts.synthesize("Open notepad and list files in jarvis")
-            # Piper outputs at 22050Hz, resample to 16kHz
+            # Resample from the engine's rate (22050 or 24000 Hz) to 16kHz
             ratio = 16000 / tts.sample_rate
             indices = np.round(np.arange(0, len(audio), 1 / ratio)).astype(int)
             indices = indices[indices < len(audio)]

@@ -1,6 +1,7 @@
-"""Apache-2.0 obligations: the license files are there, nothing GPL is a core requirement, the Piper engine is an
-add-on installed into its own folder, and every core requirement is in THIRD_PARTY_LICENSES.md."""
+"""Apache-2.0 obligations: the license files are there, nothing GPL is a core requirement, the Kokoro and Piper
+engines are add-ons installed into their own folders, and every core requirement is in THIRD_PARTY_LICENSES.md."""
 import hashlib
+import json
 import re
 import subprocess
 import sys
@@ -31,13 +32,18 @@ class LicenseFileTests(unittest.TestCase):
         notice = (ROOT / "NOTICE").read_text(encoding="utf-8")
         self.assertIn("Apache License, Version 2.0", notice)
         self.assertIn("piper-tts", notice)
+        self.assertIn("kokoro-onnx", notice)
         ofl = (ROOT / "src" / "gui" / "web" / "fonts" / "OFL.txt").read_text(encoding="utf-8")
         self.assertIn("SIL OPEN FONT LICENSE Version 1.1", ofl)
         self.assertIn("Barlow", ofl)
 
     def test_no_gpl_package_is_a_core_requirement(self):
         names = requirement_names(ROOT / "requirements.txt")
-        self.assertNotIn("piper-tts", names)
+        for gpl in ("piper-tts", "kokoro-onnx", "phonemizer", "phonemizer-fork", "espeakng-loader"):
+            self.assertNotIn(gpl, names)
+        locked = (ROOT / "requirements.lock").read_text(encoding="utf-8")
+        for gpl in ("piper-tts==", "kokoro-onnx==", "phonemizer==", "phonemizer-fork==", "espeakng-loader=="):
+            self.assertNotIn("\n" + gpl, locked, "nothing in the lock pulls in a GPL voice engine")
         listing = (ROOT / "THIRD_PARTY_LICENSES.md").read_text(encoding="utf-8")
         core = listing.split("## Python packages", 1)[1].split("\n## ", 1)[0]
         rows = [line for line in core.splitlines() if line.startswith("| ") and "GPL" in line and "LGPL" not in line]
@@ -47,6 +53,30 @@ class LicenseFileTests(unittest.TestCase):
         listing = (ROOT / "THIRD_PARTY_LICENSES.md").read_text(encoding="utf-8").lower()
         for name in requirement_names(ROOT / "requirements.txt"):
             self.assertIn(f"| {name} |", listing.replace("_", "-"), f"run python scripts/third_party_licenses.py ({name})")
+
+
+class KokoroAddOnTests(unittest.TestCase):
+    def test_kokoro_is_the_default_voice_and_every_kokoro_voice_needs_the_add_on(self):
+        spec = models.catalogue()["addons"]["kokoro"]
+        self.assertEqual(spec["module"], "kokoro_onnx")
+        pinned = {p.split("==")[0]: p for p in spec["packages"]}
+        self.assertTrue({"kokoro-onnx", "phonemizer", "espeakng-loader"} <= set(pinned), spec["packages"])
+        self.assertTrue(all("==" in p for p in spec["packages"]), "pinned, so the add-on installs the same everywhere")
+        self.assertIn("GPL", spec["license"])
+        tts = models.group("tts")
+        kokoro = [o for o in tts["options"] if o.get("config", {}).get("tts.engine") == "kokoro"]
+        self.assertTrue(kokoro)
+        self.assertTrue(all(o.get("addon") == "kokoro" for o in kokoro))
+        self.assertEqual([r["option"] for r in tts["recommend"]], ["kokoro-af_heart"], "the wizard recommends Kokoro")
+
+    def test_the_default_settings_load_the_file_the_catalogue_downloads(self):
+        defaults = json.loads((ROOT / "config" / "defaults.json").read_text(encoding="utf-8"))["tts"]
+        self.assertEqual((defaults["engine"], defaults["fallback"], defaults["chatterbox"]["fallback"]),
+                         ("kokoro", "system", "kokoro"))
+        _, heart = models.find("kokoro-af_heart")
+        self.assertEqual(heart["config"]["tts.kokoro.voice"], defaults["kokoro"]["voice"])
+        self.assertEqual({f["name"] for f in heart["files"]}, {defaults["kokoro"]["model"], "voices-v1.0.bin"})
+        self.assertEqual(heart["dir"], defaults["kokoro"]["model_dir"])
 
 
 class PiperAddOnTests(unittest.TestCase):

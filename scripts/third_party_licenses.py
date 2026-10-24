@@ -121,6 +121,9 @@ def render() -> str:
         "",
         "| Add-on | License | Installed when |",
         "|---|---|---|",
+        "| kokoro-onnx (Kokoro voice engine) with phonemizer, espeakng-loader (espeak-ng), joblib, cloudpickle, dlinfo | "
+        "MIT (kokoro-onnx), GPL-3.0-or-later (phonemizer, espeak-ng), BSD-3-Clause (joblib, cloudpickle), MIT (dlinfo) | "
+        "a Kokoro voice is chosen (the wizard's recommendation); from PyPI into `models/addons/kokoro` |",
         "| piper-tts (Piper voice engine) and pathvalidate | GPL-3.0-or-later (piper-tts), MIT (pathvalidate) | a Piper voice is chosen; from PyPI into `models/addons/piper` |",
         "| chatterbox-tts and PyTorch | MIT (chatterbox-tts), BSD-3-Clause (PyTorch) | `scripts/setup_chatterbox.py`; into its own environment in the models folder |",
         "",
@@ -130,6 +133,7 @@ def render() -> str:
         "|---|---|",
         "| Whisper speech recognition models (CTranslate2 conversions) | MIT |",
         "| Silero VAD | MIT |",
+        "| Kokoro-82M voice model and voices (ONNX export from kokoro-onnx) | Apache-2.0 |",
         "| Piper voices | per voice, see each voice's model card (linked in Settings › Models) |",
         "",
         "## Bundled fonts",

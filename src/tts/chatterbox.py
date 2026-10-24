@@ -7,13 +7,12 @@
 - Fixed phrases (tts.chatterbox.cache_phrases) are generated once and kept in
   tts/chatterbox in the cache folder, so they play instantly; prepare() does the same for a one-off text
   (the next window greeting) and discard() deletes it after use.
-- Piper speaks while the worker is still loading, or if it fails or times out
-  (tts.chatterbox.fallback = "piper").
+- tts.chatterbox.fallback (Kokoro by default; "piper", "system" or "none") speaks while the worker is still
+  loading, or if it fails or times out.
 """
 import hashlib
 import json
 import os
-import re
 import shutil
 import threading
 import time
@@ -25,24 +24,11 @@ import numpy as np
 import sounddevice as sd
 
 from src.core import paths, winproc
+from src.tts import split_sentences
 
 WORKER = Path(__file__).resolve().with_name("chatterbox_worker.py")
 CACHE_DIR = paths.cache_dir() / "tts" / "chatterbox"
 TMP_DIR = paths.cache_dir() / "tts" / "tmp"
-
-
-def split_sentences(text: str) -> list:
-    """Sentences to voice one at a time (long ones split again at commas so none runs past ~40 s)."""
-    parts = [p.strip() for p in re.split(r"(?<=[.!?])\s+", text.strip()) if p.strip()]
-    out = []
-    for p in parts:
-        while len(p) > 280:
-            cut = p.rfind(", ", 0, 280)
-            cut = cut if cut > 80 else p.rfind(" ", 0, 280)
-            out.append(p[:cut + 1].strip())
-            p = p[cut + 1:].strip()
-        out.append(p)
-    return out
 
 
 def read_wav(path) -> tuple:
@@ -111,7 +97,7 @@ class ChatterboxTTS:
 
     def _fail(self, why: str):
         self._failed = why
-        print(f"[TTS] {why}" + (" — using Piper" if self.fallback else ""))
+        print(f"[TTS] {why}" + (" — using the fallback voice" if self.fallback else ""))
         with self._cv:
             self._cv.notify_all()
 
@@ -229,7 +215,7 @@ class ChatterboxTTS:
         self._stop.clear()
         if not self.ready:
             if self.fallback is not None:
-                print("[TTS] Chatterbox not ready yet — Piper speaks this one")
+                print("[TTS] Chatterbox not ready yet — the fallback voice speaks this one")
                 return self.fallback.speak(text, blocking=True)
             return None
         t0 = time.time()
@@ -254,7 +240,7 @@ class ChatterboxTTS:
                     break
                 if not res or not res.get("ok"):
                     why = (res or {}).get("error", "timed out")
-                    print(f"[TTS] Chatterbox failed on a sentence ({why})" + (" — Piper finishes the reply" if self.fallback else ""))
+                    print(f"[TTS] Chatterbox failed on a sentence ({why})" + (" — the fallback voice finishes the reply" if self.fallback else ""))
                     self._cancel_queued()
                     if self.fallback is not None:
                         self.fallback.speak(" ".join(s for s, _ in jobs[i:]), blocking=True)

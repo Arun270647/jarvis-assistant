@@ -65,8 +65,8 @@ must pass the shared contract tests in `tests/test_tool_loop.py` and `tests/test
 ## Dependencies and licenses
 
 Jarvis is Apache-2.0, so its own install can't include GPL code. An engine under the GPL becomes an add-on
-that the app installs on request (`config/models.json` "addons", `src/core/addons.py`), like the Piper voice
-engine. When you change `requirements.txt`:
+that the app installs on request (`config/models.json` "addons", `src/core/addons.py`), like the Kokoro and
+Piper voice engines. When you change `requirements.txt`:
 
 ```
 uv pip compile requirements.txt --universal --python-version 3.11 --generate-hashes --no-header -o requirements.lock

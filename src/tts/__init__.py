@@ -1,10 +1,13 @@
 """Text-to-speech module for Jarvis voice responses.
 
 tts.engine picks the voice:
-  - "chatterbox": Chatterbox-Turbo in its own Python (src/tts/chatterbox.py), with Piper as the
-    fallback while it loads or if it fails.
+  - "kokoro" (the default): Kokoro, in-process on the CPU (src/tts/kokoro.py, tts.kokoro). Its engine is an
+    add-on (it needs GPL-3.0 parts, so it isn't shipped; src/core/addons.py) that the model downloader installs
+    with the first Kokoro voice.
+  - "chatterbox": Chatterbox-Turbo in its own Python (src/tts/chatterbox.py). tts.chatterbox.fallback
+    (Kokoro by default) speaks while it loads or if it fails.
   - "piper": Piper, in-process: local, CPU-only, no VRAM (tts.piper). Its engine is an add-on (GPL-3.0,
-    not shipped; src/core/addons.py) that the model downloader installs with the first Piper voice.
+    not shipped) like Kokoro's.
   - "system": the voice built into Windows (src/tts/system.py): nothing to download.
 If the chosen engine can't start (a voice not downloaded yet, for example), tts.fallback ("system" by
 default, or "none") speaks instead, so a fresh install can always talk.
@@ -12,6 +15,8 @@ default, or "none") speaks instead, so a fresh install can always talk.
 After playback the pipeline drains the microphone buffer, so Jarvis's own voice
 never becomes part of the next command.
 """
+import copy
+import re
 import time
 from abc import ABC, abstractmethod
 from typing import Optional
@@ -25,6 +30,20 @@ from src.core import paths
 def load_config():
     from src.core.config_store import load_config as load_full
     return load_full()
+
+
+def split_sentences(text: str) -> list:
+    """Sentences to voice one at a time (long ones split again at commas so none runs past ~40 s)."""
+    parts = [p.strip() for p in re.split(r"(?<=[.!?])\s+", text.strip()) if p.strip()]
+    out = []
+    for p in parts:
+        while len(p) > 280:
+            cut = p.rfind(", ", 0, 280)
+            cut = cut if cut > 80 else p.rfind(" ", 0, 280)
+            out.append(p[:cut + 1].strip())
+            p = p[cut + 1:].strip()
+        out.append(p)
+    return out
 
 
 class TTSEngine(ABC):
@@ -61,7 +80,8 @@ class PiperTTS(TTSEngine):
             cfg = load_config()
             config = cfg.get("tts", {}).get("piper", {})
 
-        voice = config.get("voice", "en_US-ryan-high")
+        voice = config.get("voice", "en_US-amy-medium")
+        self.voice_name = f"piper {voice}"
         model_dir = paths.model_path(config.get("model_dir") or "piper")     # models/piper by default
         self.model_path = model_dir / f"{voice}.onnx"
         self.config_path = model_dir / f"{voice}.onnx.json"
@@ -140,25 +160,53 @@ class PiperTTS(TTSEngine):
             return None
 
 
-def create_tts_engine():
+ENGINES = ("kokoro", "chatterbox", "piper", "system")
+
+
+def build_engine(engine: str, cfg: dict) -> TTSEngine:
+    """One engine from the settings in cfg; raises when it can't start (not downloaded, for example)."""
+    tts_cfg = cfg.get("tts", {}) or {}
+    if engine == "kokoro":
+        from src.tts.kokoro import KokoroTTS
+        return KokoroTTS(tts_cfg.get("kokoro", {}) or {})
+    if engine == "piper":
+        return PiperTTS(tts_cfg.get("piper", {}) or {})
+    if engine == "system":
+        from src.tts.system import SystemTTS
+        return SystemTTS()
+    if engine == "chatterbox":
+        from src.tts.chatterbox import ChatterboxTTS
+        fallback = None
+        backup = (tts_cfg.get("chatterbox", {}) or {}).get("fallback", "kokoro")
+        if backup in ENGINES and backup != "chatterbox":
+            try:
+                fallback = build_engine(backup, cfg)
+            except Exception as e:
+                print(f"[TTS] {backup} fallback unavailable: {str(e).splitlines()[0]}")
+        return ChatterboxTTS(cfg, fallback=fallback)
+    raise ValueError(f"No voice engine called {engine!r}")
+
+
+def preview_engine(settings: dict, cfg: dict) -> TTSEngine:
+    """The engine that a model catalogue option's settings ({"tts.engine": "kokoro", "tts.kokoro.voice": ...})
+    would give, without saving them: for hearing a voice before choosing it."""
+    cfg = copy.deepcopy(cfg)
+    for dotted, value in settings.items():
+        node = cfg
+        *parents, leaf = dotted.split(".")
+        for key in parents:
+            node = node.setdefault(key, {})
+        node[leaf] = value
+    return build_engine((cfg.get("tts", {}) or {}).get("engine", "kokoro"), cfg)
+
+
+def create_tts_engine(cfg: Optional[dict] = None):
     """The engine in the settings (tts.engine), or tts.fallback when it can't start."""
-    cfg = load_config()
+    cfg = load_config() if cfg is None else cfg
     tts_cfg = cfg.get("tts", {})
-    engine = tts_cfg.get("engine", "piper")
+    engine = tts_cfg.get("engine", "kokoro")
     try:
-        if engine == "chatterbox":
-            from src.tts.chatterbox import ChatterboxTTS
-            fallback = None
-            if (tts_cfg.get("chatterbox", {}) or {}).get("fallback", "piper") == "piper":
-                try:
-                    fallback = PiperTTS()
-                except Exception as e:
-                    print(f"[TTS] Piper fallback unavailable: {e}")
-            return ChatterboxTTS(cfg, fallback=fallback)
-        if engine == "system":
-            from src.tts.system import SystemTTS
-            return SystemTTS()
-        return PiperTTS()
+        return build_engine(engine, cfg)
     except Exception as e:
         if engine == "system" or tts_cfg.get("fallback", "system") != "system":
             raise

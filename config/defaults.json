@@ -151,11 +151,17 @@
   },
   "tts": {
     "enabled": true,
-    "engine": "piper",
+    "engine": "kokoro",
     "fallback": "system",
     "system": {
       "voice": "",
       "rate": 0
+    },
+    "kokoro": {
+      "voice": "af_heart",
+      "model": "kokoro-v1.0.onnx",
+      "model_dir": "kokoro",
+      "speed": 1.0
     },
     "piper": {
       "voice": "en_US-amy-medium",
@@ -172,7 +178,7 @@
       "threads": 0,
       "startup_timeout_s": 600,
       "sentence_timeout_s": 90,
-      "fallback": "piper",
+      "fallback": "kokoro",
       "cache_phrases": [
         "{name} is back."
       ]

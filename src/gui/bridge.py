@@ -410,6 +410,23 @@ class Bridge(QObject):
     def openMicPrivacy(self) -> None:
         os.startfile("ms-settings:privacy-microphone")
 
+    @Slot(str, str)
+    def hearVoice(self, option_id: str, name: str) -> None:
+        """▶ on a voice in the wizard: a downloaded voice says hello itself. One that isn't downloaded yet sends
+        the page its online sample to play (an empty url when it has none)."""
+        def run():
+            try:
+                from src.core import models
+                from src.tts import preview_engine
+                _, option = models.find(option_id)
+                if models.status(option)["state"] not in ("installed", "builtin"):
+                    self.app.hub.emit_event({"type": "voice_sample", "option": option_id, "url": option.get("sample") or ""})
+                    return
+                preview_engine(option.get("config", {}), config_store.load_config()).speak(f"Hi, I'm {name}.")
+            except Exception as e:
+                print(f"[SETUP] Could not play {option_id}: {e}")
+        threading.Thread(target=run, name="hear-voice", daemon=True).start()
+
     @Slot(str)
     def hearName(self, name: str) -> None:
         """"Hear it": the name spoken by the system voice (the chosen voice may still be downloading)."""
@@ -676,6 +693,8 @@ class Bridge(QObject):
             opts["devices_error"] = str(e)
         piper_dir = paths.model_path(cfg.get("tts", {}).get("piper", {}).get("model_dir") or "piper")
         opts["voices"] = sorted(p.name[:-5] for p in piper_dir.glob("*.onnx"))
+        from src.tts import kokoro
+        opts["kokoro_voices"] = kokoro.voices(cfg)
         from src.tts.system import system_voices
         opts["system_voices"] = system_voices()
         # Model names, plus local CTranslate2 model folders the user put in models/whisper.

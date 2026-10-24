@@ -14,7 +14,8 @@ THIRD_PARTY_LICENSES.md. Notably:
 - uiautomation (Apache-2.0), the Anthropic and OpenAI Python SDKs (Apache-2.0).
 
 Optional components that the user chooses to install are not part of this distribution and keep their own
-licenses: the Piper voice engine (piper-tts, GPL-3.0-or-later), installed from PyPI into the models folder when a
-Piper voice is chosen, and Chatterbox (chatterbox-tts, MIT) with PyTorch, installed into a separate environment by
+licenses: the Kokoro voice engine (kokoro-onnx, MIT, with phonemizer and espeak-ng, both GPL-3.0-or-later),
+installed from PyPI into the models folder when a Kokoro voice is chosen (the setup wizard recommends one); the Piper
+voice engine (piper-tts, GPL-3.0-or-later), installed the same way when a Piper voice is chosen; and Chatterbox (chatterbox-tts, MIT) with PyTorch, installed into a separate environment by
 scripts/setup_chatterbox.py. Claude Code, used for "Sign in with Claude", is Anthropic's software under
 Anthropic's own terms.

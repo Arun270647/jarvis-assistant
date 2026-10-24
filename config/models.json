@@ -256,8 +256,8 @@
       "recommend": [
         {
           "when": "always",
-          "option": "piper-en_US-amy-medium",
-          "reason": "clear and quick"
+          "option": "kokoro-af_heart",
+          "reason": "natural, and quick on the processor"
         }
       ],
       "options": [
@@ -274,12 +274,133 @@
           }
         },
         {
+          "id": "kokoro-af_heart",
+          "name": "Kokoro · Heart (US)",
+          "summary": "Warm and natural. US English.",
+          "about": "Kokoro, a small voice model (82 million parameters, Apache-2.0) that sounds natural and runs on the processor. One download holds all its voices; Settings › Voice lists the others. Choosing it also installs the Kokoro engine from PyPI into the models folder. The engine uses espeak-ng and phonemizer, which are GPL-3.0 and not part of Jarvis.",
+          "license": "Apache-2.0; engine has GPL-3.0 parts",
+          "addon": "kokoro",
+          "license_url": "https://huggingface.co/hexgrad/Kokoro-82M",
+          "page": "https://huggingface.co/hexgrad/Kokoro-82M",
+          "dir": "kokoro",
+          "size_mb": 354,
+          "files": [
+            {
+              "url": "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.1/kokoro-v1.0.onnx",
+              "name": "kokoro-v1.0.onnx",
+              "size": 325505369,
+              "sha256": "beb0d1848dee9a49da392cc3df26958d46cfa35d321edf434f52949153f0df3a"
+            },
+            {
+              "url": "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.1/voices-v1.0.bin",
+              "name": "voices-v1.0.bin",
+              "size": 28214398,
+              "sha256": "bca610b8308e8d99f32e6fe4197e7ec01679264efed0cac9140fe9c29f1fbf7d"
+            }
+          ],
+          "config": {
+            "tts.engine": "kokoro",
+            "tts.kokoro.voice": "af_heart"
+          },
+          "sample": "https://huggingface.co/hexgrad/Kokoro-82M/resolve/f3ff3571791e39611d31c381e3a41a3af07b4987/samples/af_heart_0.wav"
+        },
+        {
+          "id": "kokoro-am_michael",
+          "name": "Kokoro · Michael (US)",
+          "summary": "A lower voice. US English.",
+          "about": "Kokoro, a small voice model (82 million parameters, Apache-2.0) that sounds natural and runs on the processor. One download holds all its voices; Settings › Voice lists the others. Choosing it also installs the Kokoro engine from PyPI into the models folder. The engine uses espeak-ng and phonemizer, which are GPL-3.0 and not part of Jarvis.",
+          "license": "Apache-2.0; engine has GPL-3.0 parts",
+          "addon": "kokoro",
+          "license_url": "https://huggingface.co/hexgrad/Kokoro-82M",
+          "page": "https://huggingface.co/hexgrad/Kokoro-82M",
+          "dir": "kokoro",
+          "size_mb": 354,
+          "files": [
+            {
+              "url": "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.1/kokoro-v1.0.onnx",
+              "name": "kokoro-v1.0.onnx",
+              "size": 325505369,
+              "sha256": "beb0d1848dee9a49da392cc3df26958d46cfa35d321edf434f52949153f0df3a"
+            },
+            {
+              "url": "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.1/voices-v1.0.bin",
+              "name": "voices-v1.0.bin",
+              "size": 28214398,
+              "sha256": "bca610b8308e8d99f32e6fe4197e7ec01679264efed0cac9140fe9c29f1fbf7d"
+            }
+          ],
+          "config": {
+            "tts.engine": "kokoro",
+            "tts.kokoro.voice": "am_michael"
+          }
+        },
+        {
+          "id": "kokoro-bf_emma",
+          "name": "Kokoro · Emma (UK)",
+          "summary": "Clear and calm. British English.",
+          "about": "Kokoro, a small voice model (82 million parameters, Apache-2.0) that sounds natural and runs on the processor. One download holds all its voices; Settings › Voice lists the others. Choosing it also installs the Kokoro engine from PyPI into the models folder. The engine uses espeak-ng and phonemizer, which are GPL-3.0 and not part of Jarvis.",
+          "license": "Apache-2.0; engine has GPL-3.0 parts",
+          "addon": "kokoro",
+          "license_url": "https://huggingface.co/hexgrad/Kokoro-82M",
+          "page": "https://huggingface.co/hexgrad/Kokoro-82M",
+          "dir": "kokoro",
+          "size_mb": 354,
+          "files": [
+            {
+              "url": "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.1/kokoro-v1.0.onnx",
+              "name": "kokoro-v1.0.onnx",
+              "size": 325505369,
+              "sha256": "beb0d1848dee9a49da392cc3df26958d46cfa35d321edf434f52949153f0df3a"
+            },
+            {
+              "url": "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.1/voices-v1.0.bin",
+              "name": "voices-v1.0.bin",
+              "size": 28214398,
+              "sha256": "bca610b8308e8d99f32e6fe4197e7ec01679264efed0cac9140fe9c29f1fbf7d"
+            }
+          ],
+          "config": {
+            "tts.engine": "kokoro",
+            "tts.kokoro.voice": "bf_emma"
+          }
+        },
+        {
+          "id": "kokoro-bm_george",
+          "name": "Kokoro · George (UK)",
+          "summary": "A lower British voice.",
+          "about": "Kokoro, a small voice model (82 million parameters, Apache-2.0) that sounds natural and runs on the processor. One download holds all its voices; Settings › Voice lists the others. Choosing it also installs the Kokoro engine from PyPI into the models folder. The engine uses espeak-ng and phonemizer, which are GPL-3.0 and not part of Jarvis.",
+          "license": "Apache-2.0; engine has GPL-3.0 parts",
+          "addon": "kokoro",
+          "license_url": "https://huggingface.co/hexgrad/Kokoro-82M",
+          "page": "https://huggingface.co/hexgrad/Kokoro-82M",
+          "dir": "kokoro",
+          "size_mb": 354,
+          "files": [
+            {
+              "url": "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.1/kokoro-v1.0.onnx",
+              "name": "kokoro-v1.0.onnx",
+              "size": 325505369,
+              "sha256": "beb0d1848dee9a49da392cc3df26958d46cfa35d321edf434f52949153f0df3a"
+            },
+            {
+              "url": "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.1/voices-v1.0.bin",
+              "name": "voices-v1.0.bin",
+              "size": 28214398,
+              "sha256": "bca610b8308e8d99f32e6fe4197e7ec01679264efed0cac9140fe9c29f1fbf7d"
+            }
+          ],
+          "config": {
+            "tts.engine": "kokoro",
+            "tts.kokoro.voice": "bm_george"
+          }
+        },
+        {
           "id": "piper-en_US-amy-medium",
           "name": "Piper · Amy (US)",
           "summary": "Clear and quick. US English.",
           "about": "A fast local voice from the Piper project (Rhasspy). Voice: see its model card. Choosing it also installs the Piper engine, which is GPL-3.0 and not part of Jarvis: it comes from PyPI into the models folder.",
           "license": "Voice: see model card; engine GPL-3.0",
-      "addon": "piper",
+          "addon": "piper",
           "license_url": "https://huggingface.co/rhasspy/piper-voices/blob/main/en/en_US/amy/medium/MODEL_CARD",
           "page": "https://huggingface.co/rhasspy/piper-voices",
           "dir": "piper",
@@ -310,7 +431,7 @@
           "summary": "Warm and steady. US English.",
           "about": "A fast local voice from the Piper project (Rhasspy). Voice: see its model card. Choosing it also installs the Piper engine, which is GPL-3.0 and not part of Jarvis: it comes from PyPI into the models folder.",
           "license": "Voice: see model card; engine GPL-3.0",
-      "addon": "piper",
+          "addon": "piper",
           "license_url": "https://huggingface.co/rhasspy/piper-voices/blob/main/en/en_US/lessac/medium/MODEL_CARD",
           "page": "https://huggingface.co/rhasspy/piper-voices",
           "dir": "piper",
@@ -341,7 +462,7 @@
           "summary": "A lower voice. US English.",
           "about": "A fast local voice from the Piper project (Rhasspy). Voice: see its model card. Choosing it also installs the Piper engine, which is GPL-3.0 and not part of Jarvis: it comes from PyPI into the models folder.",
           "license": "Voice: see model card; engine GPL-3.0",
-      "addon": "piper",
+          "addon": "piper",
           "license_url": "https://huggingface.co/rhasspy/piper-voices/blob/main/en/en_US/ryan/medium/MODEL_CARD",
           "page": "https://huggingface.co/rhasspy/piper-voices",
           "dir": "piper",
@@ -372,7 +493,7 @@
           "summary": "British English.",
           "about": "A fast local voice from the Piper project (Rhasspy). Voice: see its model card. Choosing it also installs the Piper engine, which is GPL-3.0 and not part of Jarvis: it comes from PyPI into the models folder.",
           "license": "Voice: see model card; engine GPL-3.0",
-      "addon": "piper",
+          "addon": "piper",
           "license_url": "https://huggingface.co/rhasspy/piper-voices/blob/main/en/en_GB/alba/medium/MODEL_CARD",
           "page": "https://huggingface.co/rhasspy/piper-voices",
           "dir": "piper",
@@ -401,6 +522,20 @@
     }
   ],
   "addons": {
+    "kokoro": {
+      "name": "the Kokoro voice engine",
+      "module": "kokoro_onnx",
+      "packages": [
+        "kokoro-onnx==0.6.1",
+        "phonemizer==3.4.0",
+        "espeakng-loader==0.2.4",
+        "joblib==1.6.0",
+        "cloudpickle==3.1.2",
+        "dlinfo==2.0.0"
+      ],
+      "license": "MIT (kokoro-onnx); GPL-3.0-or-later (phonemizer, espeak-ng)",
+      "page": "https://github.com/thewh1teagle/kokoro-onnx"
+    },
     "piper": {
       "name": "the Piper voice engine",
       "module": "piper",
