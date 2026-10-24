@@ -166,16 +166,12 @@ def build_agent_system_prompt(tool_names: list, profile: dict = None, full_acces
     )
 
 
-INPUT_LABELS = {"voice": "voice transcript", "phone": "the phone app on the user's phone"}
+INPUT_LABELS = {"voice": "voice transcript"}
 
 
 def compose_user_turn(text: str, source: str, memories: list, extra: list = None) -> str:
     now = datetime.datetime.now().strftime("%A %d %B %Y, %H:%M")
     lines = [f"[context] Local time: {now}. Input: {INPUT_LABELS.get(source, 'typed')}."]
-    if source == "phone":
-        lines.append("[context] The user may be away from the PC and cannot see or hear it. Your reply is shown as "
-                     "text in the phone app, not spoken: up to six short sentences, file paths and URLs are fine, "
-                     "still no markdown. Voice input from the phone is a speech-to-text transcript.")
     if memories:
         lines.append("[context] Things you remember about the user:")
         lines += [f"  - #{m['id']} ({m['kind']}{', ' + m['project'] if m.get('project') else ''}) {m['content']}"

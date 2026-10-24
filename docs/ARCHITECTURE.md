@@ -7,22 +7,21 @@ the [README](../README.md) and [GETTING_STARTED.md](GETTING_STARTED.md).
 
 ```
 microphone ─► speech detection ─► speech recognition ─┐
-typed text / phone app ───────────────────────────────┤
+typed text ───────────────────────────────────────────┤
                                                       ▼
                           pipeline (src/pipeline.py, one thread)
                                                       │
                           agent: orchestrator + backend (src/agent)
                                                       │ tool calls
-                          PolicyExecutor (src/tools/policy.py) ── approvals (dialog, voice, phone)
+                          PolicyExecutor (src/tools/policy.py) ── approvals (dialog, voice)
                                                       │
                           tools (src/tools/*) ── router, workspace, memory, desktop, email …
                                                       │ real results
-                          agent's answer ─► voice (src/tts) + window + phone
+                          agent's answer ─► voice (src/tts) + window
 ```
 
 1. **Hearing.** `src/audio/capture.py` reads the microphone. `src/stt/vad.py` (Silero through ONNX Runtime)
-   finds speech, and `src/stt/transcriber.py` (faster-whisper) turns it into text. Typed commands and phone
-   commands join here.
+   finds speech, and `src/stt/transcriber.py` (faster-whisper) turns it into text. Typed commands join here.
 2. **Thinking.** `src/agent/orchestrator.py` runs the conversation turn with the configured AI
    (`llm.main`). Two backends exist:
    - `claude_code_backend.py` drives Claude through the Claude Code CLI ("Sign in with Claude");
@@ -34,7 +33,7 @@ typed text / phone app ───────────────────
    permissions and the safety rules, asks for approval through `ApprovalBroker`, runs the handler with a time
    limit, masks secrets, and records the call. Nothing else in the code performs actions on the PC.
 4. **Answering.** The reply is spoken by `src/tts` (Piper, Chatterbox or the Windows voice) and shown in the
-   window and the phone app.
+   window.
 
 Multi-step goals become **tasks** (`src/agent/tasks.py`). A task has a plan, success checks that are verified
 independently, and can be paused, resumed or retried. See [AGENTIC_TASKS.md](AGENTIC_TASKS.md).
@@ -42,7 +41,7 @@ independently, and can be paused, resumed or retried. See [AGENTIC_TASKS.md](AGE
 ## Layers
 
 ```
-src/gui, src/remote      front-ends: the desktop window (PySide6 + a web page) and the phone server
+src/gui                  the desktop window (PySide6 + a web page) and the floating orb
 src/app                  AssistantController (the one object front-ends talk to), setup wizard, errors, updates
 src/pipeline.py          the voice loop: hearing, the agent, speaking, approvals by voice
 src/agent                the AI: providers, backends, orchestrator, tasks, usage and cost
@@ -54,9 +53,8 @@ src/core, src/platform   settings, paths, credentials, downloads, models, redact
 Code imports downward only. The one exception is `src/core/diagnose.py`, which reports on everything,
 including which AI provider is configured.
 
-- **Front-ends never reach past the controller.** The desktop window (`src/gui/bridge.py`) and the phone
-  server (`src/remote/phone_server.py`) both call `AssistantController` (`src/app/controller.py`) and listen
-  to its events.
+- **The window never reaches past the controller.** The desktop window (`src/gui/bridge.py`) calls
+  `AssistantController` (`src/app/controller.py`) and listens to its events.
 - **The pipeline runs in its own thread.** The controller starts it and passes commands in through a queue.
   Events flow back as plain dicts.
 - **Qt widgets are only touched on the UI thread.** Worker threads emit events, and `qt_app.py` applies them
@@ -75,7 +73,7 @@ including which AI provider is configured.
 - `src/core/paths.py` decides where files go: settings, profile, database and logs in `%APPDATA%\Jarvis`;
   models and cache in `%LOCALAPPDATA%\Jarvis`; everything in one folder when `JARVIS_HOME` is set. The app
   folder is never written to.
-- `src/memory/store.py` keeps history, memories, tasks, tool runs, usage and paired phones in one SQLite file.
+- `src/memory/store.py` keeps history, memories, tasks, tool runs and usage in one SQLite file.
   Schema changes are additive `MIGRATIONS`.
 - API keys and passwords live in Windows Credential Manager (`src/core/credentials.py`), never in files.
 

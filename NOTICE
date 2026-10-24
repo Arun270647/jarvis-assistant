@@ -11,7 +11,7 @@ THIRD_PARTY_LICENSES.md. Notably:
 - Barlow and Barlow Condensed fonts, Copyright 2017 The Barlow Project Authors, SIL Open Font License 1.1
   (src/gui/web/fonts/OFL.txt).
 - faster-whisper and CTranslate2 (MIT), OpenAI Whisper models (MIT), Silero VAD (MIT), ONNX Runtime (MIT).
-- uiautomation (Apache-2.0), aiohttp (Apache-2.0), the Anthropic and OpenAI Python SDKs (Apache-2.0).
+- uiautomation (Apache-2.0), the Anthropic and OpenAI Python SDKs (Apache-2.0).
 
 Optional components that the user chooses to install are not part of this distribution and keep their own
 licenses: the Piper voice engine (piper-tts, GPL-3.0-or-later), installed from PyPI into the models folder when a

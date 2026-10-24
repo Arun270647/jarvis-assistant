@@ -130,7 +130,7 @@
         h("span", { class: "countdown" }, ring, h("span", { id: "cd-text", text: (left / 1000).toFixed(1) + " s" }))),
       h("div", { class: "dialog-title", id: "ap-title", text: a.title }),
       h("div", { class: "kv" }, (a.rows || []).map(r => h("div", { class: "kv-row" }, h("span", { class: "k", text: r.k }), h("span", { class: "v" }, String(r.v), " ", h("span", { class: "sub", text: r.sub || "" }))))),
-      h("div", { class: "dialog-body", text: (a.source === "phone" ? "Asked in the phone app, where you can answer too. You can also press Y or N or choose below." : t(a.voice_ok === false ? "approval.spoken_click" : "approval.spoken", { spoken: a.spoken })) + ` Nothing runs until you allow it; the request is denied automatically when the timer runs out.` }),
+      h("div", { class: "dialog-body", text: t(a.voice_ok === false ? "approval.spoken_click" : "approval.spoken", { spoken: a.spoken }) + ` Nothing runs until you allow it; the request is denied automatically when the timer runs out.` }),
       h("div", { class: "dialog-actions" },
         h("button", { type: "button", class: "btn btn-secondary blueprint", id: "ap-deny", onclick: () => answer(false) }, corners(), "Deny · N"),
         h("button", { type: "button", class: "btn btn-primary blueprint", onclick: () => answer(true) }, corners(), "Allow · Y")));
@@ -172,7 +172,7 @@
         if (document.activeElement === document.body) $("input").focus();
         break;
       case "level": S.level = ev.v; return;
-      case "transcript": caption((ev.source === "phone" ? "📱 " : "") + ev.text, ""); break;
+      case "transcript": caption(ev.text, ""); break;
       case "tool_call":
         S.task = { tool: ev.tool, callId: ev.call_id, title: ev.tool + " · " + (ev.purpose || ""), detail: paramStr(ev.args), status: "running", startedAt: Date.now() };
         S.liveRuns++; bumpActivity(); break;
@@ -217,7 +217,6 @@
         return;
       case "usage": if (S.view === "activity") Activity.loadUsage(); return;
       case "email_test": { const l = $("email-line"); if (l) l.textContent = (ev.ok ? "✓ " : "✗ ") + ev.detail; return; }
-      case "phone_status": Settings.renderPhone(); return;
       case "task_update": {
         const t = ev.task;
         const prev = S.activeTask && S.activeTask.id === t.id ? S.activeTask.status : null;
@@ -402,7 +401,7 @@
       if (!rows.length) { box.appendChild(h("div", { class: "empty", text: "No conversation stored." })); return; }
       box.appendChild(h("table", { class: "table" }, h("tbody", {}, rows.slice(0, 200).map(r => h("tr", {},
         h("td", { class: "muted", style: "white-space:nowrap; width:120px", text: dstr(r.created_at * 1000) }),
-        h("td", { style: "width:90px" }, h("span", { class: "tag " + (r.role === "user" ? "tag-outline" : r.role === "error" ? "tag-neutral" : "tag-accent"), text: r.role === "user" ? "you" + (r.source === "voice" ? " · voice" : r.source === "phone" ? " · phone" : "") : r.role })),
+        h("td", { style: "width:90px" }, h("span", { class: "tag " + (r.role === "user" ? "tag-outline" : r.role === "error" ? "tag-neutral" : "tag-accent"), text: r.role === "user" ? "you" + (r.source === "voice" ? " · voice" : "") : r.role })),
         h("td", { class: "wrap", text: r.text }))))));
     },
     async clearHistory() {
@@ -500,35 +499,6 @@
       const cb = h("input", { type: "checkbox" }); cb.checked = path === "__startup__" ? !!this.cur(path) || (!(path in this.changes) && !!this.data.startup_enabled) : !!this.cur(path);
       cb.addEventListener("change", () => this.set(path, cb.checked));
       return h("div", { class: "field", "data-field": path }, h("label", { class: "check", style: "font-size:13px; color:var(--color-text)", title: help || label }, cb, label), help ? h("div", { class: "help", text: help }) : null);
-    },
-    async renderPhone() {
-      const line = $("ph-line"); if (!line) return;
-      const raw = await call("phoneStatus"); if (!raw) return;
-      const s = JSON.parse(raw);
-      line.textContent = !s.enabled ? "Off. Tick “Phone app” and save to start the server."
-        : s.running ? `Listening on ${s.host}:${s.port} · ${s.connected} phone${s.connected === 1 ? "" : "s"} connected.`
-        : "Not running: " + (s.error || "starting…");
-      if (!s.pair_code) { const p = $("ph-pair"); if (p) p.textContent = ""; }
-      const box = $("ph-devices"); box.textContent = "";
-      if (!s.devices.length) { box.appendChild(h("div", { class: "help", text: "No phone paired yet." })); return; }
-      const when = t => t ? new Date(t * 1000).toLocaleString() : "never";
-      s.devices.forEach(d => box.appendChild(h("div", { class: "toolbar" },
-        h("span", { class: "tag " + (d.online ? "tag-accent" : "tag-outline"), text: d.name + (d.online ? " · connected" : "") }),
-        h("span", { class: "help", text: `paired ${when(d.paired_at)} · last seen ${when(d.last_seen)}` }),
-        h("button", { class: "btn btn-ghost btn-sm", onclick: async () => { await call("phoneRevoke", d.id); this.renderPhone(); }, text: "Remove" }))));
-    },
-    async pairPhone() {
-      const box = $("ph-pair"); box.textContent = "";
-      const r = JSON.parse(await call("phonePairStart"));
-      if (!r.ok) { box.textContent = r.error; return; }
-      const qr = h("div", { style: "width:260px; height:260px; flex:none; background:#fff" }); qr.innerHTML = r.qr_svg;   // SVG generated locally by segno
-      const svg = qr.querySelector("svg");
-      if (svg) { svg.setAttribute("width", "260"); svg.setAttribute("height", "260"); svg.style.display = "block"; svg.setAttribute("shape-rendering", "crispEdges"); }
-      box.appendChild(h("div", { class: "toolbar", style: "align-items:flex-start; gap:18px" }, qr,
-        h("div", {}, h("div", { text: t("phone.scan") }),
-          h("div", { style: "font-family:var(--font-heading); font-size:18px; margin-top:8px", text: `Address ${r.host}   Port ${r.port}` }),
-          h("div", { style: "font-family:var(--font-heading); font-size:28px; letter-spacing:4px; margin-top:6px", text: r.code }),
-          h("div", { class: "help", text: "The code works once and expires in 10 minutes." }))));
     },
     section(title, note, ...kids) {
       const key = title.toLowerCase().replace(/[^a-z0-9]+/g, "-");
@@ -671,22 +641,6 @@
         h("div", { class: "grid-2" },
           this.text("chrome.default_profile", "Default profile", "Name or email used when you don't say one. Empty: the last used profile."),
           listField("chrome.blocked_domains", "Never open or read these sites"))));
-
-      root.appendChild(this.section("Phone app", t("settings.phone"),
-        h("div", { class: "grid-2" },
-          this.toggle("phone.enabled", "Phone app"),
-          this.select("phone.bind", [["tailscale", "Tailscale address (anywhere)"], ["lan", "Home network only"]], "Reachable on"),
-          this.toggle("phone.speak_replies", "Also speak replies to phone commands on the PC"),
-          this.toggle("phone.allow_screenshot", "Let the phone see the screen"),
-          this.number("phone.approval_timeout_s", "Approval timer for phone commands (s)"),
-          this.number("phone.port", "Port")),
-        h("div", { class: "toolbar" },
-          h("button", { class: "btn btn-primary btn-sm", onclick: () => this.pairPhone(), text: "Pair a phone" }),
-          h("button", { class: "btn btn-secondary btn-sm", onclick: () => { call("phoneRestart"); $("ph-line").textContent = "Restarting…"; }, text: "Restart server" })),
-        h("div", { class: "help", id: "ph-line", text: "" }),
-        h("div", { id: "ph-pair" }),
-        h("div", { id: "ph-devices" })));
-      this.renderPhone();
 
       root.appendChild(this.section("Windows and tray", null,
         h("div", { class: "grid-2" },

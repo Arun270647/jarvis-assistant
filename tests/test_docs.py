@@ -1,7 +1,6 @@
 """The repository's documentation stays true: docs/TOOLS.md matches the real tool registry (group, risk and
 default permission of every tool), and every relative link in the Markdown files points to a file and heading
 that exist."""
-import json
 import re
 import unittest
 from pathlib import Path
@@ -80,10 +79,9 @@ class LinkTests(unittest.TestCase):
 
     def test_the_docs_mentioned_in_the_readme_exist(self):
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
-        for name in ("INSTALL", "ARCHITECTURE", "TOOLS", "SECURITY_MODEL", "PHONE_APP", "EXTENSIONS",
+        for name in ("INSTALL", "ARCHITECTURE", "TOOLS", "SECURITY_MODEL", "EXTENSIONS",
                      "TROUBLESHOOTING", "PROVIDERS", "GETTING_STARTED"):
             self.assertIn(f"docs/{name}.md", readme)
-        self.assertTrue(json.loads((ROOT / "mobile" / "package.json").read_text(encoding="utf-8"))["license"] == "Apache-2.0")
 
 
 if __name__ == "__main__":

@@ -17,7 +17,7 @@ body:
     id: area
     attributes:
       label: Area
-      options: [Tools, AI provider, Speech recognition, Voice, Desktop app, Setup, Phone app, Security, Docs, Other]
+      options: [Tools, AI provider, Speech recognition, Voice, Desktop app, Setup, Security, Docs, Other]
   - type: textarea
     id: risk
     attributes:

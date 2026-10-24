@@ -34,7 +34,7 @@ body:
     id: input
     attributes:
       label: How you gave the command
-      options: [Voice, Typed in the window, Phone app, Not relevant]
+      options: [Voice, Typed in the window, Not relevant]
   - type: input
     id: version
     attributes:

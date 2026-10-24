@@ -207,20 +207,6 @@ class AssistantController:
         self.broker.resolve(pending.id, verdict == "yes", via=via)
         return True
 
-    def send_remote(self, text: str = "", audio_path: str = "", source: str = "phone", ref: str = "") -> str:
-        """A command from a remote front-end (text or a voice-note file). The reply events carry `ref`.
-        Returns approval | queued | sent | stopped | rejected."""
-        text = (text or "").strip()
-        if not text and not audio_path:
-            return "rejected"
-        if self._answer_approval(text, source, via=f"{source} '{text}'"):
-            return "approval"
-        if not self.running:
-            return "stopped"
-        queued = self.busy or not self.commands.empty()
-        self.commands.put({"type": "remote", "source": source, "ref": ref, "text": text, "audio": audio_path})
-        return "queued" if queued else "sent"
-
     def status(self) -> dict:
         import os
         return {"running": self.running, "phase": self.phase, "busy": self.busy, "muted": self.muted,

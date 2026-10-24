@@ -20,22 +20,6 @@ def _load_profile():
     return config_store.load_profile()
 
 
-def load_audio_file(path: str) -> np.ndarray:
-    """Any audio file (e.g. the phone app's .m4a recording, decoded by PyAV) -> int16 16 kHz mono,
-    the format Transcriber.transcribe_audio expects."""
-    # PyAV directly: faster_whisper.decode_audio passes an argument newer PyAV versions reject.
-    import av
-    resampler = av.AudioResampler(format="s16", layout="mono", rate=16000)
-    chunks = []
-    with av.open(str(path), mode="r") as container:
-        for frame in container.decode(audio=0):
-            for out in resampler.resample(frame):
-                chunks.append(out.to_ndarray().reshape(-1))
-    for out in resampler.resample(None):
-        chunks.append(out.to_ndarray().reshape(-1))
-    return np.concatenate(chunks).astype(np.int16) if chunks else np.zeros(0, dtype=np.int16)
-
-
 def _build_initial_prompt(profile: dict, name: str = "Jarvis") -> str:
     """Build whisper initial_prompt from user_profile.json vocabulary and the assistant's name.
 

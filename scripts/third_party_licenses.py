@@ -1,6 +1,5 @@
 """Write THIRD_PARTY_LICENSES.md: every package Jarvis installs (requirements.txt and what those pull in, as
-installed in this Python), the phone app's runtime packages (mobile/package-lock.json), and the bundled fonts
-and models.
+installed in this Python), and the bundled fonts and models.
 
     python scripts/third_party_licenses.py            # rewrite the file
     python scripts/third_party_licenses.py --check    # exit 1 if a core requirement is missing from it
@@ -8,7 +7,6 @@ and models.
 Run it before each release, from the environment the release is built from. Licenses come from each package's
 own metadata; a package whose metadata says nothing useful is listed as "see project page".
 """
-import json
 import re
 import sys
 from importlib import metadata
@@ -88,23 +86,6 @@ def homepage(dist) -> str:
     return f"https://pypi.org/project/{dist.metadata['Name']}/"
 
 
-def mobile_packages() -> list:
-    lock = ROOT / "mobile" / "package-lock.json"
-    if not lock.exists():
-        return []
-    data = json.loads(lock.read_text(encoding="utf-8"))
-    out = {}
-    for path, info in (data.get("packages") or {}).items():
-        if not path or info.get("dev") or info.get("devOptional"):
-            continue
-        name = info.get("name") or path.split("node_modules/")[-1]
-        lic = info.get("license") or "see project page"
-        if isinstance(lic, dict):
-            lic = lic.get("type", "see project page")
-        out[(name, info.get("version", ""))] = lic
-    return sorted((n, v, lic) for (n, v), lic in out.items())
-
-
 def cell(text: str) -> str:
     return str(text).replace("|", "\\|")
 
@@ -157,21 +138,6 @@ def render() -> str:
         "|---|---|",
         "| Barlow and Barlow Condensed (src/gui/web/fonts) | SIL Open Font License 1.1, see `src/gui/web/fonts/OFL.txt` |",
     ]
-    mobile = mobile_packages()
-    if mobile:
-        counts = {}
-        for _, _, lic in mobile:
-            counts[lic] = counts.get(lic, 0) + 1
-        lines += [
-            "",
-            "## Phone app (mobile/)",
-            "",
-            f"{len(mobile)} runtime packages from `mobile/package-lock.json`. By license: " +
-            ", ".join(f"{lic} {n}" for lic, n in sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))) + ".",
-            "",
-            "| Package | Version | License |",
-            "|---|---|---|",
-        ] + [f"| {cell(n)} | {v} | {cell(lic)} |" for n, v, lic in mobile]
     return "\n".join(lines) + "\n"
 
 

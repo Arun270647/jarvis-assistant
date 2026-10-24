@@ -309,10 +309,8 @@ class Bridge(QObject):
             if startup_wanted is not None:
                 startup.set_startup(bool(startup_wanted))
             restart_needed = any(not k.startswith(("gui.", "tools.permissions", "tools.approval", "tools.untrusted_asks",
-                                                   "voice_approval.high_risk", "phone."))
+                                                   "voice_approval.high_risk"))
                                  for k in updates)
-            if any(k in ("phone.enabled", "phone.port", "phone.bind") for k in updates):
-                self._restart_phone()
             self.app.apply_gui_settings()
             return _dumps({"ok": True, "restart_needed": restart_needed and self.controller.running})
         except Exception as e:
@@ -629,42 +627,6 @@ class Bridge(QObject):
             except Exception as ex:
                 self.app.hub.emit_event({"type": "email_test", "ok": False, "detail": str(ex)})
         threading.Thread(target=run, name="email-test", daemon=True).start()
-
-    # ------------------------------------------------------------ phone app
-
-    def _restart_phone(self) -> None:
-        threading.Thread(target=self.app.restart_phone_server, name="phone-restart", daemon=True).start()
-
-    @Slot(result=str)
-    def phoneStatus(self) -> str:
-        server = self.app.phone
-        enabled = config_store.load_config().get("phone", {}).get("enabled", False)
-        if server is not None:
-            return _dumps(dict(server.status(), enabled=enabled))
-        devices = []
-        try:
-            devices = self.controller.memory.list_phone_devices()
-        except Exception:
-            pass
-        return _dumps({"enabled": enabled, "running": False, "error": self.app.phone_error, "devices": devices,
-                       "connected": 0, "pair_code": None})
-
-    @Slot(result=str)
-    def phonePairStart(self) -> str:
-        server = self.app.phone
-        if server is None or not server.running:
-            return _dumps({"ok": False, "error": self.app.phone_error or "Turn on the phone app server first."})
-        return _dumps(dict(server.new_pair_code(), ok=True))
-
-    @Slot(str, result=bool)
-    def phoneRevoke(self, device_id: str) -> bool:
-        if self.app.phone is not None:
-            return self.app.phone.revoke(device_id)
-        return self.controller.memory.delete_phone_device(device_id)
-
-    @Slot()
-    def phoneRestart(self) -> None:
-        self._restart_phone()
 
     @Slot()
     def testConnection(self) -> None:

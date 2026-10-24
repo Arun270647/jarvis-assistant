@@ -37,10 +37,6 @@ STATE_STOPPED = "stopped"
 
 stop_flag = False
 
-# Command sources answered on another device (the reply is sent there, not spoken here).
-REMOTE_SOURCES = {"phone"}
-
-
 def strip_address(text: str, name: str = "") -> str:
     """"Nova, open chrome" -> "open chrome": addressing the assistant (by its name, or the product name
     Jarvis) is not part of the request."""
@@ -539,24 +535,14 @@ def main(state_callback=None, stop_event=None, duration=None,
             with stream_lock:
                 drain_input(stream, chunk_size)
 
-    # The command being processed: where it came from (voice | text | phone) and the front-end's
-    # reference, so a remote front-end can match the reply events to its own message.
-    current = {"source": None, "ref": None}
-
-    def origin() -> dict:
-        return {"source": current["source"], "ref": current["ref"]} if current["ref"] else {}
-
-    def remote_quiet() -> bool:
-        """A phone command is answered in text; the PC speakers stay silent unless the user wants both."""
-        return current["source"] in REMOTE_SOURCES and not cfg.get("phone", {}).get("speak_replies", False)
+    # Where the command being processed came from: voice | text.
+    current = {"source": None}
 
     def speak(text, record=True):
         if not text or cancel_event.is_set():
             return {}
         if record:
-            emit(type="reply", text=text, **origin())
-        if remote_quiet():
-            return {}
+            emit(type="reply", text=text)
         spoken = speakable(text, pipe_cfg.get("max_spoken_chars", 450))
         phase("speaking", text=spoken)
         result = tts_speak(tts, spoken, speaking, set_state)
@@ -570,11 +556,9 @@ def main(state_callback=None, stop_event=None, duration=None,
 
     def approval_prompter(req):
         phase("approval", tool=req.tool, title=req.title)
-        remote = remote_quiet()
-        if not remote:          # a phone command gets the question as Approve/Deny buttons instead
-            speak(req.spoken, record=True)
+        speak(req.spoken, record=True)
         deferred = []
-        window_end = 0 if remote else time.time() + voice_cfg.get("window_ms", 5000) / 1000.0
+        window_end = time.time() + voice_cfg.get("window_ms", 5000) / 1000.0
         try:
             while not req.resolved and time.time() < req.deadline and not cancel_event.is_set():
                 # Typed yes/no from front-ends that only have the command queue.
@@ -627,16 +611,16 @@ def main(state_callback=None, stop_event=None, duration=None,
         except Exception as e:
             print(f"[WARN] Could not store message: {e}")
 
-    def process_command(text, source, t_start, capture_ms, stt_ms, runner=None, ref=None):
+    def process_command(text, source, t_start, capture_ms, stt_ms, runner=None):
         """Agent (AI + tools) -> spoken reply -> history -> log, for one transcript."""
-        current.update(source=source, ref=ref)
+        current.update(source=source)
         try:
             run_command(text, source, t_start, capture_ms, stt_ms, runner)
         finally:
-            current.update(source=None, ref=None)
+            current.update(source=None)
 
     def run_command(text, source, t_start, capture_ms, stt_ms, runner):
-        emit(type="transcript", text=text, source=source, ref=current["ref"])
+        emit(type="transcript", text=text, source=source)
         remember_message("user", text, source=source)
         set_state(STATE_PROCESSING)
         phase("thinking")
@@ -662,7 +646,7 @@ def main(state_callback=None, stop_event=None, duration=None,
         if result is None or (not result.ok and not result.cancelled):
             detail = err if result is None else (result.error or "unknown error")
             print(f"[ERROR] Agent failed ({agent_ms:.0f}ms): {detail}")
-            emit(type="error", stage=(result.stage if result else "llm"), detail=detail, **origin())
+            emit(type="error", stage=(result.stage if result else "llm"), detail=detail)
             remember_message("error", detail, meta={"stage": "llm"})
             if result is not None and result.spoken:
                 speak(result.spoken)
@@ -673,7 +657,7 @@ def main(state_callback=None, stop_event=None, duration=None,
             return
         if result.cancelled or cancel_event.is_set():
             print(f"[CANCEL] Command cancelled after {agent_ms:.0f}ms")
-            emit(type="cancelled", detail="Cancelled", tools=[c.get("tool") for c in result.tool_calls], **origin())
+            emit(type="cancelled", detail="Cancelled", tools=[c.get("tool") for c in result.tool_calls])
             remember_message("system", "Cancelled", meta={"tools": result.tool_calls})
             log_command({"text": text, "source": source, "cancelled": True, "tools": result.tool_calls})
             return
@@ -696,7 +680,7 @@ def main(state_callback=None, stop_event=None, duration=None,
             "total_ms": round(total_ms),
             "source": source,
         }
-        emit(type="timing", ref=current["ref"], **timing)
+        emit(type="timing", **timing)
         log_command({
             "text": text,
             "source": source,
@@ -773,34 +757,6 @@ def main(state_callback=None, stop_event=None, duration=None,
         if cancel_event.is_set():
             return
         process_command(text.strip(), "voice", t_start, capture_ms, stt_ms)
-
-    def run_remote_command(cmd):
-        """A command from a remote front-end (the phone app): text, or a voice recording transcribed here
-        with the same Whisper model (one at a time, so no second model on the GPU and no lock)."""
-        source, ref = cmd.get("source") or "phone", cmd.get("ref") or None
-        t0 = time.time()
-        text, stt_ms = (cmd.get("text") or "").strip(), 0.0
-        if cmd.get("audio"):
-            phase("transcribing")
-            try:
-                if transcriber is None:
-                    raise RuntimeError("speech recognition is not loaded")
-                from src.stt.transcriber import load_audio_file
-                text = strip_address(transcriber.transcribe_audio(load_audio_file(cmd["audio"])),
-                                     config_store.assistant_name(cfg)).strip()
-            except Exception as e:
-                print(f"[ERROR] Voice note STT failed: {e}")
-                emit(type="error", stage="stt", detail=f"Could not transcribe the voice note: {e}", source=source, ref=ref)
-                return
-            stt_ms = (time.time() - t0) * 1000
-            print(f"[STT] voice note '{text}' ({stt_ms:.0f}ms)")
-            if not text:
-                emit(type="error", stage="stt", detail="The voice note had no words in it", source=source, ref=ref)
-                return
-        if not text:
-            return
-        print(f"\n[REMOTE] {source} '{text}'")
-        process_command(text, source, t0, 0, stt_ms, ref=ref)
 
     def capture_command(stream):
         """VAD capture of one spoken command after an orb click. Returns (buffer, flags, heard)."""
@@ -917,12 +873,6 @@ def main(state_callback=None, stop_event=None, duration=None,
                 if isinstance(typed, dict) and typed.get("type") == "greet":
                     greet()
                     finish_cycle()
-                    continue
-                if isinstance(typed, dict) and typed.get("type") == "remote":
-                    command_count += 1
-                    run_remote_command(typed)
-                    finish_cycle()
-                    print("-" * 70)
                     continue
                 if isinstance(typed, dict):
                     run_task_command(typed)

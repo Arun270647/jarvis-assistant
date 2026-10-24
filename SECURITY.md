@@ -27,7 +27,6 @@ Examples of what counts:
 - anything that gets around the permission checks or approvals;
 - prompt injection that makes the assistant act without the approval the rules require;
 - keys or passwords reaching logs, history or the AI;
-- the phone server accepting a connection it shouldn't;
 - getting past the protected folders or the secret-file block.
 
 Out of scope: problems that need full control of the user's Windows account already, an extension the user

@@ -281,15 +281,6 @@
     "enabled": true,
     "screenshot_max_side": 1400
   },
-  "phone": {
-    "enabled": false,
-    "port": 8765,
-    "bind": "tailscale",
-    "speak_replies": false,
-    "allow_screenshot": true,
-    "approval_timeout_s": 180,
-    "max_upload_mb": 10
-  },
   "terminal": {
     "font": "Cascadia Mono"
   }

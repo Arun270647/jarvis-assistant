@@ -18,7 +18,7 @@ from src.core.redact import redact
 
 PACKAGES = ("PySide6", "faster-whisper", "ctranslate2", "onnxruntime", "sounddevice", "numpy", "piper-tts",
             "claude-agent-sdk", "anthropic", "openai", "jsonschema", "platformdirs", "pywin32", "uiautomation",
-            "aiohttp", "torch")
+            "torch")
 EMAIL = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
 
 
@@ -86,7 +86,6 @@ def _settings(cfg: dict) -> list:
               f"microphone index: {cfg.get('audio', {}).get('input_device_index')}",
               f"tools: profile={cfg.get('tools', {}).get('profile')} dry_run={cfg.get('dry_run')} "
               f"full_access={cfg.get('agent', {}).get('full_access')} coding_agent={cfg.get('coding_agent', {}).get('cli')}",
-              f"phone app: {cfg.get('phone', {}).get('enabled')}",
               f"data folder: {paths.home()} | models: {paths.models_dir()}"]
     return lines
 

@@ -65,31 +65,6 @@ class ControllerTests(unittest.TestCase):
         self.assertEqual(c.phase, "stopped")
         self.assertTrue(self.backend.unloaded)
 
-    def test_send_remote_routes_reply_and_answers_approvals(self):
-        mem = {"id": self.memory.add_memory("temporary fact")["id"]}
-
-        def behaviour(t, ctx, ex):
-            if "forget" in t:
-                res = ex.execute("forget", {"memory_id": mem["id"]}, ctx)
-                return AgentResult(reply="Deleted." if res.ok else res.content)
-            return AgentResult(reply="Done.")
-        c = self.make(behaviour)
-        self.assertEqual(c.send_remote(text="hello", ref="ph:1:1"), "stopped")
-        self.assertEqual(c.send_remote(), "rejected")
-        c.start()
-        self.assertTrue(wait_for(lambda: c.ready_info))
-        self.assertEqual(c.send_remote(text="hello", ref="ph:1:2"), "sent")
-        self.assertTrue(wait_for(lambda: self.has("reply", text="Done.", ref="ph:1:2", source="phone")))
-        self.assertTrue(wait_for(lambda: not c.busy))             # the reply goes out just before busy clears
-        c.set_muted(True)                                      # muting the mic doesn't block phone commands
-        self.assertEqual(c.send_remote(text="forget that", ref="ph:1:3"), "sent")
-        self.assertTrue(wait_for(lambda: c.broker.pending is not None))
-        self.assertEqual(c.status()["pending_approval"], c.broker.pending.title)
-        self.assertEqual(c.send_remote(text="yes", ref="ph:1:4"), "approval")
-        self.assertTrue(wait_for(lambda: self.has("reply", text="Deleted.", ref="ph:1:3")))
-        self.assertTrue(self.has("approval_resolved", decision="allow", via="phone 'yes'"))
-        c.stop()
-
     def test_commands_queue_while_busy(self):
         def slow(t, ctx, ex):
             time.sleep(0.4)

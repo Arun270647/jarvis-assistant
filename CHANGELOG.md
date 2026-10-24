@@ -22,7 +22,6 @@ Nothing has been released yet. The first release will be `0.1.0-alpha.1`, with:
 - Agentic tasks with plans, independently verified success checks, and pause, resume and retry.
 - Desktop app with a floating orb, tray icon, global hotkey, setup wizard, error messages with fix buttons,
   update check and uninstall.
-- Optional Android phone app over Tailscale.
 
 ### Licensing
 - Apache License 2.0. The Piper voice engine (GPL-3.0) is no longer a requirement: the app installs it on

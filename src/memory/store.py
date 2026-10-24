@@ -98,13 +98,6 @@ CREATE TABLE IF NOT EXISTS greetings (
     created_at REAL NOT NULL,
     used_at REAL
 );
-CREATE TABLE IF NOT EXISTS phone_devices (
-    id TEXT PRIMARY KEY,                        -- device id handed to the phone app at pairing
-    name TEXT NOT NULL,
-    token_sha256 TEXT NOT NULL,                 -- only the hash; the token lives in the phone's secure store
-    paired_at REAL NOT NULL,
-    last_seen REAL
-);
 CREATE TABLE IF NOT EXISTS llm_usage (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     created_at REAL NOT NULL,
@@ -123,6 +116,9 @@ CREATE INDEX IF NOT EXISTS idx_llm_usage_day ON llm_usage(day);
 CREATE INDEX IF NOT EXISTS idx_tool_runs_started ON tool_runs(started_at);
 CREATE INDEX IF NOT EXISTS idx_task_events_task ON task_events(task_id, id);
 """
+
+# Tables of removed features, dropped from existing databases (paired phones held token hashes).
+DROPPED = "DROP TABLE IF EXISTS phone_devices;"
 
 # Columns added after the first release of each table: (table, column, DDL type).
 MIGRATIONS = [
@@ -145,6 +141,7 @@ class MemoryStore:
             conn = self._conn()
             conn.executescript(SCHEMA)
             self._migrate(conn)
+            conn.executescript(DROPPED)
             conn.executescript("CREATE INDEX IF NOT EXISTS idx_tool_runs_task ON tool_runs(task_id, args_hash);")
             conn.commit()
 
@@ -487,35 +484,6 @@ def recent_greetings(self, limit: int = 40) -> list:
         "SELECT text FROM greetings ORDER BY COALESCE(used_at, created_at) DESC LIMIT ?", (int(limit),))]
 
 
-# ------------------------------------------------------------ paired phones (src/remote/phone_server.py)
-
-def add_phone_device(self, device_id: str, name: str, token_sha256: str) -> dict:
-    self._write("INSERT INTO phone_devices(id, name, token_sha256, paired_at) VALUES (?,?,?,?)",
-                (device_id, name, token_sha256, time.time()))
-    return self.get_phone_device(device_id)
-
-
-def get_phone_device(self, device_id: str) -> Optional[dict]:
-    rows = self._read("SELECT * FROM phone_devices WHERE id = ?", (device_id,))
-    return rows[0] if rows else None
-
-
-def list_phone_devices(self) -> list:
-    return self._read("SELECT id, name, paired_at, last_seen FROM phone_devices ORDER BY paired_at")
-
-
-def touch_phone_device(self, device_id: str) -> None:
-    self._write("UPDATE phone_devices SET last_seen = ? WHERE id = ?", (time.time(), device_id))
-
-
-def delete_phone_device(self, device_id: str) -> bool:
-    with self._write_lock:
-        conn = self._conn()
-        cur = conn.execute("DELETE FROM phone_devices WHERE id = ?", (device_id,))
-        conn.commit()
-        return cur.rowcount > 0
-
-
 # ------------------------------------------------------------ model usage (src/agent/usage.py)
 
 def add_llm_usage(self, provider: str, model: str, input_tokens: int = 0, output_tokens: int = 0,
@@ -544,7 +512,5 @@ def usage_cost_on(self, day: str) -> float:
 
 for _fn in (create_task, get_task, update_task, list_tasks, add_task_event, task_events,
             interrupted_task_runs, reconcile_after_restart, add_greetings, unused_greetings,
-            count_unused_greetings, mark_greeting_used, recent_greetings, add_phone_device,
-            get_phone_device, list_phone_devices, touch_phone_device, delete_phone_device,
-            add_llm_usage, usage_by_day, usage_cost_on):
+            count_unused_greetings, mark_greeting_used, recent_greetings, add_llm_usage, usage_by_day, usage_cost_on):
     setattr(MemoryStore, _fn.__name__, _fn)

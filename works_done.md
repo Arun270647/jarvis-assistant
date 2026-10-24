@@ -6,6 +6,29 @@ each entry names the phase it belongs to.
 
 ---
 
+## 2026-10-24 · Desktop only: the phone app is removed
+
+The maintainer decided that people get the Windows and Mac app only, without a phone companion.
+
+### What changed
+- Removed the Android app (`mobile/`), the desktop's phone server (`src/remote/`), pairing, Settings › Phone
+  app, the phone parts of the pipeline (commands from another device, voice notes, replies kept off the
+  speakers, longer approval timers), the prompt's phone context, `docs/PHONE_APP.md`, the CI job for the app,
+  Dependabot's npm updates and the app-icon script.
+- `aiohttp` and `segno` were only used by the phone server and left the requirements. The lock file lost
+  them and the five packages only they needed.
+- Existing installs are cleaned up:
+  - settings version 5 drops the `phone` section from the user's settings file;
+  - the database drops the paired-phones table at start-up, which held token fingerprints.
+
+### Verified
+- All 388 tests pass, after removing the phone tests and adding two new ones: the settings migration and
+  dropping the table from an old database. Ruff is clean.
+- The tests ran with aiohttp and segno uninstalled, so nothing still imports them.
+- Every script of the web UI parses.
+
+---
+
 ## 2026-10-24 · Phase 5: license, repository files, documentation and CI
 
 ### What changed

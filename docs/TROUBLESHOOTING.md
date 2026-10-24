@@ -47,8 +47,6 @@ NVIDIA graphics card: about 10 seconds before each answer starts.
 
 **The voice sounds robotic.** That's the built-in Windows voice. Pick a Piper voice in Settings › Models.
 
-**The phone app doesn't connect.** See [PHONE_APP.md](PHONE_APP.md#when-it-doesnt-connect).
-
 **A Piper voice doesn't install.** The engine comes from PyPI, so the PC needs internet access while it
 installs. The error in Settings › Models gives pip's reason. From a source install you can also run
 `python scripts/setup_piper.py --engine`.

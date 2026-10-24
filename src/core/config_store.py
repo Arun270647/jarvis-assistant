@@ -26,7 +26,7 @@ from src.core import paths
 
 DEFAULTS_PATH = paths.shipped_config_dir() / "defaults.json"
 PROFILE_DEFAULTS_PATH = paths.shipped_config_dir() / "profile_defaults.json"
-CONFIG_VERSION = 4
+CONFIG_VERSION = 5
 ENV_PREFIX = "JARVIS__"
 
 
@@ -118,8 +118,14 @@ def _v3_to_v4(raw: dict) -> dict:
     return raw
 
 
+def _v4_to_v5(raw: dict) -> dict:
+    """The phone app and its server were removed: their settings go."""
+    raw.pop("phone", None)
+    return raw
+
+
 # config_version -> function upgrading a user config.json from that version to the next one.
-MIGRATIONS = {1: _v1_to_v2, 2: _v2_to_v3, 3: _v3_to_v4}
+MIGRATIONS = {1: _v1_to_v2, 2: _v2_to_v3, 3: _v3_to_v4, 4: _v4_to_v5}
 
 _lock = threading.Lock()
 _MISSING = object()
@@ -199,12 +205,6 @@ EDITABLE = {
     "email.trusted_recipients": (list, None),
     "chrome.default_profile": (str, None),
     "chrome.blocked_domains": (list, None),
-    "phone.enabled": (bool, None),
-    "phone.port": (int, (1024, 65535)),
-    "phone.bind": (str, None),
-    "phone.speak_replies": (bool, None),
-    "phone.allow_screenshot": (bool, None),
-    "phone.approval_timeout_s": (int, (30, 1800)),
     "gui.start_minimized": (bool, None),
     "gui.close_to_tray": (bool, None),
     "gui.autostart_pipeline": (bool, None),
@@ -441,8 +441,6 @@ def validate_update(updates: dict) -> list:
             errors.append(f"{key}: unknown provider {value!r}")
         if key.startswith("llm.providers.") and key.endswith(".model") and not value.strip()                 and get_path(defaults(), key):
             errors.append(f"{key}: cannot be empty")
-        if key == "phone.bind" and value.strip() in ("0.0.0.0", "::", "*", ""):
-            errors.append("phone.bind: use tailscale, lan or one address; listening on every interface is not allowed")
     return errors
 
 

@@ -35,7 +35,6 @@ click / hold Space ─► VAD ─► Whisper (local) ─► AI model (your choic
   [docs/SECURITY_MODEL.md](docs/SECURITY_MODEL.md), and [SECURITY.md](SECURITY.md) to report a problem.
 - **Cost visibility**: tokens and estimated cost per day in Activity, and an optional daily spending limit.
 - **Desktop app**: floating orb, tray icon, Ctrl+Shift+J hotkey, no console windows.
-- **Phone app (optional)**: an Android companion over your private Tailscale network (`mobile/`).
 - **Private**: no telemetry. Only the requests you send to your chosen AI provider leave your PC.
 
 ## Running from source
@@ -104,7 +103,6 @@ user-visible changes are in [CHANGELOG.md](CHANGELOG.md).
 | [What Jarvis can do on your PC](docs/SECURITY_MODEL.md) | Tool groups, approvals, and how to limit it |
 | [Tools](docs/TOOLS.md) | Every tool, its risk and when it asks |
 | [Agentic tasks](docs/AGENTIC_TASKS.md) | Multi-step goals with plans and verified checks |
-| [Phone app](docs/PHONE_APP.md) | The Android remote over Tailscale |
 | [Extensions](docs/EXTENSIONS.md) | Adding your own tools |
 | [Troubleshooting](docs/TROUBLESHOOTING.md) | What the error messages mean and what to do |
 | [Architecture](docs/ARCHITECTURE.md) | How the code fits together |

@@ -5,7 +5,7 @@
 - The user's data folder, home(): config.json (only the settings that differ from the defaults),
   user_profile.json, jarvis.db and logs/. By default the OS's per-user folder (%APPDATA%\\Jarvis).
 - Large local files: models/ (downloaded speech and voice models) and cache/ (TTS cache, edit backups,
-  phone uploads, ...). By default the OS's local folder (%LOCALAPPDATA%\\Jarvis\\models and \\cache).
+  ...). By default the OS's local folder (%LOCALAPPDATA%\\Jarvis\\models and \\cache).
 
 JARVIS_HOME overrides the data folder; then models/ and cache/ live inside it too, so one folder holds
 everything (portable mode, e.g. JARVIS_HOME=.\\userdata for development). A relative JARVIS_HOME is

@@ -117,7 +117,7 @@ class ConfigStoreTests(unittest.TestCase):
         all_on = {"workspace_read": True, "workspace_write": True, "terminals": True, "desktop": True,
                   "system": True, "email": True, "coding_agent": True}
         self.assertEqual(self.read(), {
-            "config_version": 4,
+            "config_version": config_store.CONFIG_VERSION,
             "setup": {"complete": True},                                # set up before the wizard existed
             "llm": {"providers": {"claude_code": {"model": "claude-opus-5-5", "effort": "high", "timeout_seconds": 45,
                                                   "utility_model": "claude-haiku-4-5"}}},
@@ -151,6 +151,12 @@ class ConfigStoreTests(unittest.TestCase):
         self.path.write_text(json.dumps({"config_version": 3, "tools": {"groups": {"email": True}}}), encoding="utf-8")
         config_store.migrate_user_config(self.path)
         self.assertEqual(self.read()["tools"], {"groups": {"email": True}}, "already has groups: untouched")
+
+    def test_version_4_files_lose_the_phone_settings(self):
+        self.path.write_text(json.dumps({"config_version": 4, "phone": {"enabled": True, "port": 9000},
+                                         "agent": {"max_turns": 9}}), encoding="utf-8")
+        config_store.migrate_user_config(self.path)
+        self.assertEqual(self.read(), {"agent": {"max_turns": 9}, "config_version": config_store.CONFIG_VERSION})
 
     def test_new_installs_keep_the_risky_tool_groups_off(self):
         from src.tools.groups import GROUPS, enabled_groups
@@ -211,7 +217,7 @@ class ConfigStoreTests(unittest.TestCase):
         self.assertEqual(d["coding_agent"]["default_project"], "")
         self.assertIsNone(d["audio"]["input_device_index"])                  # the system default microphone
         self.assertFalse(d["agent"]["full_access"])
-        self.assertFalse(d["phone"]["enabled"])
+        self.assertNotIn("phone", d)
 
 
 class ProfileTests(unittest.TestCase):

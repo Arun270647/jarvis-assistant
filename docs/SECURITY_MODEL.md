@@ -16,8 +16,6 @@ unless it says otherwise.
   protects you from instructions hidden in that content.
 - API keys and passwords are kept in **Windows Credential Manager** and masked in logs, history and the
   activity list.
-- The phone app is **off** until you turn it on. It only works over your private Tailscale network, and only
-  with phones you paired.
 
 ## What it may do: tool groups
 
@@ -115,17 +113,6 @@ When **Control other apps** is on, Jarvis uses the mouse and keyboard the way yo
 
 It never sends Windows-key shortcuts. Screenshots it takes are sent to your AI provider like any other
 request. Leave this group off unless you need it.
-
-## The phone app
-
-- Off until you turn it on (**Settings › Phone app**).
-- It listens on your private **Tailscale** address (or one address you choose), never on every network
-  interface.
-- A phone must be **paired** with a 6-digit code that works once, for 10 minutes, with 5 tries. The phone
-  keeps a token, and only a fingerprint of the token is stored on the PC.
-- An address that fails to connect 5 times within a minute is **locked out for 5 minutes**.
-- Every new pairing shows a **desktop notification**. If it wasn't you, remove the phone in
-  **Settings › Phone app**.
 
 ## Keys and passwords
 

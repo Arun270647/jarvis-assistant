@@ -11,6 +11,19 @@ class MemoryTests(unittest.TestCase):
         self.m = MemoryStore(temp_db())
         self.addCleanup(self.m.close)
 
+    def test_the_removed_phone_devices_table_is_dropped(self):
+        import sqlite3
+        path = temp_db()
+        with sqlite3.connect(str(path)) as conn:                  # a database from before the phone app went
+            conn.execute("CREATE TABLE phone_devices (id TEXT PRIMARY KEY, token_sha256 TEXT NOT NULL)")
+            conn.execute("INSERT INTO phone_devices VALUES ('d1', 'abc')")
+        conn.close()
+        store = MemoryStore(path)
+        self.addCleanup(store.close)
+        tables = {r["name"] for r in store._read("SELECT name FROM sqlite_master WHERE type = 'table'")}
+        self.assertNotIn("phone_devices", tables)
+        self.assertIn("memories", tables)
+
     def test_crud(self):
         a = self.m.add_memory("Favourite editor is VS Code", "preference")
         self.assertEqual(a["kind"], "preference")

@@ -207,8 +207,6 @@ class PolicyExecutor:
         cfg = self._config()
         voice_ok = why != "always" or bool((cfg.get("voice_approval", {}) or {}).get("high_risk", False))
         timeout_s = (cfg.get("tools", {}) or {}).get("approval_timeout_ms", 15000) / 1000.0
-        if ctx.source == "phone":         # answered in the phone app: give the user time to pick it up
-            timeout_s = max(timeout_s, float((cfg.get("phone", {}) or {}).get("approval_timeout_s", 180)))
         rows = []
         if spec.approval_rows:
             try:

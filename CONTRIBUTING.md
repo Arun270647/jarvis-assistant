@@ -28,7 +28,6 @@ ruff check .
 The tests need no GPU, microphone, network or API keys: they use the fakes in `tests/fakes.py`, in a
 throwaway data folder. Files named `tests/live_*.py` are manual checks against real hardware and providers.
 
-Phone app: `cd mobile && npm ci && npx tsc --noEmit && npx jest`.
 
 ## How the code is organised
 
@@ -78,8 +77,7 @@ and keep the comment header at the top of `requirements.lock`. Running the compi
 keeps every other version where it is; add `--upgrade-package <name>` to move one package.
 
 Dependabot's weekly pull requests for Python packages change `requirements.txt` only, so their tests fail until
-the lock is regenerated. Apply the new versions with the commands above in your own pull request. For the phone
-app, update Expo's packages with `npx expo install --fix` in `mobile/` so they stay matched to the SDK.
+the lock is regenerated. Apply the new versions with the commands above in your own pull request.
 
 ## Pull requests
 
