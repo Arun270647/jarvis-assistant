@@ -81,7 +81,8 @@ the lock is regenerated. Apply the new versions with the commands above in your 
 
 ## Building the Windows zip
 
-On Windows, with the Visual Studio C++ build tools installed (for `cl` and `rc`):
+On Windows, with the Visual Studio C++ build tools installed (for `cl` and `rc`), in the Python environment you
+develop in (the build runs the updater's tests with it, so it needs `requirements.lock` installed):
 
 ```
 python packaging/build_windows.py

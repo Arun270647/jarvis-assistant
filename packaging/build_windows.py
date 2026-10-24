@@ -4,8 +4,9 @@
     python packaging/build_windows.py --base-url URL           # latest.json points at URL/<zip name>
     python packaging/build_windows.py --reuse-runtime          # keep build/windows/Jarvis/runtime (faster)
 
-Needs Windows, Python 3.11+ to run this script, internet (python.org and PyPI) and the Visual Studio C++ build tools
-(cl and rc, found with vswhere) for the two small programs. What goes in the zip:
+Needs Windows, Python 3.11+ with requirements.lock installed to run this script (it runs tests/test_packaging.py),
+internet (python.org and PyPI) and the Visual Studio C++ build tools (cl and rc, found with vswhere) for the two small
+programs. What goes in the zip:
 
     Jarvis/
         Jarvis.exe            packaging/windows/launcher.c: starts runtime/pythonw.exe app/jarvis_gui.pyw
