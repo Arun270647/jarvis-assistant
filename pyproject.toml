@@ -1,0 +1,51 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "jarvis-assistant"
+description = "A voice assistant for Windows that acts through permission-checked tools, with the AI of your choice."
+readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE"]
+requires-python = ">=3.11"
+dynamic = ["version", "dependencies"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Win32 (MS Windows)",
+    "Intended Audience :: End Users/Desktop",
+    "Operating System :: Microsoft :: Windows :: Windows 11",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Multimedia :: Sound/Audio :: Speech",
+]
+
+[project.optional-dependencies]
+# Tools for development and CI.
+dev = ["ruff==0.17.2", "pip-audit>=2.9"]
+# The Piper voice engine is GPL-3.0-or-later and not part of Jarvis. The app installs it on request into the
+# models folder (src/core/addons.py); this extra is only for developers who want it in their own environment.
+piper = ["piper-tts==1.8.0"]
+
+[tool.setuptools.dynamic]
+version = { attr = "src.version.__version__" }
+dependencies = { file = ["requirements.txt"] }
+
+[tool.setuptools.packages.find]
+include = ["src*"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+extend-exclude = ["mobile", "planning", "sandbox"]
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F"]
+# E731 (a lambda assigned to a name) and E741 (a variable called l) are how parts of this code are written on
+# purpose; the rest of the default rule set applies.
+ignore = ["E731", "E741"]
+
+[tool.ruff.lint.per-file-ignores]
+"src/pipeline.py" = ["E402"]          # sys.path is set up before the project imports when run as a script

@@ -68,11 +68,15 @@ All of these are free and run on your own computer. You can change them later in
 |---|---|---|---|---|
 | Speech detection | Notices when you start and stop talking | Silero VAD | 2 MB | https://github.com/snakers4/silero-vad |
 | Speech recognition | Turns your voice into text | Whisper *small* (*medium* with an NVIDIA graphics card and its CUDA libraries) | 486 MB (1.5 GB) | https://huggingface.co/Systran/faster-whisper-small |
-| Voice | Reads answers aloud | Piper · Amy, or the Windows voice (nothing to download) | 63 MB | https://huggingface.co/rhasspy/piper-voices |
+| Voice | Reads answers aloud | Piper · Amy, or the Windows voice (nothing to download) | 63 MB, plus about 45 MB for the Piper engine the first time | https://huggingface.co/rhasspy/piper-voices |
 
 **Slow or no internet at setup?** Click **ⓘ** on a row › **Download manually**: your browser downloads the
 file. Then click **I already have this file** and pick it. Jarvis checks the file is the right one before using
 it. Downloads that stop halfway continue where they stopped.
+
+The Piper voices need the Piper engine, which is open source under the GPL-3.0 license and not part of Jarvis.
+Jarvis installs it from the Python Package Index the first time you pick a Piper voice (this part needs
+internet; it can't be downloaded by hand in the browser).
 
 ## 3. Everyday use
 

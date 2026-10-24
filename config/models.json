@@ -277,8 +277,9 @@
           "id": "piper-en_US-amy-medium",
           "name": "Piper · Amy (US)",
           "summary": "Clear and quick. US English.",
-          "about": "A fast local voice from the Piper project (Rhasspy). Voice: see its model card. The Piper engine itself is GPL-3.0 and installed as an optional add-on.",
+          "about": "A fast local voice from the Piper project (Rhasspy). Voice: see its model card. Choosing it also installs the Piper engine, which is GPL-3.0 and not part of Jarvis: it comes from PyPI into the models folder.",
           "license": "Voice: see model card; engine GPL-3.0",
+      "addon": "piper",
           "license_url": "https://huggingface.co/rhasspy/piper-voices/blob/main/en/en_US/amy/medium/MODEL_CARD",
           "page": "https://huggingface.co/rhasspy/piper-voices",
           "dir": "piper",
@@ -307,8 +308,9 @@
           "id": "piper-en_US-lessac-medium",
           "name": "Piper · Lessac (US)",
           "summary": "Warm and steady. US English.",
-          "about": "A fast local voice from the Piper project (Rhasspy). Voice: see its model card. The Piper engine itself is GPL-3.0 and installed as an optional add-on.",
+          "about": "A fast local voice from the Piper project (Rhasspy). Voice: see its model card. Choosing it also installs the Piper engine, which is GPL-3.0 and not part of Jarvis: it comes from PyPI into the models folder.",
           "license": "Voice: see model card; engine GPL-3.0",
+      "addon": "piper",
           "license_url": "https://huggingface.co/rhasspy/piper-voices/blob/main/en/en_US/lessac/medium/MODEL_CARD",
           "page": "https://huggingface.co/rhasspy/piper-voices",
           "dir": "piper",
@@ -337,8 +339,9 @@
           "id": "piper-en_US-ryan-medium",
           "name": "Piper · Ryan (US)",
           "summary": "A lower voice. US English.",
-          "about": "A fast local voice from the Piper project (Rhasspy). Voice: see its model card. The Piper engine itself is GPL-3.0 and installed as an optional add-on.",
+          "about": "A fast local voice from the Piper project (Rhasspy). Voice: see its model card. Choosing it also installs the Piper engine, which is GPL-3.0 and not part of Jarvis: it comes from PyPI into the models folder.",
           "license": "Voice: see model card; engine GPL-3.0",
+      "addon": "piper",
           "license_url": "https://huggingface.co/rhasspy/piper-voices/blob/main/en/en_US/ryan/medium/MODEL_CARD",
           "page": "https://huggingface.co/rhasspy/piper-voices",
           "dir": "piper",
@@ -367,8 +370,9 @@
           "id": "piper-en_GB-alba-medium",
           "name": "Piper · Alba (UK)",
           "summary": "British English.",
-          "about": "A fast local voice from the Piper project (Rhasspy). Voice: see its model card. The Piper engine itself is GPL-3.0 and installed as an optional add-on.",
+          "about": "A fast local voice from the Piper project (Rhasspy). Voice: see its model card. Choosing it also installs the Piper engine, which is GPL-3.0 and not part of Jarvis: it comes from PyPI into the models folder.",
           "license": "Voice: see model card; engine GPL-3.0",
+      "addon": "piper",
           "license_url": "https://huggingface.co/rhasspy/piper-voices/blob/main/en/en_GB/alba/medium/MODEL_CARD",
           "page": "https://huggingface.co/rhasspy/piper-voices",
           "dir": "piper",
@@ -395,5 +399,17 @@
         }
       ]
     }
-  ]
+  ],
+  "addons": {
+    "piper": {
+      "name": "the Piper voice engine",
+      "module": "piper",
+      "packages": [
+        "piper-tts==1.8.0",
+        "pathvalidate>=3,<4"
+      ],
+      "license": "GPL-3.0-or-later",
+      "page": "https://github.com/OHF-Voice/piper1-gpl"
+    }
+  }
 }

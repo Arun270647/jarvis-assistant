@@ -1,0 +1,54 @@
+name: Bug report
+description: Something doesn't work as expected
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Security problems: please report them privately (see SECURITY.md), not here.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What you said or typed, what the assistant did, and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+    validations:
+      required: true
+  - type: dropdown
+    id: provider
+    attributes:
+      label: AI provider
+      options: [Sign in with Claude, Anthropic API key, OpenAI, OpenRouter, Google Gemini, Groq, Ollama, LM Studio, Other OpenAI-compatible]
+    validations:
+      required: true
+  - type: input
+    id: model
+    attributes:
+      label: Model name
+  - type: dropdown
+    id: input
+    attributes:
+      label: How you gave the command
+      options: [Voice, Typed in the window, Phone app, Not relevant]
+  - type: input
+    id: version
+    attributes:
+      label: Jarvis version
+      description: Settings › About.
+    validations:
+      required: true
+  - type: textarea
+    id: diagnose
+    attributes:
+      label: Diagnostics
+      description: >-
+        Settings › Logging and diagnostics › Save a report, then attach the file or paste it here (from source:
+        `python jarvis_gui.pyw --diagnose`). Keys and passwords are masked, but please read it before posting.
+      render: text
+    validations:
+      required: true

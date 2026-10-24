@@ -3,7 +3,6 @@ stub controller and a real MemoryStore, and an aiohttp client playing the phone.
 import asyncio
 import base64
 import json
-import threading
 import time
 import unittest
 from pathlib import Path

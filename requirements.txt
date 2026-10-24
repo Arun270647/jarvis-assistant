@@ -7,7 +7,6 @@ anthropic>=2.2            # Anthropic API provider (API key); imported only when
 openai>=3.37              # OpenAI-compatible providers: OpenAI, OpenRouter, Groq, Gemini, Ollama, LM Studio
 jsonschema>=4.20          # tool argument validation (PolicyExecutor)
 platformdirs>=4.2         # per-user data / models / cache folders (src/platform)
-piper-tts>=1.2            # in-process TTS
 # Desktop app (jarvis_gui.pyw)
 PySide6>=6.10             # Qt 6 + Qt WebEngine: main window, floating orb, tray (abi3 wheels support Python 3.14)
 pywin32>=306              # startup/desktop shortcuts via COM (no powershell console)

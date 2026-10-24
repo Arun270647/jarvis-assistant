@@ -10,7 +10,6 @@ import shutil
 import socketserver
 import tempfile
 import threading
-import time
 import unittest
 from pathlib import Path
 

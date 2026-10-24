@@ -89,25 +89,31 @@ _OLD_PRESET_DENIES = {
              "desktop_scroll", "desktop_focus"),
     "full": (),
 }
+# What each of those choices could do, as tool groups (the groups as they were in version 4).
+_V4_GROUPS = ("workspace_read", "workspace_write", "terminals", "desktop", "system", "email", "coding_agent")
+_V4_PRESET_GROUPS = {
+    "everyday": ("workspace_read", "system"),
+    "work": ("workspace_read", "system", "workspace_write", "terminals", "email", "coding_agent"),
+    "full": _V4_GROUPS,
+}
 
 
 def _v3_to_v4(raw: dict) -> dict:
     """Tool groups arrived, with the risky ones off on new installs. An existing install keeps what it could
     do: the wizard's choice becomes groups (its per-tool denies go), and without one every group stays on."""
-    from src.tools import groups
     tools = raw.get("tools") if isinstance(raw.get("tools"), dict) else {}
     if "groups" in tools:
         return raw
     preset = tools.get("preset")
-    if preset in groups.PRESETS:
-        tools["groups"] = groups.groups_setting(preset)
+    if preset in _V4_PRESET_GROUPS:
+        tools["groups"] = {g: g in _V4_PRESET_GROUPS[preset] for g in _V4_GROUPS}
         perms = tools.get("permissions")
         if isinstance(perms, dict):
             for tool in _OLD_PRESET_DENIES.get(preset, ()):
                 if perms.get(tool) == "deny":
                     perms.pop(tool)
     else:
-        tools["groups"] = groups.groups_setting("full")
+        tools["groups"] = {g: True for g in _V4_GROUPS}
     raw["tools"] = tools
     return raw
 
@@ -416,15 +422,15 @@ def validate_update(updates: dict) -> list:
                 if perm not in PERMISSION_VALUES:
                     errors.append(f"tools.permissions.{tool}: must be allow, ask or deny")
         if key == "tools.groups":
-            from src.tools.groups import GROUPS
+            switchable = (defaults().get("tools", {}) or {}).get("groups", {})     # = src/tools/groups.py (tested)
             for gid, on in value.items():
-                if gid not in GROUPS or GROUPS[gid].get("locked"):
+                if gid not in switchable:
                     errors.append(f"tools.groups.{gid}: not a group that can be switched")
                 elif not isinstance(on, bool):
                     errors.append(f"tools.groups.{gid}: must be true or false")
         if key == "tools.extensions":
-            from src.tools.extensions import available_extensions
-            missing = [e for e in value if e not in available_extensions()]
+            found = {f.stem for f in (paths.APP_ROOT / "tools_ext").glob("*.py") if not f.name.startswith("_")}
+            missing = [e for e in value if e not in found]
             if missing:
                 errors.append(f"tools.extensions: no such extension in tools_ext: {', '.join(missing)}")
         if key == "assistant.name" and check_assistant_name(value)[0]:

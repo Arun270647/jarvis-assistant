@@ -10,13 +10,15 @@ click / hold Space ─► VAD ─► Whisper (local) ─► AI model (your choic
                                         typed text joins here ───┘
 ```
 
-> **Status: in development, not released yet.** There is no download and no setup wizard yet; you run it
-> from source on Windows 11. A macOS version comes after the first Windows release.
+> **Status: in development, not released yet.** There is no download yet: you run it from source on
+> Windows 11, and a setup wizard walks you through the rest. A macOS version comes after the first Windows
+> release.
 
 ## What works today
 
-- **Local ears and voice**: Silero VAD and faster-whisper (GPU or CPU) for speech recognition; Piper or
-  Chatterbox voices. Without a microphone or voice, Jarvis still works by typing.
+- **Local ears and voice**: Silero VAD and faster-whisper (GPU or CPU) for speech recognition; the Windows
+  voice, Piper voices (an add-on installed on request) or Chatterbox. Without a microphone or voice, Jarvis
+  still works by typing.
 - **Your choice of AI** (Settings › AI): Claude through your own Claude account (the default), the
   Anthropic API, OpenAI, OpenRouter, Groq, Google Gemini, Ollama or LM Studio on your PC, or any other
   OpenAI-compatible server. API keys are stored in Windows Credential Manager. See
@@ -38,16 +40,18 @@ click / hold Space ─► VAD ─► Whisper (local) ─► AI model (your choic
 
 ## Running from source
 
-You need Windows 11, Python 3.12 or newer, and one way to reach an AI model (below).
+You need Windows 11, Python 3.11 to 3.13, and one way to reach an AI model (below). Details, optional voices
+and updating are in [docs/INSTALL.md](docs/INSTALL.md).
 
 ```
-git clone <this repository>
+git clone <this repository> jarvis-assistant
 cd jarvis-assistant
-python -m venv .venv
-.venv\Scripts\pip install -r requirements.txt
-.venv\Scripts\python scripts\setup_piper.py        # optional: downloads the default Piper voice
+py -3.12 -m venv .venv
+.venv\Scripts\python -m pip install -r requirements.txt
 .venv\Scripts\pythonw jarvis_gui.pyw
 ```
+
+The setup wizard opens, downloads the speech model and the voice you pick, and connects the AI.
 
 Connect an AI model:
 
@@ -80,16 +84,36 @@ provider from the command line with `python -m src.agent check` (options in
 
 1. ~~Remove personal data, per-user data folder, settings split~~ (done)
 2. ~~Several AI providers~~ (done)
-3. Setup wizard and normal-app experience: name your assistant, model explanations and downloads, Sign in
-   with Claude, error messages with fix buttons, auto-update, uninstall
+3. ~~Setup wizard and normal-app experience~~ (done; tests on clean machines and with new users are still to
+   come)
 4. ~~Safe defaults for strangers' machines: risky tool groups off until enabled, hardening~~ (done)
-5. Repository, documentation and CI
+5. ~~Repository, documentation and CI~~ (done)
 6. Windows alpha release (signed zip)
 7. macOS
 
-The work log, with what was built and how it was verified, is in [works_done.md](works_done.md).
+The work log, with what was built and how it was verified, is in [works_done.md](works_done.md), and
+user-visible changes are in [CHANGELOG.md](CHANGELOG.md).
+
+## Documentation
+
+| | |
+|---|---|
+| [Getting started](docs/GETTING_STARTED.md) | Setting up and using Jarvis, for everyone |
+| [Install](docs/INSTALL.md) | Running from source, optional voices, where files go |
+| [AI providers](docs/PROVIDERS.md) | Claude, API keys, local models |
+| [What Jarvis can do on your PC](docs/SECURITY_MODEL.md) | Tool groups, approvals, and how to limit it |
+| [Tools](docs/TOOLS.md) | Every tool, its risk and when it asks |
+| [Agentic tasks](docs/AGENTIC_TASKS.md) | Multi-step goals with plans and verified checks |
+| [Phone app](docs/PHONE_APP.md) | The Android remote over Tailscale |
+| [Extensions](docs/EXTENSIONS.md) | Adding your own tools |
+| [Troubleshooting](docs/TROUBLESHOOTING.md) | What the error messages mean and what to do |
+| [Architecture](docs/ARCHITECTURE.md) | How the code fits together |
+| [Contributing](CONTRIBUTING.md) | Development setup and rules |
+| [Security policy](SECURITY.md) | Reporting a vulnerability |
 
 ## License
 
-Not chosen yet; it will be decided before the first public release. Optional components (for example the
-Piper voice) have their own licenses.
+Jarvis is licensed under the [Apache License 2.0](LICENSE); see also [NOTICE](NOTICE). The packages it uses
+keep their own licenses, listed in [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md). Optional add-ons that
+you choose to install, such as the Piper voice engine (GPL-3.0), are not part of Jarvis and are installed
+separately, on request.

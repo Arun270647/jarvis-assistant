@@ -1,9 +1,12 @@
 """Setup script for Piper TTS.
 
-Downloads Piper voice models from HuggingFace and verifies installation.
+Downloads Piper voice models from HuggingFace and, when it's missing, the Piper engine (piper-tts). The engine is
+GPL-3.0 and not part of Jarvis (Apache-2.0): it is installed from PyPI into models/addons/piper, see
+src/core/addons.py. The setup wizard and Settings › Models do the same when a Piper voice is chosen.
 
 Usage:
-    python scripts/setup_piper.py                           # install default voices
+    python scripts/setup_piper.py                           # install default voices (and the engine)
+    python scripts/setup_piper.py --engine                  # install only the engine
     python scripts/setup_piper.py --voice en_US-ryan-high   # install specific voice
     python scripts/setup_piper.py --list                    # list available voices
     python scripts/setup_piper.py --list-downloaded         # list downloaded voices
@@ -143,7 +146,7 @@ def install_voice(voice_id: str) -> bool:
     if model_path.exists():
         print(f"\nModel already exists: {model_path}")
     else:
-        print(f"\nDownloading model...")
+        print("\nDownloading model...")
         if not download_file(model_url, model_path):
             return False
 
@@ -151,11 +154,11 @@ def install_voice(voice_id: str) -> bool:
     if config_path.exists():
         print(f"\nConfig already exists: {config_path}")
     else:
-        print(f"\nDownloading config...")
+        print("\nDownloading config...")
         if not download_file(config_url, config_path):
             return False
 
-    print(f"\n=== Installation Complete ===")
+    print("\n=== Installation Complete ===")
     print(f"Model: {model_path}")
     print(f"Config: {config_path}")
 
@@ -189,7 +192,7 @@ def list_downloaded():
         print(f"\nNo voices downloaded in: {model_dir}")
         return
 
-    print(f"\n=== Downloaded Voices ===")
+    print("\n=== Downloaded Voices ===")
     print(f"Directory: {model_dir}\n")
 
     cfg = load_config()
@@ -233,17 +236,20 @@ def set_active_voice(voice_id: str) -> bool:
 
 
 def check_piper_binary():
-    """Check if piper Python package is importable (in-process API)."""
-    try:
-        from piper import PiperVoice
-        print("[OK] Piper Python API available (in-process, no subprocess)")
+    """Make sure the Piper engine add-on is importable, installing it when it's missing."""
+    from src.core import addons
+    if addons.installed("piper"):
+        print("[OK] Piper engine available")
         return True
-    except ImportError:
-        pass
-
-    print("[WARN] Piper Python package not found")
-    print("Install with: pip install piper-tts")
-    return False
+    spec = addons.spec("piper")
+    print(f"Installing {spec['name']} ({', '.join(spec['packages'])}, {spec['license']}) into {addons.folder('piper')}")
+    try:
+        addons.install("piper")
+    except RuntimeError as e:
+        print(f"[WARN] {e}")
+        return False
+    print("[OK] Piper engine installed")
+    return True
 
 
 def main():
@@ -267,9 +273,11 @@ def main():
         voice_id = sys.argv[idx + 1]
         return 0 if set_active_voice(voice_id) else 1
 
-    # Check for piper
-    check_piper_binary()
+    # The engine (an add-on, not shipped with Jarvis)
+    engine_ok = check_piper_binary()
     print()
+    if "--engine" in sys.argv:
+        return 0 if engine_ok else 1
 
     # Determine which voice(s) to install
     voices_to_install = []

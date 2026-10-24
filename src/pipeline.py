@@ -321,7 +321,7 @@ def main(state_callback=None, stop_event=None, duration=None,
     if duration > 0:
         print(f"  Duration: {duration}s | Press Ctrl+C to stop")
     else:
-        print(f"  Press Ctrl+C to stop")
+        print("  Press Ctrl+C to stop")
     print(f"  Silence cutoff: {silence_timeout_ms}ms | Max recording: {max_recording_ms}ms")
     print("=" * 70)
 

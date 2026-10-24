@@ -6,7 +6,8 @@
 - Every file is checked against its SHA-256 before it is renamed into place; a mismatch deletes it.
 - import_file() takes a file the user already has (slow or offline computers), checks it and copies it in.
 - Progress is reported as "download" events: {"type": "download", "option", "name", "state", "done",
-  "total", "speed", "eta_s", "file", "error"}; state is queued | downloading | verifying | done | failed |
+  "total", "speed", "eta_s", "file", "error"}; state is queued | downloading | verifying | installing (an
+  add-on, src/core/addons.py, after the files) | done | failed |
   cancelled, or partial after importing some of an option's files.
 """
 import hashlib
@@ -25,6 +26,8 @@ CHUNK = 1 << 16
 RETRIES = 3
 USER_AGENT = "Jarvis model downloader"
 
+
+ACTIVE = ("queued", "downloading", "verifying", "installing")
 
 class DownloadError(Exception):
     pass
@@ -66,7 +69,7 @@ class Downloader:
             return st["state"]
         with self._lock:
             job = self._jobs.get(option_id)
-            if job and job["state"] in ("queued", "downloading", "verifying"):
+            if job and job["state"] in ACTIVE:
                 return "running"
             self._cancel[option_id] = threading.Event()
         self._update(option, state="queued", done=st["have"], total=st["total"], error=None)
@@ -85,7 +88,7 @@ class Downloader:
             return [dict(j) for j in self._jobs.values()]
 
     def busy(self) -> bool:
-        return any(j["state"] in ("queued", "downloading", "verifying") for j in self.jobs())
+        return any(j["state"] in ACTIVE for j in self.jobs())
 
     def import_file(self, option_id: str, file_name: str, source: str) -> dict:
         """Use a file the user downloaded themselves: checked against the catalogue, then copied in."""
@@ -155,6 +158,17 @@ class Downloader:
                     if cancel.wait(self.retry_delay * (attempt + 1)):
                         raise Cancelled()
             done_before += f["size"]
+        addon = option.get("addon")
+        if addon:
+            from src.core import addons
+            if not addons.installed(addon):
+                if cancel.is_set():
+                    raise Cancelled()
+                self._update(option, state="installing", file=addons.spec(addon)["name"], speed=0, eta_s=None)
+                try:
+                    addons.install(addon)
+                except RuntimeError as e:
+                    raise DownloadError(str(e)) from e
 
     def _download_file(self, option: dict, f: dict, dest: Path, done_before: int, total: int,
                        cancel: threading.Event):

@@ -41,7 +41,7 @@ def benchmark_voice(voice_name: str, play: bool = False) -> dict:
     audio_durations = []
 
     try:
-        print(f"[INIT] Loading voice model in-process...")
+        print("[INIT] Loading voice model in-process...")
         cfg = load_config()
         piper_cfg = dict(cfg.get("tts", {}).get("piper", {}))
         piper_cfg["voice"] = voice_name
@@ -69,7 +69,7 @@ def benchmark_voice(voice_name: str, play: bool = False) -> dict:
             if play:
                 import sounddevice as sd
                 sd.play(audio, samplerate=tts.sample_rate, blocking=True)
-                print(f"       Played")
+                print("       Played")
 
         # Stats
         avg_synth = sum(synthesis_times) / len(synthesis_times)
@@ -77,7 +77,7 @@ def benchmark_voice(voice_name: str, play: bool = False) -> dict:
         max_synth = max(synthesis_times)
         avg_duration = sum(audio_durations) / len(audio_durations)
 
-        print(f"\n  Results:")
+        print("\n  Results:")
         print(f"    Avg synthesis: {avg_synth:.0f}ms")
         print(f"    Min synthesis: {min_synth:.0f}ms")
         print(f"    Max synthesis: {max_synth:.0f}ms")
@@ -156,11 +156,11 @@ def main():
             print(f"    • {faster['voice']} is {diff_pct:.0f}% faster ({faster['avg_synth_ms']:.0f}ms vs {slower['avg_synth_ms']:.0f}ms)")
             print(f"    • ryan-high: ~{ryan['avg_synth_ms']:.0f}ms avg (high quality)")
             print(f"    • amy-medium: ~{amy['avg_synth_ms']:.0f}ms avg (medium quality)")
-            print(f"\n  Recommendation:")
+            print("\n  Recommendation:")
             if faster["avg_synth_ms"] < 300:
                 print(f"    {faster['voice']} meets <300ms target for confirmations")
             else:
-                print(f"    Neither meets <300ms target — check if model is loaded in-process")
+                print("    Neither meets <300ms target — check if model is loaded in-process")
 
         print("=" * 60)
 

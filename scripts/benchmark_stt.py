@@ -78,14 +78,14 @@ def benchmark_model(model_path: str, audio: np.ndarray, sr: int,
     print(f"  Model: {model_path}")
 
     # Load
-    print(f"  Loading...")
+    print("  Loading...")
     t_load = time.time()
     model = WhisperModel(model_path, device=device, compute_type=compute_type, download_root=download_root)
     load_ms = (time.time() - t_load) * 1000
     print(f"  Loaded ({load_ms:.0f}ms)")
 
     # Warmup
-    print(f"  Warming up...")
+    print("  Warming up...")
     dummy = np.zeros(16000, dtype=np.float32)
     segs, _ = model.transcribe(dummy, beam_size=1, language="en")
     list(segs)
@@ -95,14 +95,14 @@ def benchmark_model(model_path: str, audio: np.ndarray, sr: int,
     audio_duration = len(audio) / sr
 
     # Without initial_prompt
-    print(f"  Transcribing without initial_prompt...")
+    print("  Transcribing without initial_prompt...")
     t0 = time.time()
     segs, info = model.transcribe(audio_float, beam_size=5, language="en")
     text_no_prompt = " ".join(s.text.strip() for s in segs)
     time_no_prompt = (time.time() - t0) * 1000
 
     # With initial_prompt
-    print(f"  Transcribing with initial_prompt...")
+    print("  Transcribing with initial_prompt...")
     t0 = time.time()
     segs, info = model.transcribe(audio_float, beam_size=5, language="en",
                                   initial_prompt=initial_prompt)
@@ -112,7 +112,7 @@ def benchmark_model(model_path: str, audio: np.ndarray, sr: int,
     rtf_no = (time_no_prompt / 1000.0) / audio_duration
     rtf_with = (time_with_prompt / 1000.0) / audio_duration
 
-    print(f"\n  Results:")
+    print("\n  Results:")
     print(f"    Without prompt: \"{text_no_prompt}\"")
     print(f"      Time: {time_no_prompt:.0f}ms (RTF: {rtf_no:.2f}x)")
     print(f"    With prompt:    \"{text_with_prompt}\"")

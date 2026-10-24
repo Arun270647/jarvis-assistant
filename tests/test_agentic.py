@@ -3,10 +3,7 @@ approvals and verification. Real TaskManager / Orchestrator / PolicyExecutor / w
 tools on a temporary copy of the demo project; Claude is replaced by a scripted backend
 that issues the tool calls a model would (mocked model, real everything else)."""
 import shutil
-import sys
 import tempfile
-import threading
-import time
 import unittest
 from pathlib import Path
 
@@ -20,9 +17,9 @@ from src.core.workspace import WorkspaceError, WorkspacePolicy
 from src.memory.store import MemoryStore
 from src.tools.approvals import ApprovalBroker
 from src.tools.policy import PolicyExecutor
-from src.tools.registry import CallBudget, ToolContext, ToolRegistry, ToolResult, ToolSpec
+from src.tools.registry import ToolContext, ToolRegistry, ToolResult, ToolSpec
 from src.tools.workspace_tools import register_workspace_tools
-from tests.fakes import temp_db, wait_for
+from tests.fakes import temp_db
 
 ROOT = Path(__file__).resolve().parents[1]
 PRISTINE = ROOT / "sandbox" / "_pristine" / "demo_shop"
@@ -238,7 +235,7 @@ class ControlTests(unittest.TestCase):
         self.assertEqual(t["status"], "PAUSED")
         self.assertIn("paused", res.reply.lower())
         self.assertFalse((self.h.project / "VERSION").exists(), "no tool runs after a pause")
-        res2 = self.h.orch.resume(t["id"], ToolContext(session_id="t"), self.h.events.append)
+        self.h.orch.resume(t["id"], ToolContext(session_id="t"), self.h.events.append)
         self.assertEqual(self.h.task(t["id"])["status"], "COMPLETED")
         self.assertIn("The user resumed this task", self.h.backend.prompts[-1])
         resume_prompt = [p for p in self.h.backend.prompts if "The user resumed this task" in p][-1]
@@ -272,7 +269,7 @@ class ControlTests(unittest.TestCase):
         tid = t["id"]
         self.h.backend.runs = [[("resume_task", {"task_id": tid, "user_answer": "1.0.0"}), FIX_EDIT, ADD_VERSION, *MARK, FINISH]]
         ctx = ToolContext(session_id="t")
-        res2 = self.h.orch.handle("use 1.0.0", "text", ctx, self.h.events.append)
+        self.h.orch.handle("use 1.0.0", "text", ctx, self.h.events.append)
         self.assertEqual(ctx.task_id, tid)
         self.assertEqual(self.h.task(tid)["status"], "COMPLETED")
         self.assertIn("Unfinished tasks", self.h.backend.prompts[-1])   # open task was in Claude's context
@@ -285,7 +282,7 @@ class ControlTests(unittest.TestCase):
         failed = self.h.task()
         self.assertEqual(failed["status"], "FAILED")
         self.h.backend.runs = [[plan(), FIX_EDIT, *MARK, FINISH]]
-        res = self.h.orch.retry(failed["id"], ToolContext(session_id="t"), self.h.events.append)
+        self.h.orch.retry(failed["id"], ToolContext(session_id="t"), self.h.events.append)
         new = self.h.task()
         self.assertEqual(new["parent_id"], failed["id"])
         self.assertEqual(new["status"], "COMPLETED")
@@ -451,7 +448,7 @@ class WorkspaceSafetyTests(unittest.TestCase):
     def test_secrets_are_redacted_and_never_remembered(self):
         self.assertNotIn("sk-ant-abcdef", redact("key is sk-ant-abcdefghijklmnopqrstuvwxyz"))  # export-scan: ignore
         self.assertIn("[REDACTED]", redact("password = hunter2hunter2"))
-        self.assertIn("[REDACTED]", redact("token: ghp_abcdefghijklmnopqrstuvwxyz0123"))
+        self.assertIn("[REDACTED]", redact("token: ghp_abcdefghijklmnopqrstuvwxyz0123"))  # export-scan: ignore
         self.assertTrue(looks_secret("my AWS key AKIAABCDEFGHIJKLMNOP"))
         self.assertFalse(looks_secret("my favourite colour is teal"))
 

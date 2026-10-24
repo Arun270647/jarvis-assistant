@@ -222,7 +222,7 @@ class RealConsoleHelperTests(unittest.TestCase):
         terminal_tools.console({"op": "type", "pid": proc.pid, "text": "ping -n 30 127.0.0.1", "clear": True})
         until(lambda s: "ping.exe" in s["programs"])
         terminal_tools.console({"op": "key", "pid": proc.pid, "key": "ctrl+c"})
-        s = until(lambda s: not s["programs"] and s["before_cursor"].endswith(">"))
+        until(lambda s: not s["programs"] and s["before_cursor"].endswith(">"))
         self.assertIsNone(proc.poll())
 
 

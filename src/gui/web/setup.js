@@ -361,7 +361,7 @@
       note("🎉 That's it! More ideas: “Open Notepad”, “Play music”, “Remember that my car is parked on level 3”.")] : []);
     const send = () => { if (input.value.trim()) { call("send", input.value.trim()); input.value = ""; } };
     input.addEventListener("keydown", e => { if (e.key === "Enter") send(); });
-    const downloading = Object.values(W.jobs).some(j => ["queued", "downloading", "verifying"].includes(j.state));
+    const downloading = Object.values(W.jobs).some(j => ["queued", "downloading", "verifying", "installing"].includes(j.state));
     page("You're ready. Try it now.", `Click the orb and say: “What time is it?”`,
       [h("div", { class: "toolbar" }, secondary("🎙 Talk", () => call("listen")), input, secondary("Send", send)),
        h("div", { class: "help", id: "try-state", text: W.tryState || "" }),
@@ -373,7 +373,7 @@
   function renderDownloads() {
     const bar = $("setup-downloads"); if (!bar) return;
     const jobs = Object.values(W.jobs).filter(j => j.state !== "builtin");
-    const active = jobs.find(j => ["downloading", "verifying"].includes(j.state)) || jobs.find(j => j.state === "queued");
+    const active = jobs.find(j => ["downloading", "verifying", "installing"].includes(j.state)) || jobs.find(j => j.state === "queued");
     const failed = jobs.find(j => j.state === "failed");
     bar.hidden = !active && !failed;
     bar.textContent = "";
@@ -386,6 +386,7 @@
     const pct = active.total ? Math.round(active.done / active.total * 100) : 0;
     const eta = active.eta_s ? ` · about ${active.eta_s > 90 ? Math.round(active.eta_s / 60) + " minutes" : active.eta_s + " s"}` : "";
     bar.append(h("span", { text: active.state === "verifying" ? `Checking ${active.name}…`
+      : active.state === "installing" ? `Installing ${active.file || "the add-on"} for ${active.name}…`
       : active.state === "queued" ? `Waiting to download ${active.name}…` : `Downloading ${active.name}… ${mb(active.done)} of ${mb(active.total)}${eta}` }),
       h("div", { class: "meter small" }, h("div", { class: "meter-fill", style: `width:${pct}%` })));
   }

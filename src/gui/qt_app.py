@@ -15,7 +15,7 @@ import sys
 import threading
 from pathlib import Path
 
-from PySide6.QtCore import QAbstractNativeEventFilter, QByteArray, QPoint, QRect, Qt, QTimer, QUrl
+from PySide6.QtCore import QAbstractNativeEventFilter, QByteArray, QRect, Qt, QTimer, QUrl
 from PySide6.QtGui import QAction, QColor, QGuiApplication, QIcon, QPainter, QPen
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtWebChannel import QWebChannel

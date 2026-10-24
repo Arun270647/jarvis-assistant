@@ -565,7 +565,7 @@
       root.appendChild(this.section("Voice", null,
         h("div", { class: "grid-2" },
           this.toggle("tts.enabled", "Speak replies aloud"),
-          this.select("tts.engine", [["chatterbox", "Chatterbox-Turbo (natural, slower; Piper while it loads)"], ["piper", "Piper (instant)"], ["system", "Windows voice (built in, nothing to download)"]], "Voice engine"),
+          this.select("tts.engine", [["chatterbox", "Chatterbox-Turbo (natural, slower; Piper while it loads)"], ["piper", "Piper (instant; engine is a GPL-3.0 add-on)"], ["system", "Windows voice (built in, nothing to download)"]], "Voice engine"),
           this.select("tts.system.voice", [["", "Windows default"]].concat((o.system_voices || []).map(v => [v, v])), "Windows voice", "Also used whenever the chosen voice can't start."),
           this.select("tts.piper.voice", o.voices || [], "Piper voice", "Voices in the piper folder of the models folder (python scripts/setup_piper.py adds more)."))));
 
@@ -848,9 +848,10 @@
     },
     modelRow(g, o, job) {
       const inUse = g.selected === o.id;
-      const active = job && ["queued", "downloading", "verifying"].includes(job.state);
-      const state = active ? (job.state === "verifying" ? "Checking…" : job.state === "queued" ? "Waiting…" : `Downloading ${job.total ? Math.round(job.done / job.total * 100) : 0}%`)
+      const active = job && ["queued", "downloading", "verifying", "installing"].includes(job.state);
+      const state = active ? (job.state === "verifying" ? "Checking…" : job.state === "installing" ? `Installing ${job.file || "the add-on"}…` : job.state === "queued" ? "Waiting…" : `Downloading ${job.total ? Math.round(job.done / job.total * 100) : 0}%`)
         : job && job.state === "failed" ? "Download failed: " + (job.error || "")
+        : o.status === "partial" && o.addon_missing ? "Needs its engine: click Download"
         : { installed: "Downloaded", builtin: "Built in", partial: "Partly downloaded" }[o.status] || "Not downloaded";
       const btn = (text, onclick, kind) => h("button", { class: "btn btn-sm " + (kind || "btn-secondary"), onclick, text });
       const files = h("div", { class: "help", hidden: true }, (o.files || []).map(f => h("div", { class: "toolbar" },

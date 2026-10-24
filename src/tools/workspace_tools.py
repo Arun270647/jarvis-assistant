@@ -402,7 +402,7 @@ def register_workspace_tools(reg, profile: dict, config: dict, memory=None) -> W
 
     def command_needs_task(a):
         try:
-            cwd = ws.resolve(a.get("cwd") or ".", a.get("project"))
+            ws.resolve(a.get("cwd") or ".", a.get("project"))        # outside the workspace: refused anyway
         except WorkspaceError:
             return False
         argv = [str(x) for x in a.get("command", [])]

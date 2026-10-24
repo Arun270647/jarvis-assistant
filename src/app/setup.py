@@ -58,6 +58,7 @@ def catalogue_view(name: str, facts: dict, cfg: dict) -> list:
                             "summary": models.text(o.get("summary"), name), "about": models.text(o.get("about"), name),
                             "files": [{"name": f["name"], "url": f["url"], "size": f["size"]} for f in o.get("files", [])],
                             "status": st["state"], "have": st["have"], "total": st["total"],
+                            "addon_missing": bool(st.get("addon")) and not st.get("addon_installed"),
                             "recommended": rec.get(g["id"], {}).get("option") == o["id"]})
         out.append({"id": g["id"], "icon": g.get("icon"), "title": models.text(g["title"], name),
                     "explain": models.text(g["explain"], name), "options": options,

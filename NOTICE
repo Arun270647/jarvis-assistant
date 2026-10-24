@@ -1,0 +1,20 @@
+Jarvis
+Copyright 2026 the Jarvis authors
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+This product depends on third-party software, each under its own license; the full list is in
+THIRD_PARTY_LICENSES.md. Notably:
+
+- Qt for Python (PySide6, Qt WebEngine), used under the GNU Lesser General Public License v3, dynamically
+  linked and unmodified. Source: https://code.qt.io/ and https://download.qt.io/official_releases/QtForPython/
+- Barlow and Barlow Condensed fonts, Copyright 2017 The Barlow Project Authors, SIL Open Font License 1.1
+  (src/gui/web/fonts/OFL.txt).
+- faster-whisper and CTranslate2 (MIT), OpenAI Whisper models (MIT), Silero VAD (MIT), ONNX Runtime (MIT).
+- uiautomation (Apache-2.0), aiohttp (Apache-2.0), the Anthropic and OpenAI Python SDKs (Apache-2.0).
+
+Optional components that the user chooses to install are not part of this distribution and keep their own
+licenses: the Piper voice engine (piper-tts, GPL-3.0-or-later), installed from PyPI into the models folder when a
+Piper voice is chosen, and Chatterbox (chatterbox-tts, MIT) with PyTorch, installed into a separate environment by
+scripts/setup_chatterbox.py. Claude Code, used for "Sign in with Claude", is Anthropic's software under
+Anthropic's own terms.

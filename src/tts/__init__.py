@@ -3,7 +3,8 @@
 tts.engine picks the voice:
   - "chatterbox": Chatterbox-Turbo in its own Python (src/tts/chatterbox.py), with Piper as the
     fallback while it loads or if it fails.
-  - "piper": Piper, in-process: local, CPU-only, no VRAM (tts.piper).
+  - "piper": Piper, in-process: local, CPU-only, no VRAM (tts.piper). Its engine is an add-on (GPL-3.0,
+    not shipped; src/core/addons.py) that the model downloader installs with the first Piper voice.
   - "system": the voice built into Windows (src/tts/system.py): nothing to download.
 If the chosen engine can't start (a voice not downloaded yet, for example), tts.fallback ("system" by
 default, or "none") speaks instead, so a fresh install can always talk.
@@ -84,6 +85,10 @@ class PiperTTS(TTSEngine):
 
         # Load model once at init
         t0 = time.time()
+        from src.core import addons
+        if not addons.installed("piper"):
+            raise RuntimeError("The Piper voice engine isn't installed. Pick a Piper voice in Settings › Models to "
+                               "install it, or run: python scripts/setup_piper.py --engine")
         from piper import PiperVoice
         from piper.config import SynthesisConfig
         self._voice = PiperVoice.load(str(self.model_path), str(self.config_path))

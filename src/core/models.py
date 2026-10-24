@@ -3,7 +3,8 @@ settings choosing it changes, and whether its files are on disk.
 
     recommend(facts)             {group id: {"option", "reason", "settings"}} for hardware.detect() facts
     settings_for(group, option, facts)   the settings to save when the user picks an option
-    status(option)               installed | missing | partial | builtin, with byte counts
+    status(option)               installed | missing | partial | builtin, with byte counts; an option that needs an
+                                 add-on (src/core/addons.py) is only installed once the add-on is too
 """
 import json
 from functools import lru_cache
@@ -107,4 +108,11 @@ def status(option: dict) -> dict:
         elif part.exists():
             have += min(part.stat().st_size, f["size"])
     state = "installed" if complete == len(files) else "partial" if have else "missing"
-    return {"state": state, "have": have, "total": total}
+    out = {"state": state, "have": have, "total": total}
+    if option.get("addon"):
+        from src.core import addons
+        out["addon"] = option["addon"]
+        out["addon_installed"] = addons.installed(option["addon"])
+        if state == "installed" and not out["addon_installed"]:
+            out["state"] = "partial"
+    return out

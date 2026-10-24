@@ -178,6 +178,40 @@ class DownloaderTests(unittest.TestCase):
         self.assertFalse(dest.with_name("a.bin.part").exists())
         self.assertEqual(self.dl.start("test-model"), "installed", "nothing to do twice")
 
+    def test_an_add_on_is_installed_after_the_files(self):
+        from src.core import addons
+        self.option["addon"] = "piper"
+        state = {"installed": False, "calls": 0}
+
+        def install(name):
+            state["calls"] += 1
+            state["installed"] = True
+        with mock.patch.object(addons, "installed", lambda name: state["installed"]), \
+                mock.patch.object(addons, "spec", lambda name: {"name": "the Piper voice engine"}), \
+                mock.patch.object(addons, "install", install):
+            self.assertEqual(self.dl.start("test-model"), "queued")
+            job = self.wait()
+            self.assertEqual(job["state"], "done", job)
+            self.assertEqual(state["calls"], 1)
+            self.assertIn("installing", [e["state"] for e in self.events])
+            self.assertEqual(models.status(self.option)["state"], "installed")
+            state["installed"] = False                   # files there, engine gone: not ready
+            self.assertEqual(models.status(self.option)["state"], "partial")
+
+    def test_a_failed_add_on_install_fails_the_download_in_plain_words(self):
+        from src.core import addons
+        self.option["addon"] = "piper"
+
+        def install(name):
+            raise RuntimeError("Installing the Piper voice engine failed: no internet")
+        with mock.patch.object(addons, "installed", lambda name: False), \
+                mock.patch.object(addons, "spec", lambda name: {"name": "the Piper voice engine"}), \
+                mock.patch.object(addons, "install", install):
+            self.dl.start("test-model")
+            job = self.wait()
+        self.assertEqual(job["state"], "failed")
+        self.assertIn("no internet", job["error"])
+
     def test_a_dropped_connection_resumes_with_a_range_request(self):
         self.server.drop_first_after["/a.bin"] = 30000
         self.dl.start("test-model")

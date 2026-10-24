@@ -1,0 +1,114 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  python:
+    name: Python ${{ matrix.python }} tests
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.11", "3.12", "3.13"]
+    env:
+      PYTHONIOENCODING: utf-8
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+          cache-dependency-path: requirements.lock
+      - name: Install (exact versions from the lock file)
+        run: |
+          python -m pip install --upgrade pip
+          pip install --require-hashes -r requirements.lock
+          pip install ruff==0.17.2
+      - name: Speech detection model for the VAD tests (pinned in config/models.json, checksum verified)
+        shell: python
+        run: |
+          import hashlib, json, os, pathlib, urllib.request
+          catalogue = json.load(open("config/models.json", encoding="utf-8"))
+          option = next(o for g in catalogue["groups"] for o in g["options"] if o["id"] == "silero-vad")
+          entry = option["files"][0]
+          data = urllib.request.urlopen(entry["url"], timeout=60).read()
+          assert hashlib.sha256(data).hexdigest() == entry["sha256"], "checksum mismatch"
+          path = pathlib.Path(os.environ["RUNNER_TEMP"]) / entry["name"]
+          path.write_bytes(data)
+          with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as env:
+              env.write(f"JARVIS_TEST_SILERO={path}\n")
+      - name: Lint
+        run: ruff check .
+      - name: Third-party license list is complete
+        run: python scripts/third_party_licenses.py --check
+      - name: Tests
+        # tests/__init__.py gives the run a throwaway data folder; no microphone, GPU, network or keys needed.
+        run: python -m unittest discover -s tests -t .
+
+  personal-data-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Scan for API keys
+        run: |
+          hits=$(grep -rInE --exclude-dir=.git --exclude-dir=node_modules \
+                   -e 'sk-ant-[A-Za-z0-9_-]{10,}' -e 'sk-[A-Za-z0-9]{20,}' -e 'sk-(proj|svcacct|admin|or-v1)-[A-Za-z0-9_-]{20,}' \
+                   -e 'AIza[0-9A-Za-z_-]{30,}' -e 'gsk_[A-Za-z0-9]{20,}' -e 'xai-[A-Za-z0-9]{20,}' -e 'hf_[A-Za-z0-9]{30,}' \
+                   -e 'gh[pousr]_[A-Za-z0-9]{30,}' -e 'github_pat_[A-Za-z0-9_]{30,}' . \
+                 | grep -v 'export-scan: ignore' | cut -d: -f1,2)
+          if [ -n "$hits" ]; then
+            echo "Possible API key at:"; echo "$hits"; exit 1
+          fi
+      - name: Scan for the maintainer's personal data
+        # The patterns name the maintainer, so they live in the repository secret PERSONAL_DATA_PATTERNS (one
+        # extended regex per line), never in this public file. Pull requests from forks get no secrets: the step
+        # is skipped there, and the run on main catches it. Hits print file:line, never the matching text.
+        env:
+          PATTERNS: ${{ secrets.PERSONAL_DATA_PATTERNS }}
+        run: |
+          if [ -z "$PATTERNS" ]; then echo "PERSONAL_DATA_PATTERNS not available; skipped."; exit 0; fi
+          printf '%s\n' "$PATTERNS" | tr -d '\r' | sed '/^[[:space:]]*$/d' > "$RUNNER_TEMP/patterns.txt"
+          hits=$(grep -rInEi --exclude-dir=.git --exclude-dir=node_modules -f "$RUNNER_TEMP/patterns.txt" . \
+                 | grep -v 'export-scan: ignore' | cut -d: -f1,2)
+          if [ -n "$hits" ]; then
+            echo "Personal data at:"; echo "$hits"; exit 1
+          fi
+
+  mobile:
+    name: Phone app
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npx jest
+
+  audit:
+    name: Known vulnerabilities
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: pip-audit (the locked versions, nothing installed)
+        run: |
+          pip install "pip-audit>=2.9"
+          pip-audit -r requirements.lock --require-hashes --disable-pip
+      # No npm audit step: npm counts Expo's build tools (@expo/cli and its node-forge, which has no fixed
+      # version) as app code, so it would fail on every run for code that never ships in the app. Dependabot
+      # alerts and update PRs cover the phone app's packages.

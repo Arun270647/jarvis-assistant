@@ -1,0 +1,25 @@
+name: Feature request
+description: Suggest a new ability, tool or provider
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What do you want to do?
+      description: Describe it in your own words, for example what you would say to the assistant.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: How could it work?
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options: [Tools, AI provider, Speech recognition, Voice, Desktop app, Setup, Phone app, Security, Docs, Other]
+  - type: textarea
+    id: risk
+    attributes:
+      label: Safety
+      description: If this lets the assistant change things on the PC, which tool group should it belong to, and what should need approval?
