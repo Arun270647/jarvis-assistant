@@ -5,6 +5,7 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:         # Actions › CI › Run workflow: test another branch (and the Mac) before a pull request
+  workflow_call:             # the Release workflow runs all of this before it drafts a release
 
 permissions:
   contents: read
@@ -13,6 +14,7 @@ jobs:
   python:
     name: Python ${{ matrix.python }} tests (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -76,13 +78,25 @@ jobs:
         # The patterns name the maintainer, so they live in the repository secret PERSONAL_DATA_PATTERNS (one
         # extended regex per line), never in this public file. Pull requests from forks get no secrets: the step
         # is skipped there, and the run on main catches it. Hits print file:line, never the matching text.
+        # Links to this repository (release downloads, the website's GitHub links, latest.json) name its owner's
+        # account; that public name is taken out of each matching line before the line is checked again.
         env:
           PATTERNS: ${{ secrets.PERSONAL_DATA_PATTERNS }}
+          OWNER: ${{ github.repository_owner }}
         run: |
           if [ -z "$PATTERNS" ]; then echo "PERSONAL_DATA_PATTERNS not available; skipped."; exit 0; fi
           printf '%s\n' "$PATTERNS" | tr -d '\r' | sed '/^[[:space:]]*$/d' > "$RUNNER_TEMP/patterns.txt"
           hits=$(grep -rInEi --exclude-dir=.git --exclude-dir=node_modules -f "$RUNNER_TEMP/patterns.txt" . \
-                 | grep -v 'export-scan: ignore' | cut -d: -f1,2)
+                 | grep -v 'export-scan: ignore' \
+                 | python3 -c '
+          import os, re, sys
+          patterns = [re.compile(p, re.I) for p in open(sys.argv[1], encoding="utf-8").read().splitlines() if p.strip()]
+          owner = re.compile(re.escape(os.environ["OWNER"]), re.I)
+          for line in sys.stdin:
+              path, number, text = line.split(":", 2)
+              if any(p.search(owner.sub("", text)) for p in patterns):
+                  print(f"{path}:{number}")
+          ' "$RUNNER_TEMP/patterns.txt")
           if [ -n "$hits" ]; then
             echo "Personal data at:"; echo "$hits"; exit 1
           fi

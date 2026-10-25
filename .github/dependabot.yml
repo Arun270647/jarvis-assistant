@@ -20,3 +20,11 @@ updates:
     groups:
       actions:
         patterns: ["*"]
+
+  - package-ecosystem: npm          # the website (website/package.json; Vercel builds each merge)
+    directory: /website
+    schedule:
+      interval: monthly
+    groups:
+      website:
+        patterns: ["*"]
