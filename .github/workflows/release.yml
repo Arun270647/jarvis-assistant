@@ -192,7 +192,7 @@ jobs:
 
           \`$mac_sha\`
 
-          What changed: [CHANGELOG.md](https://github.com/$REPO/blob/$TAG/CHANGELOG.md). Website: https://jarvis-assistant-oss.vercel.app
+          What changed: [CHANGELOG.md](https://github.com/$REPO/blob/$GITHUB_SHA/CHANGELOG.md). Website: https://jarvis-assistant-oss.vercel.app
           EOF
           title="Jarvis $VERSION"
           if [[ "$TAG" == rehearsal-* ]]; then title="Rehearsal $TAG (Jarvis $VERSION): delete me"; fi
