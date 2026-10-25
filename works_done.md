@@ -67,8 +67,14 @@ compressed, read-only disk image (lzfse).
   with `hdiutil` faked, the swap script under `sh`, the build's helpers). Ruff is clean, and so is the
   third-party license list.
 - The release workflow's version step and release step ran locally against fake files and a fake `gh`.
-- On GitHub: CI on macos-latest and the release workflow with a rehearsal draft (results in the next entry or
-  the commit that follows).
+- On GitHub (run by hand on the branch): CI passed on Windows (Python 3.11 to 3.13) and, for the first time,
+  on macos-latest (Python 3.13), with the data scan and pip-audit. The release rehearsal passed:
+  - the Windows zip: 300 MB, 4 minutes;
+  - the Mac app: 1.4 GB unpacked, its DMG 484 MB, 6 minutes on macos-15. The image mounted, its app reported
+    its version, and the updater's `stage()` copied the app out with a valid signature. `hdiutil` needed no
+    retries;
+  - a draft `rehearsal-3` release with both files, their SHA-256 sums and one `latest.json` listing both,
+    marked as a pre-release. No tag was created, because drafts get their tag only when published.
 
 ### Not done here
 - Nothing has run on a real Mac outside CI yet. A clean Mac, the speech-model benchmark on Apple silicon, and
