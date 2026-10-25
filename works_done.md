@@ -6,6 +6,77 @@ each entry names the phase it belongs to.
 
 ---
 
+## 2026-10-25 · Phase 7: macOS, and releases with a Windows zip and a Mac DMG
+
+Jarvis now runs on Macs with Apple silicon (macOS 13 or later). Everything was built and tested with fakes on
+Windows; the parts that need a real Mac run in CI (the test suite on macos-latest, the app build on macos-15)
+and in the maintainer's testing phase.
+
+### What changed
+
+**Platform layer.** The remaining Windows-only code moved behind `src/platform/`:
+- `src/platform/macos.py`: the Keychain (through keyring), start at login as a LaunchAgent that opens
+  Jarvis.app, `open` for files and links, the Privacy & Security pages, and live permission states (microphone,
+  Accessibility, Screen Recording).
+- `src/gui/native.py`: the global shortcut (Carbon's RegisterEventHotKey, ⌃⇧J, no permission needed), bringing
+  the window to the front, the dark title bar. The tray icon is the menu bar icon on a Mac.
+- Desktop control: `desktop_win.py` (UI Automation) and `desktop_mac.py` (the Accessibility API, Quartz events,
+  the window server's window list) behind the same tools and safety rules in `desktop_tools.py`.
+- Terminals: `terminal_mac.py` opens Terminal.app windows, reads them, types lines (`do script`), and follows
+  the same typed-line rules, with zsh's own added.
+- The system voice uses `say` on a Mac. Apps come from /Applications; media keys and system commands have Mac
+  defaults (`config/profile_defaults.macos.json`). macOS-only packages (PyObjC, keyring) and Windows-only ones
+  (pywin32, uiautomation) carry platform markers in `requirements.txt` and `requirements.lock`.
+
+**Setup wizard.** On a Mac, the microphone screen and the "What Jarvis may do" screen show each permission's
+state live (allowed, not asked yet, not allowed), with **Allow** or **Open System Settings**.
+
+**Jarvis.app** (`packaging/build_macos.py`, `packaging/macos/launcher.c`)
+- python-build-standalone's Python 3.13 for Apple silicon (pinned by SHA-256 in `packaging/runtime.json`),
+  pip, and `requirements.lock` installed with hashes. Qt frameworks the app never loads and Tk are left out.
+- The launcher runs the app on the bundled Python inside its own process, so macOS treats Jarvis.app as the app
+  for permissions and the Dock. Everything is compiled to `.pyc` ahead of time, because writing into the app
+  would break its signature.
+- Signed ad hoc (`codesign --sign -`), not notarized: the first start needs System Settings › Privacy &
+  Security › Open Anyway. The docs, the release notes and the download page explain it.
+
+**The Mac download is a DMG** (`Jarvis-<version>-macos-arm64.dmg`): Jarvis.app and a link to Applications on a
+compressed, read-only disk image (lzfse).
+- **Updates** download the next DMG, check its SHA-256, attach it read-only where Finder doesn't show it, copy
+  the app out with `ditto` (which keeps the signature) and detach it. The same swap script as before installs
+  it on restart.
+- **Install for me**, started from the mounted DMG, copies Jarvis into Applications, then ejects the image and
+  deletes the `.dmg`.
+- After building the image, the build mounts it and checks the app inside (signature, version). Then it runs the
+  updater's own `stage()` on the image, so the update path is checked on a real Mac before every release.
+  `hdiutil` is tried again on "Resource busy", which GitHub's Macs sometimes report.
+
+**Releases** (`.github/workflows/release.yml`)
+- A `v*` tag (it must match `src/version.py`) builds the Windows zip and the Mac DMG at the same time. It then
+  drafts one GitHub Release with both files, their SHA-256 sums, one `latest.json` and install notes for each
+  system.
+- Versions with letters (`0.1.0-alpha.1`) are marked as pre-releases.
+- Run by hand, the workflow builds both files as artifacts. With **rehearse** ticked, it also drafts a
+  `rehearsal-<run number>` release, to check the whole path without a tag.
+- CI can now be started by hand too (Actions › CI › Run workflow), so a branch gets the Mac tests before a pull
+  request.
+
+### How it was checked
+- The full suite on Windows, 456 tests (the new Mac tests run here with fakes: the Keychain, the LaunchAgent, key
+  parsing, zsh rules, Terminal tabs, Applications discovery, the app layout, the DMG update and Install for me
+  with `hdiutil` faked, the swap script under `sh`, the build's helpers). Ruff is clean, and so is the
+  third-party license list.
+- The release workflow's version step and release step ran locally against fake files and a fake `gh`.
+- On GitHub: CI on macos-latest and the release workflow with a rehearsal draft (results in the next entry or
+  the commit that follows).
+
+### Not done here
+- Nothing has run on a real Mac outside CI yet. A clean Mac, the speech-model benchmark on Apple silicon, and
+  the Kokoro add-on on a Mac are in the testing phase.
+- No Intel build: ONNX Runtime has no wheels for Intel Macs.
+
+---
+
 ## 2026-10-24 · Phase 6: the Windows zip, updates and Install for me
 
 The maintainer's decisions for this phase: no code signing (Jarvis is free and has no budget for it), and all

@@ -8,7 +8,7 @@ fixes it. This page lists those messages and a few problems that don't show a ba
 
 | Message | What it means | What to do |
 |---|---|---|
-| "… can't use the microphone because it's turned off in privacy settings" | Windows blocks microphone access for apps | **Open privacy settings**, turn on microphone access (also for desktop apps), then restart the assistant |
+| "… can't use the microphone because it's turned off in privacy settings" | Windows or macOS blocks microphone access for Jarvis | **Open privacy settings** (on a Mac: **Open System Settings**), turn on microphone access (on Windows also for desktop apps; on a Mac for Jarvis), then restart the assistant |
 | "Your microphone was disconnected or isn't available" | The chosen microphone is gone | **Choose another microphone** in Settings › Microphone, or plug it back in. Typing works meanwhile |
 | "Speech recognition isn't downloaded yet" | The Whisper model isn't on disk | **Open Models** and download it, or wait for the download to finish |
 | "Voice input isn't working right now" | The voice pipeline couldn't start | **Open Settings** › Microphone, then the log (Settings › Logging and diagnostics) shows the reason |
@@ -27,6 +27,27 @@ fixes it. This page lists those messages and a few problems that don't show a ba
 **"Windows protected your PC" when opening Jarvis.exe.** Jarvis isn't code-signed, so SmartScreen warns the first
 time. Click **More info**, then **Run anyway**. To be sure the file is genuine, compare its SHA-256 with the one on
 the release page ([INSTALL.md](INSTALL.md#install-from-the-zip)).
+
+**Mac: "Jarvis can't be opened" or "Apple could not verify Jarvis".** Jarvis isn't notarized by Apple (that needs
+a paid developer account). Open **System Settings › Privacy & Security**, scroll down to the message about Jarvis,
+click **Open Anyway**, then **Open**. Right-clicking the app and choosing Open no longer skips this since macOS 15.
+To be sure the app is genuine, compare the zip's SHA-256 with the one on the release page
+([INSTALL.md](INSTALL.md#install-on-a-mac)).
+
+**Mac: "Jarvis is damaged and can't be opened".** The download was cut short or changed on the way. Delete it,
+download it again and compare its SHA-256 with the one on the release page.
+
+**Mac: Full control doesn't work, or says macOS hasn't allowed it.** Clicking, typing and reading other apps need
+**Accessibility**, screenshots need **Screen & System Audio Recording**, both in System Settings › Privacy &
+Security. Turn on **Jarvis** in each (Settings › Tools and permissions has buttons for both pages). Screenshots
+work after Jarvis is reopened. After an update macOS may ask again, because Jarvis is signed without a developer
+certificate: turn Jarvis off and on again in those lists.
+
+**Mac: Jarvis can't open or type into Terminal.** macOS asks once whether Jarvis may control Terminal. If you
+said no, turn it on in **System Settings › Privacy & Security › Automation › Jarvis › Terminal**.
+
+**Mac: Claude Code isn't found.** The setup wizard installs it into `~/.local/bin`. If you installed it some
+other way, make sure `claude` works in Terminal; Jarvis also looks in Homebrew's folders.
 
 **"Please extract the zip first".** Jarvis.exe was opened from inside the zip, or from a temporary folder. Close
 the message, right-click the zip, choose **Extract All**, then open Jarvis.exe in the extracted folder.
@@ -56,7 +77,7 @@ Settings › Models shows what suits your computer. Answers depend on the AI pro
 slower and less reliable with tools; Settings › AI has the options. The Chatterbox voice is slow without an
 NVIDIA graphics card: about 10 seconds before each answer starts.
 
-**The voice sounds robotic.** That's the built-in Windows voice, which speaks until the Kokoro voice has
+**The voice sounds robotic.** That's the built-in Windows (or Mac) voice, which speaks until the Kokoro voice has
 downloaded. Check Settings › Models: the Kokoro row should say it's installed.
 
 **A Kokoro or Piper voice doesn't install.** The voice's engine comes from PyPI, so the PC needs internet

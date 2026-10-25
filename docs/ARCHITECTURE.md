@@ -32,7 +32,7 @@ typed text ───────────────────────
 3. **Acting.** Every tool call goes through `PolicyExecutor.execute()`. It validates the arguments, applies
    permissions and the safety rules, asks for approval through `ApprovalBroker`, runs the handler with a time
    limit, masks secrets, and records the call. Nothing else in the code performs actions on the PC.
-4. **Answering.** The reply is spoken by `src/tts` (Kokoro by default; Piper, Chatterbox or the Windows voice)
+4. **Answering.** The reply is spoken by `src/tts` (Kokoro by default; Piper, Chatterbox or the system voice)
    and shown in the window.
 
 Multi-step goals become **tasks** (`src/agent/tasks.py`). A task has a plan, success checks that are verified
@@ -53,6 +53,24 @@ src/core, src/platform   settings, paths, credentials, downloads, models, redact
 Code imports downward only. The one exception is `src/core/diagnose.py`, which reports on everything,
 including which AI provider is configured.
 
+### Windows and macOS
+
+What differs between the systems sits behind a few seams, chosen by `sys.platform`; everything else (pipeline,
+agent, tasks, policy, memory, the web page) is the same code.
+
+| Seam | Windows | macOS |
+|---|---|---|
+| `src/platform` (`current()`): folders, secrets, start at login, opening files and links, permissions, media keys | `windows.py`: Credential Manager, a Startup-folder shortcut, ShellExecute, virtual keys | `macos.py`: the Keychain (keyring), a LaunchAgent, `open`, AVFoundation / Accessibility / Screen Recording checks, system-defined key events |
+| `src/gui/native.py`: the global shortcut, bringing a window to the front, the title bar | RegisterHotKey, AttachThreadInput, DWM | Carbon's RegisterEventHotKey (no permission needed), NSApp.activate, the dark appearance |
+| Desktop control: `src/tools/desktop_tools.py` keeps the tools and the block lists | `desktop_win.py`: UI Automation, SendInput | `desktop_mac.py`: the Accessibility API, Quartz events, CGWindowList |
+| Terminals: `src/tools/terminal_tools.py` keeps the tools and the policy | `console_helper.py`: a visible cmd.exe, typed into through its input buffer | `terminal_mac.py`: Terminal.app through AppleScript; the shell's folder and programs from `ps` and `lsof`; zsh's rules for typed lines |
+| Processes: `src/core/winproc.py` | no console windows, `.cmd` shims, `.lnk` shortcuts | plain subprocesses, `.app` bundles opened with `open -a`, the PATH an app from the Finder lacks |
+| System voice: `src/tts/system.py` | SAPI | `say` |
+| Profile defaults | `config/profile_defaults.json` | `config/profile_defaults.macos.json` |
+
+Words the user sees follow the system too: the page's `strings.js` fills `{pc}`, `{os}`, `{keystore}` and
+`{hotkey}` from the bridge, and the tool groups, wizard choices and system prompt use the platform's names.
+
 - **The window never reaches past the controller.** The desktop window (`src/gui/bridge.py`) calls
   `AssistantController` (`src/app/controller.py`) and listens to its events.
 - **The pipeline runs in its own thread.** The controller starts it and passes commands in through a queue.
@@ -65,17 +83,19 @@ including which AI provider is configured.
 - `config/defaults.json` holds every setting with its default. The user's `config.json` stores only what they
   changed, and `JARVIS__section__key` environment variables override both (`src/core/config_store.py`).
   Settings are validated against `config_store.EDITABLE`. Older settings files are upgraded by `MIGRATIONS`.
-- `config/profile_defaults.json` plus the user's `user_profile.json` describe their apps, projects and system
-  commands.
+- `config/profile_defaults.json` (`profile_defaults.macos.json` on a Mac) plus the user's `user_profile.json`
+  describe their apps, projects and system commands.
 - `config/models.json` is the model catalogue: each speech and voice model with its size, license, download
   URLs and SHA-256. It also lists add-ons, the Kokoro and Piper voice engines, which Jarvis installs on request
   but doesn't ship because they include GPL code (`src/core/addons.py`).
 - `src/core/paths.py` decides where files go: settings, profile, database and logs in `%APPDATA%\Jarvis`;
-  models and cache in `%LOCALAPPDATA%\Jarvis`; everything in one folder when `JARVIS_HOME` is set. The app
-  folder is never written to.
+  models and cache in `%LOCALAPPDATA%\Jarvis` (on a Mac: `~/Library/Application Support/Jarvis` and
+  `~/Library/Caches/Jarvis`); everything in one folder when `JARVIS_HOME` is set. The app folder is never
+  written to.
 - `src/memory/store.py` keeps history, memories, tasks, tool runs and usage in one SQLite file.
   Schema changes are additive `MIGRATIONS`.
-- API keys and passwords live in Windows Credential Manager (`src/core/credentials.py`), never in files.
+- API keys and passwords live in Windows Credential Manager or the macOS Keychain (`src/core/credentials.py`),
+  never in files.
 
 ## The Windows zip
 
@@ -95,6 +115,25 @@ including which AI provider is configured.
 - Install for me (`src/app/install.py`) copies the folder to `%LOCALAPPDATA%\Programs\Jarvis`, adds the Start
   Menu shortcut and the Settings › Apps entry (whose Uninstall runs `Jarvis.exe --uninstall`), and starts the
   installed copy after this one quits.
+
+## The Mac app
+
+`packaging/build_macos.py` builds it on a Mac with Apple silicon; [CONTRIBUTING.md](../CONTRIBUTING.md#building-the-mac-app)
+says how.
+
+- `Jarvis.app/Contents/MacOS/Jarvis` (`packaging/macos/launcher.c`) runs `Resources/app/jarvis_gui.pyw` on the
+  bundled Python inside its own process (it links the runtime's libpython). macOS therefore treats Jarvis.app,
+  with its Info.plist texts, as the app that asks for the microphone and the other permissions.
+- The runtime is python-build-standalone's relocatable Python. The interpreter is isolated from the Mac's other
+  Pythons and writes no `.pyc` files, because a change inside the app would break its ad-hoc signature.
+- `paths.install_root()` is the `Jarvis.app` folder. Start at login is a LaunchAgent that runs `open -a` on it.
+- The download is a disk image (`.dmg`) with Jarvis.app and a link to Applications. Updates attach the new one
+  read-only and out of sight, copy the app out with `ditto` into the cache folder and detach it; **Restart to update** runs a small shell script
+  (`MAC_UPDATER` in `src/app/updates.py`) that swaps the apps after Jarvis quits, keeps the old one until the
+  next start, and puts it back if a move fails. A Jarvis.app that macOS runs from a read-only place (App
+  Translocation, straight from Downloads) offers the download instead.
+- Install for me copies Jarvis.app into `/Applications` (or `~/Applications`) with `ditto`, then opens it from
+  there and deletes the download; started from the disk image, it ejects the image and deletes the `.dmg`.
 
 ## Rules the code follows
 

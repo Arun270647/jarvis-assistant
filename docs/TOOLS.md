@@ -65,7 +65,9 @@ Off by default. Changes are only allowed inside a tracked task, and every edit k
 
 ## Command Prompts
 
-Off by default. Command Prompt windows it opens, in your project folders.
+Off by default. Command Prompt windows it opens, in your project folders. On a Mac the group is called
+**Terminal windows**: the same tools open and type into Terminal, and typed lines follow zsh's rules (no `;`,
+`&`, `|`, redirection or `$( )`).
 
 | Tool | What it does | Risk | Default | Asks when |
 |---|---|---|---|---|
@@ -76,7 +78,9 @@ Off by default. Command Prompt windows it opens, in your project folders.
 
 ## Control other apps
 
-Off by default. Refused in its own windows, consoles, admin prompts, password managers and password pages.
+Off by default. Refused in its own windows, consoles, admin prompts, password managers and password pages. On a
+Mac it reads windows through the Accessibility API and needs the Accessibility permission (screenshots also need
+Screen & System Audio Recording).
 
 | Tool | What it does | Risk | Default | Asks when |
 |---|---|---|---|---|
@@ -85,7 +89,7 @@ Off by default. Refused in its own windows, consoles, admin prompts, password ma
 | `desktop_screenshot` | Takes a screenshot of a window for the AI to look at | sensitive | allow | |
 | `desktop_click` | Clicks in a window | sensitive | allow | |
 | `desktop_type` | Types in a window | sensitive | allow | |
-| `desktop_keys` | Presses keys in a window (never Windows-key shortcuts) | sensitive | allow | |
+| `desktop_keys` | Presses keys in a window (never Windows-key shortcuts, ⌘Space or ⌘⌥Esc) | sensitive | allow | |
 | `desktop_scroll` | Scrolls a window | sensitive | allow | |
 | `desktop_focus` | Brings a window to the front | sensitive | allow | |
 

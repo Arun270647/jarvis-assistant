@@ -2,11 +2,14 @@
 
 - The app folder (APP_ROOT) holds the code and the shipped config/ (defaults.json, profile_defaults.json).
   It is never written at run time, so an update can replace it. In the Windows zip it is Jarvis\\app, next to
-  Jarvis.exe and the Python runtime; install_root() is that Jarvis folder.
+  Jarvis.exe and the Python runtime; on macOS it is Jarvis.app/Contents/Resources/app. install_root() is that
+  Jarvis folder or Jarvis.app.
 - The user's data folder, home(): config.json (only the settings that differ from the defaults),
-  user_profile.json, jarvis.db and logs/. By default the OS's per-user folder (%APPDATA%\\Jarvis).
+  user_profile.json, jarvis.db and logs/. By default the OS's per-user folder (%APPDATA%\\Jarvis,
+  ~/Library/Application Support/Jarvis).
 - Large local files: models/ (downloaded speech and voice models) and cache/ (TTS cache, edit backups,
-  ...). By default the OS's local folder (%LOCALAPPDATA%\\Jarvis\\models and \\cache).
+  ...). By default the OS's local folder (%LOCALAPPDATA%\\Jarvis\\models and \\cache; on macOS models/ next to
+  the data and ~/Library/Caches/Jarvis).
 
 JARVIS_HOME overrides the data folder; then models/ and cache/ live inside it too, so one folder holds
 everything (portable mode, e.g. JARVIS_HOME=.\\userdata for development). A relative JARVIS_HOME is
@@ -68,10 +71,16 @@ def log_dir() -> Path:
 
 
 def install_root() -> Optional[Path]:
-    """The Jarvis folder of the Windows zip (Jarvis.exe, runtime/, app/) when running from it; None from source."""
+    """The Jarvis folder of the Windows zip (Jarvis.exe, runtime/, app/) or Jarvis.app on macOS
+    (Contents/Resources/runtime and app) when running from it; None from source."""
+    if APP_ROOT.name != "app":
+        return None
     root = APP_ROOT.parent
-    if APP_ROOT.name == "app" and (root / "Jarvis.exe").is_file() and (root / "runtime").is_dir():
+    if (root / "Jarvis.exe").is_file() and (root / "runtime").is_dir():
         return root
+    bundle = APP_ROOT.parents[2]
+    if root.name == "Resources" and bundle.suffix == ".app" and (root / "runtime").is_dir():
+        return bundle
     return None
 
 

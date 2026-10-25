@@ -22,9 +22,9 @@ from tests.fakes import (SILENCE, SPEECH, FakeAudio, FakeGreeter, FakeStream, Fa
                          ScriptedBackend, fake_vad, temp_db, test_config, wait_for)
 
 
-def open_notepad(turn, ctx, executor):
-    res = executor.execute("open_app", {"app_name": "notepad"}, ctx)
-    return AgentResult(reply=("Simulated opening Notepad." if res.dry_run else "Opened Notepad.") if res.ok else res.content,
+def open_calculator(turn, ctx, executor):
+    res = executor.execute("open_app", {"app_name": "calculator"}, ctx)    # an app shipped on both systems
+    return AgentResult(reply=("Simulated opening Calculator." if res.dry_run else "Opened Calculator.") if res.ok else res.content,
                        tool_calls=[{"tool": "open_app", "status": res.status}])
 
 
@@ -102,22 +102,22 @@ class VoiceFlowTests(unittest.TestCase):
         h.stream.add_script([SPEECH] * speech_chunks + [SILENCE] * 20)
 
     def test_full_voice_flow_orb_click_command_tool_reply_idle(self):
-        h = PipelineHarness(open_notepad, texts=["open notepad"]).start()
+        h = PipelineHarness(open_calculator, texts=["open calculator"]).start()
         try:
             self.click_and_say(h)
             self.assertTrue(h.wait_idle_after("timing"), h.events)
             self.assertFalse(h.listen.is_set())
             # No acknowledgement: the click goes straight to listening
-            self.assertEqual(h.tts.spoken, ["Simulated opening Notepad."])
+            self.assertEqual(h.tts.spoken, ["Simulated opening Calculator."])
             self.assertTrue(h.has("phase", phase="listening", mode="tap"))
             # Whisper output reached the agent, the agent's tool call reached the registry/policy
-            self.assertTrue(h.has("transcript", text="open notepad", source="voice"))
-            self.assertIn("open notepad", h.backend.turns[0])
+            self.assertTrue(h.has("transcript", text="open calculator", source="voice"))
+            self.assertIn("open calculator", h.backend.turns[0])
             call = h.of("tool_call")[0]
-            self.assertEqual((call["tool"], call["args"]), ("open_app", {"app_name": "notepad"}))
+            self.assertEqual((call["tool"], call["args"]), ("open_app", {"app_name": "calculator"}))
             result = h.of("tool_result")[0]
             self.assertEqual((result["status"], result["dry_run"]), ("dry_run", True))
-            self.assertTrue(h.has("reply", text="Simulated opening Notepad."))
+            self.assertTrue(h.has("reply", text="Simulated opening Calculator."))
             ph = h.phases()
             for a, b in [("listening", "transcribing"), ("transcribing", "thinking"), ("thinking", "executing"),
                          ("executing", "speaking")]:
@@ -134,7 +134,7 @@ class VoiceFlowTests(unittest.TestCase):
         self.assertTrue(h.has("phase", phase="stopped"))
 
     def test_ready_event_has_no_wake_word(self):
-        h = PipelineHarness(open_notepad).start()
+        h = PipelineHarness(open_calculator).start()
         try:
             ready = h.of("ready")[0]
             self.assertNotIn("wake_word", ready)
@@ -143,7 +143,7 @@ class VoiceFlowTests(unittest.TestCase):
             h.finish()
 
     def test_speech_without_a_click_is_ignored(self):
-        h = PipelineHarness(open_notepad, texts=["open notepad"], script=[SPEECH] * 30 + [SILENCE] * 30).start()
+        h = PipelineHarness(open_calculator, texts=["open calculator"], script=[SPEECH] * 30 + [SILENCE] * 30).start()
         try:
             self.assertTrue(wait_for(lambda: not h.stream.script))
             time.sleep(0.2)
@@ -154,16 +154,16 @@ class VoiceFlowTests(unittest.TestCase):
             h.finish()
 
     def test_addressing_jarvis_is_stripped(self):
-        h = PipelineHarness(open_notepad, texts=["Jarvis, open notepad."]).start()
+        h = PipelineHarness(open_calculator, texts=["Jarvis, open calculator."]).start()
         try:
             self.click_and_say(h)
             self.assertTrue(h.wait_idle_after("timing"), h.events)
-            self.assertTrue(h.has("transcript", text="open notepad.", source="voice"))
+            self.assertTrue(h.has("transcript", text="open calculator.", source="voice"))
         finally:
             h.finish()
 
     def test_no_speech_after_click_returns_to_idle(self):
-        h = PipelineHarness(open_notepad).start()
+        h = PipelineHarness(open_calculator).start()
         try:
             h.listen.set()
             h.stream.add_script([SILENCE] * 60)
@@ -177,20 +177,20 @@ class VoiceFlowTests(unittest.TestCase):
         class BrokenSTT:
             def transcribe_audio(self, audio):
                 raise RuntimeError("CUDA out of memory")
-        h = PipelineHarness(open_notepad)
+        h = PipelineHarness(open_calculator)
         h.components["transcriber"] = BrokenSTT()
         h.start()
         try:
             self.click_and_say(h, 20)
             self.assertTrue(wait_for(lambda: h.has("error", stage="stt")))
             self.assertTrue(wait_for(lambda: h.phases()[-1] == "idle"))
-            h.commands.put("open notepad")   # still usable afterwards
+            h.commands.put("open calculator")   # still usable afterwards
             self.assertTrue(h.wait_idle_after("timing"))
         finally:
             h.finish()
 
     def test_muted_mic_ignores_clicks_and_push_to_talk(self):
-        h = PipelineHarness(open_notepad, texts=["open notepad"])
+        h = PipelineHarness(open_calculator, texts=["open calculator"])
         h.pause.set()
         h.start()
         try:
@@ -231,7 +231,7 @@ class VoiceFlowTests(unittest.TestCase):
 
 class GreetingTests(unittest.TestCase):
     def test_greet_command_speaks_a_new_greeting_each_time(self):
-        h = PipelineHarness(open_notepad)
+        h = PipelineHarness(open_calculator)
         h.components["greeter"] = FakeGreeter()
         h.start()
         try:
@@ -247,7 +247,7 @@ class GreetingTests(unittest.TestCase):
             h.finish()
 
     def test_next_greeting_is_prepared_when_idle(self):
-        h = PipelineHarness(open_notepad)
+        h = PipelineHarness(open_calculator)
         h.cfg["greeting"]["prepare_after_idle_s"] = 0
         greeter = FakeGreeter()
         h.components["greeter"] = greeter
@@ -262,11 +262,11 @@ class TypedAndControlTests(unittest.TestCase):
     def test_typed_command_and_queueing(self):
         def slow(turn, ctx, ex):
             time.sleep(0.3)
-            return open_notepad(turn, ctx, ex)
+            return open_calculator(turn, ctx, ex)
         h = PipelineHarness(slow).start()
         try:
-            h.commands.put("open notepad")
-            h.commands.put("open notepad again")
+            h.commands.put("open calculator")
+            h.commands.put("open calculator again")
             self.assertTrue(wait_for(lambda: len(h.of("timing")) == 2, 10))
             self.assertEqual(len(h.backend.turns), 2)   # sequential, never overlapping
             self.assertEqual([e["source"] for e in h.of("transcript")], ["text", "text"])

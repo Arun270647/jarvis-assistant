@@ -9,6 +9,13 @@ jsonschema>=4.20          # tool argument validation (PolicyExecutor)
 platformdirs>=4.2         # per-user data / models / cache folders (src/platform)
 # Desktop app (jarvis_gui.pyw)
 PySide6>=6.10             # Qt 6 + Qt WebEngine: main window, floating orb, tray (abi3 wheels support Python 3.14)
-pywin32>=306              # startup/desktop shortcuts via COM (no powershell console)
-uiautomation>=2.0.29      # desktop control: UI Automation tree of any window (incl. Chrome pages)
 pillow>=10                # desktop screenshots
+# Windows
+pywin32>=306 ; sys_platform == "win32"         # shortcuts via COM (no powershell console), Credential Manager, SAPI voice
+uiautomation>=2.0.29 ; sys_platform == "win32" # desktop control: UI Automation tree of any window (incl. Chrome pages)
+# macOS
+pyobjc-framework-Cocoa>=11 ; sys_platform == "darwin"                 # app activation, appearance, running apps
+pyobjc-framework-Quartz>=11 ; sys_platform == "darwin"                # window list, mouse and keyboard events
+pyobjc-framework-ApplicationServices>=11 ; sys_platform == "darwin"   # Accessibility API (desktop control)
+pyobjc-framework-AVFoundation>=11 ; sys_platform == "darwin"          # microphone permission
+keyring>=25 ; sys_platform == "darwin"                                # secrets in the Keychain

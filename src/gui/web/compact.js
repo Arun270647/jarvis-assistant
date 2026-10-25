@@ -87,6 +87,7 @@
     J.snapshot(raw => {
       const s = JSON.parse(raw);
       S.phase = s.phase; S.voiceOk = s.voice_ok; S.muted = s.muted; S.orbStyle = s.orb_style; S.approval = s.pending_approval;
+      window.JarvisStrings.setOS(s.os);
       window.JarvisStrings.setName(s.assistant_name);
       render();
     });

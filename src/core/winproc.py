@@ -1,12 +1,15 @@
-"""Windows process launching without stray console windows.
+"""Process launching without stray console windows.
 
-Root cause of the "CMD window pops up" problem: when Jarvis runs under
+Root cause of the "CMD window pops up" problem on Windows: when Jarvis runs under
 pythonw.exe it has no console, so Windows gives every *console-subsystem*
 child (claude.exe, cmd.exe, shutdown.exe, powershell.exe,
 .cmd/.bat launchers) a brand-new visible console window. Background helpers
 must be created with CREATE_NO_WINDOW. Apps the user asked to open are
 launched normally (GUI apps never get a console; a console app the user
 explicitly asked for gets its own window on purpose).
+
+macOS never gives a program a console window, so the same functions are plain subprocess calls there; an app
+bundle (.app) the user asked for opens through `open -a`, like a double-click in the Finder.
 
 Every subprocess in Jarvis goes through this module.
 """
@@ -21,6 +24,7 @@ from pathlib import Path
 from typing import Optional, Sequence, Union
 
 IS_WINDOWS = sys.platform == "win32"
+IS_MAC = sys.platform == "darwin"
 
 CREATE_NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000)
 CREATE_NEW_CONSOLE = getattr(subprocess, "CREATE_NEW_CONSOLE", 0x00000010)
@@ -40,6 +44,20 @@ CLAUDE_SESSION_VARS = {"CLAUDECODE", "CLAUDE_CODE_CHILD_SESSION", "CLAUDE_CODE_S
 def user_env() -> dict:
     """os.environ without a parent Claude Code session's markers, for programs launched for the user."""
     return {k: v for k, v in os.environ.items() if k.upper() not in CLAUDE_SESSION_VARS}
+
+
+# Where Claude Code's installer, Homebrew and npm put programs on a Mac.
+MAC_USER_PATHS = ("~/.local/bin", "/opt/homebrew/bin", "/opt/homebrew/sbin", "/usr/local/bin")
+
+
+def extend_path() -> None:
+    """macOS gives an app opened from the Finder a minimal PATH (/usr/bin:/bin:/usr/sbin:/sbin): add the folders a
+    terminal would have, so `claude`, `git` from Homebrew and the like are found. Nothing changes on Windows."""
+    if not IS_MAC:
+        return
+    parts = [p for p in os.environ.get("PATH", "").split(os.pathsep) if p]
+    extra = [p for p in (os.path.expanduser(d) for d in MAC_USER_PATHS) if p not in parts]
+    os.environ["PATH"] = os.pathsep.join(parts + extra)
 IMAGE_SUBSYSTEM_WINDOWS_CUI = 3
 
 Cmd = Union[str, Sequence[str]]
@@ -97,7 +115,8 @@ def run_hidden(command: Cmd, timeout: Optional[float] = None, **kwargs) -> subpr
     """subprocess.run for a background helper, never showing a console window."""
     kwargs.setdefault("creationflags", 0)
     kwargs["creationflags"] |= hidden_flags()
-    kwargs.setdefault("stdin", subprocess.DEVNULL)
+    if "input" not in kwargs:
+        kwargs.setdefault("stdin", subprocess.DEVNULL)
     return subprocess.run(split_command(command), timeout=timeout, **kwargs)
 
 
@@ -116,6 +135,8 @@ def launch_program(command: Cmd, show_console: bool = False, cwd: Optional[str] 
     - .cmd/.bat launchers (e.g. VS Code's `code`) run through cmd.exe with
       CREATE_NO_WINDOW: the launcher's console is hidden, the app it starts is not.
     - A .lnk shortcut (apps found in the Start Menu) opens like a double-click; returns None.
+    - On macOS an app bundle (.app) opens through `open -a` (arguments after --args); every program gets its own
+      session, so it lives on when Jarvis quits.
     - Console exes get CREATE_NO_WINDOW for system helpers (shutdown, rundll32 ...)
       unless show_console=True, which gives them a visible console on purpose
       (e.g. the user explicitly asked to open a console tool).
@@ -126,6 +147,8 @@ def launch_program(command: Cmd, show_console: bool = False, cwd: Optional[str] 
     if IS_WINDOWS and argv[0].lower().endswith(".lnk") and Path(argv[0]).is_file():
         os.startfile(argv[0])           # a Start Menu shortcut: opened the way Explorer opens it (no arguments)
         return None
+    if IS_MAC and argv[0].endswith(".app") and Path(argv[0]).is_dir():
+        argv = ["/usr/bin/open", "-a", argv[0]] + (["--args"] + argv[1:] if argv[1:] else [])
     exe = resolve_executable(argv[0])
     if exe is None:
         raise FileNotFoundError(f"Program not found: {argv[0]}")
@@ -155,6 +178,7 @@ def launch_program(command: Cmd, show_console: bool = False, cwd: Optional[str] 
         stdout=std,
         stderr=std,
         creationflags=flags,
+        start_new_session=not IS_WINDOWS,
         close_fds=True,
         cwd=cwd,
         env=user_env(),
@@ -162,14 +186,19 @@ def launch_program(command: Cmd, show_console: bool = False, cwd: Optional[str] 
 
 
 def python_executable() -> str:
-    """Path to python.exe next to the running interpreter, for helpers such as pip (pythonw has no console)."""
+    """Path to python.exe next to the running interpreter, for helpers such as pip (pythonw has no console). On
+    macOS the interpreter itself (in Jarvis.app, the runtime's python3, which its launcher sets as sys.executable)."""
     exe = Path(sys.executable)
+    if not IS_WINDOWS:
+        return str(exe)
     candidate = exe.with_name(exe.name.lower().replace("pythonw", "python"))
     return str(candidate) if candidate.exists() else str(exe)
 
 
 def pythonw_executable() -> str:
-    """Path to pythonw.exe next to the running interpreter (falls back to sys.executable)."""
+    """Path to pythonw.exe next to the running interpreter (falls back to sys.executable; macOS has no pythonw)."""
     exe = Path(sys.executable)
+    if not IS_WINDOWS:
+        return str(exe)
     candidate = exe.with_name(exe.name.replace("python", "pythonw", 1)) if "pythonw" not in exe.name.lower() else exe
     return str(candidate) if candidate.exists() else str(exe)

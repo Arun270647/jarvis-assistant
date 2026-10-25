@@ -177,7 +177,9 @@ class CodingAgentTests(unittest.TestCase):
         from src.router import action_router
         project = Path(tempfile.mkdtemp())
         cfg = config_store.load_config()
-        cfg["coding_agent"].update(cli="custom", custom_command=["cmd", "/c", "echo"], timeout_seconds=30)
+        import sys
+        echo = [sys.executable, "-c", "import sys; print(sys.argv[-1])"]       # works on every OS
+        cfg["coding_agent"].update(cli="custom", custom_command=echo, timeout_seconds=30)
         detail = action_router._delegate_to_coding_agent("all done", "demo", str(project), cfg)
         self.assertIn("The coding agent completed", detail)
         self.assertIn("all done", detail)

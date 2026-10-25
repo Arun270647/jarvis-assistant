@@ -53,7 +53,7 @@ class ToolsPageTests(unittest.TestCase):
         rows = self.rows()
         self.assertEqual(set(rows), set(self.reg.names()), "docs/TOOLS.md and the registry list different tools")
         for spec in self.reg.specs():
-            group = groups.GROUPS[groups.group_of(spec.name)]["title"]
+            group = groups.WINDOWS_TITLES[groups.group_of(spec.name)]          # the page uses Windows' names
             self.assertEqual(rows[spec.name], (group, spec.risk, spec.permission), spec.name)
 
 

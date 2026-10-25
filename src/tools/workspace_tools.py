@@ -66,7 +66,9 @@ def _start_background(argv, cwd, shown) -> ToolResult:
     log = PROC_LOG_DIR / f"{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}_{Path(argv[0]).stem}.log"
     fh = open(log, "w", encoding="utf-8", errors="replace")
     try:
-        proc = winproc.popen_hidden(argv, cwd=str(cwd), stdout=fh, stderr=subprocess.STDOUT, env=_safe_env())
+        # Its own process group on macOS, so stopping it also stops what it started (a dev server's workers).
+        extra = {} if sys.platform == "win32" else {"start_new_session": True}
+        proc = winproc.popen_hidden(argv, cwd=str(cwd), stdout=fh, stderr=subprocess.STDOUT, env=_safe_env(), **extra)
     except FileNotFoundError:
         fh.close()
         return ToolResult(ok=False, status="failed", content=f"Program not found: {argv[0]}")
@@ -81,10 +83,33 @@ def _start_background(argv, cwd, shown) -> ToolResult:
 
 
 def _kill_tree(pid: int) -> None:
+    """Stop a background process and everything it started: taskkill /T on Windows, its process group on macOS
+    (SIGTERM, then SIGKILL for what is still there after two seconds)."""
     try:
-        winproc.run_hidden(["taskkill", "/PID", str(pid), "/T", "/F"], capture_output=True, timeout=20)
+        if sys.platform == "win32":
+            winproc.run_hidden(["taskkill", "/PID", str(pid), "/T", "/F"], capture_output=True, timeout=20)
+            return
+        import signal
+        os.killpg(pid, signal.SIGTERM)
+        for _ in range(20):
+            time.sleep(0.1)
+            os.killpg(pid, 0)                   # raises once the group is gone
+        os.killpg(pid, signal.SIGKILL)
     except Exception:
         pass
+
+
+def running_processes(name: str) -> tuple:
+    """(program name as matched, [pids]) of running programs called `name`: tasklist on Windows (notepad ->
+    notepad.exe), pgrep on macOS (exact process name, any case)."""
+    if sys.platform == "win32":
+        name = name if name.lower().endswith(".exe") else name + ".exe"
+        r = winproc.run_hidden(["tasklist", "/FI", f"IMAGENAME eq {name}", "/FO", "CSV", "/NH"],
+                               capture_output=True, text=True, timeout=15)
+        return name, [l.split('","')[1] for l in r.stdout.splitlines() if l.startswith('"') and '","' in l]
+    name = re.sub(r"\.(exe|app)$", "", name, flags=re.I)
+    r = winproc.run_hidden(["/usr/bin/pgrep", "-i", "-x", name], capture_output=True, text=True, timeout=15)
+    return name, [l.strip() for l in r.stdout.splitlines() if l.strip().isdigit()]
 
 
 def stop_all_background() -> None:
@@ -189,13 +214,10 @@ def register_workspace_tools(reg, profile: dict, config: dict, memory=None) -> W
                           data={"matches": len(hits)})
 
     def check_process(a, c):
-        name = a["name"] if a["name"].lower().endswith(".exe") else a["name"] + ".exe"
         try:
-            r = winproc.run_hidden(["tasklist", "/FI", f"IMAGENAME eq {name}", "/FO", "CSV", "/NH"],
-                                   capture_output=True, text=True, timeout=15)
+            name, pids = running_processes(a["name"])
         except subprocess.TimeoutExpired:
-            return ToolResult(ok=False, status="failed", content="tasklist timed out", transient=True)
-        pids = [l.split('","')[1] for l in r.stdout.splitlines() if l.startswith('"') and '","' in l]
+            return ToolResult(ok=False, status="failed", content="Listing the processes timed out", transient=True)
         if pids:
             return ToolResult(ok=True, content=f"{name} is running ({len(pids)} process(es), PIDs {', '.join(pids[:10])})",
                               data={"running": True, "count": len(pids)})
@@ -521,7 +543,8 @@ def register_workspace_tools(reg, profile: dict, config: dict, memory=None) -> W
     register_terminal_tools(reg, ws, config)
 
     reg.register(ToolSpec(
-        name="check_process", description="Check whether a program is running (by executable name, e.g. notepad.exe).",
+        name="check_process", description="Check whether a program is running, by its program name (e.g. notepad.exe "
+                                          "on Windows, Safari on macOS).",
         input_schema={"type": "object", "properties": {"name": {"type": "string", "pattern": r"^[\w .\-]{1,80}$"}},
                       "required": ["name"]},
         handler=check_process, category="read", retries=1, purpose=lambda a: f"Is {a.get('name')} running?"))

@@ -1,0 +1,26 @@
+{
+  "apps": {
+    "textedit": { "path": "/System/Applications/TextEdit.app", "aliases": ["text editor", "editor", "notepad"] },
+    "finder": { "path": "/System/Library/CoreServices/Finder.app", "aliases": ["files", "file explorer", "explorer"] },
+    "calculator": { "path": "/System/Applications/Calculator.app", "aliases": ["calc"] },
+    "safari": { "path": "/Applications/Safari.app", "aliases": ["browser", "web browser"] },
+    "notes": { "path": "/System/Applications/Notes.app", "aliases": ["apple notes"] },
+    "music": { "path": "/System/Applications/Music.app", "aliases": ["apple music", "itunes"] }
+  },
+  "media": {
+    "play": { "key": "play_pause" },
+    "pause": { "key": "play_pause" },
+    "next": { "key": "next_track" },
+    "previous": { "key": "prev_track" },
+    "volume_up": { "key": "volume_up" },
+    "volume_down": { "key": "volume_down" },
+    "mute": { "key": "volume_mute" }
+  },
+  "system": {
+    "lock": { "command": "/usr/bin/pmset displaysleepnow" },
+    "sleep": { "command": "/usr/bin/pmset sleepnow", "confirm": true },
+    "shutdown": { "command": "/usr/bin/osascript -e 'tell application \"System Events\" to shut down'", "confirm": true },
+    "restart": { "command": "/usr/bin/osascript -e 'tell application \"System Events\" to restart'", "confirm": true },
+    "screenshot": { "command": "/usr/bin/open -a Screenshot" }
+  }
+}

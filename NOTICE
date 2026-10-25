@@ -13,7 +13,10 @@ THIRD_PARTY_LICENSES.md. Notably:
 - faster-whisper and CTranslate2 (MIT), OpenAI Whisper models (MIT), Silero VAD (MIT), ONNX Runtime (MIT).
 - uiautomation (Apache-2.0), the Anthropic and OpenAI Python SDKs (Apache-2.0).
 - The Windows zip includes Python (PSF License 2.0, from python.org's embeddable package, with the licenses of
-  the libraries it includes in runtime\LICENSE.txt) and pip (MIT).
+  the libraries it includes in runtime\LICENSE.txt) and pip (MIT). The Mac app includes Python (PSF License 2.0,
+  built by python-build-standalone, with OpenSSL under Apache-2.0 and the other libraries listed in
+  THIRD_PARTY_LICENSES.md) and pip (MIT).
+- PyObjC and keyring (MIT), on macOS.
 
 Optional components that the user chooses to install are not part of this distribution and keep their own
 licenses: the Kokoro voice engine (kokoro-onnx, MIT, with phonemizer and espeak-ng, both GPL-3.0-or-later),

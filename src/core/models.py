@@ -43,7 +43,9 @@ def find(option_id: str) -> tuple:
 
 
 def text(value: str, name: str) -> str:
-    return str(value or "").replace("{name}", name)
+    """A catalogue text with the assistant's name ({name}) and the OS's ({os}: Windows, macOS) filled in."""
+    from src.platform import current
+    return str(value or "").replace("{name}", name).replace("{os}", current().label)
 
 
 def _rule(g: dict, facts: dict) -> dict:

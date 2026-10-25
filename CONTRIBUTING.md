@@ -101,13 +101,45 @@ Before zipping, the build runs the updater's tests (`tests/test_packaging.py`), 
 every package, that Qt WebEngine renders a page and that the app reports its version. `--reuse-runtime` skips
 the slow part when only the app changed. The zip is about 300 MB.
 
+## Building the Mac app
+
+On a Mac with Apple silicon, with the Xcode command line tools (`xcode-select --install`) and Python 3.11+ with
+`requirements.lock` installed:
+
+```
+python packaging/build_macos.py
+```
+
+It builds `build/macos/Jarvis.app` and writes `dist/Jarvis-<version>-macos-arm64.dmg` (the app and a link to
+Applications on a compressed disk image), its `.sha256` file and
+the `macos` entry of `dist/latest.json` (added to the Windows build's file when there is one). Inside the app:
+
+- `Contents/Resources/runtime`: python-build-standalone's Python for Apple silicon (pinned with its SHA-256 in
+  `packaging/runtime.json`), pip, and `requirements.lock` installed with hashes. Qt frameworks that Jarvis never
+  loads are left out (the build follows `otool -L` from the Qt modules the app uses), and so is Tk.
+- `Contents/Resources/app`: the files from `git ls-files` that Jarvis reads at run time, compiled to `.pyc`
+  (the app never writes into itself, which would break its signature).
+- `Contents/MacOS/Jarvis`, compiled from `packaging/macos/launcher.c`: it runs the app on the bundled Python
+  inside its own process, so macOS treats Jarvis.app as the app for its permissions and Dock icon.
+
+The build signs the app ad hoc (`codesign --sign -`); Jarvis has no Apple Developer Program membership, so it
+isn't notarized. Before making the disk image it checks that the runtime imports every package, that Qt WebEngine
+renders a page, that the launcher starts the app far enough to report its version, and that the signature
+verifies. Then it mounts the image, checks the app in it again, and lets the updater's own code copy the app out
+of it. Intel Macs aren't built: ONNX Runtime has no wheels for them.
+
 ## Releasing
 
 1. Set the version in `src/version.py` and move the `[Unreleased]` notes in CHANGELOG.md under it.
-2. Tag the commit `v<version>` and push the tag. The Release workflow builds the zip on GitHub and drafts a
-   release with the zip, its SHA-256 and `latest.json`.
-3. Check the draft, download the zip once, then publish it. Copy `latest.json` to the website
+2. Tag the commit `v<version>` and push the tag. The Release workflow builds the Windows zip and the Mac disk
+   image on GitHub and drafts a release with both, their SHA-256 sums and one `latest.json`. Versions with
+   letters (`0.1.0-alpha.1`) are marked as pre-releases.
+3. Check the draft, download both files once, then publish it. Copy `latest.json` to the website
    ([website/README.md](website/README.md)).
+
+To try the whole path without a tag, run **Actions › Release › Run workflow** with **rehearse** ticked: it drafts
+a release named `rehearsal-<run number>`. Delete it afterwards (`gh release delete rehearsal-<n> --cleanup-tag
+--yes`). Without **rehearse**, the run only builds the two files as downloadable artifacts.
 
 Releases aren't code-signed: the release notes and the download page explain Windows SmartScreen and how to
 check the SHA-256.

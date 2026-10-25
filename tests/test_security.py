@@ -91,8 +91,8 @@ class ToolGroupTests(unittest.TestCase):
 
     def test_the_security_page_describes_every_group(self):
         page = (ROOT / "docs" / "SECURITY_MODEL.md").read_text(encoding="utf-8")
-        for g in groups.GROUPS.values():
-            self.assertIn(f"| {g['title']} |", page)
+        for title in groups.WINDOWS_TITLES.values():                       # the page uses Windows' names
+            self.assertIn(f"| {title} |", page)
 
 
 def taint_registry(calls):
@@ -256,7 +256,8 @@ class RealToolRuleTests(unittest.TestCase):
         self.assertTrue(spec.always_asks({"command": "shutdown"}))
         self.assertTrue(spec.always_asks({"command": "restart"}))
         self.assertFalse(spec.always_asks({"command": "lock"}))
-        self.assertFalse(spec.always_asks({"command": "cancel_shutdown"}), "shutdown /a only aborts one")
+        if "cancel_shutdown" in self.router.profile["system"]:                # Windows only (shutdown /a)
+            self.assertFalse(spec.always_asks({"command": "cancel_shutdown"}), "shutdown /a only aborts one")
         profile = json.loads(json.dumps(self.router.profile))
         profile["system"]["shutdown"].pop("confirm", None)
         profile["system"]["power_off"] = {"command": "shutdown.exe /s /t 0"}
@@ -311,9 +312,15 @@ class RedactionTests(unittest.TestCase):
 
 
 class DesktopBlockListTests(unittest.TestCase):
+    @property
+    def rules(self):
+        from src.tools.desktop_tools import WINDOWS_RULES
+        return WINDOWS_RULES
+
     def refusal(self, process, title):
         from src.tools import desktop_tools
-        d = desktop_tools.Desktop({})
+        with mock.patch.object(desktop_tools, "RULES", self.rules):
+            d = desktop_tools.Desktop({})
         with mock.patch.object(desktop_tools, "process_name", return_value=(4242, process)), \
                 mock.patch.object(desktop_tools, "window_title", return_value=title):
             return d.refusal(1)
@@ -325,6 +332,21 @@ class DesktopBlockListTests(unittest.TestCase):
         self.assertIn("passwords", self.refusal("firefox.exe", "about:logins — Mozilla Firefox"))
         self.assertIn("passwords", self.refusal("explorer.exe", "Credential Manager"))
         self.assertEqual(self.refusal("chrome.exe", "Inbox - Gmail - Google Chrome"), "")
+
+
+class MacDesktopBlockListTests(DesktopBlockListTests):
+    @property
+    def rules(self):
+        from src.tools.desktop_tools import MAC_RULES
+        return MAC_RULES
+
+    def test_password_managers_and_password_pages_are_refused(self):
+        self.assertIn("blocked_processes", self.refusal("1password", "1Password"))
+        self.assertIn("blocked_processes", self.refusal("keychain access", "Keychain Access"))
+        self.assertIn("blocked_processes", self.refusal("terminal", "zsh"))
+        self.assertIn("open_terminal", self.refusal("iterm2", "zsh"))
+        self.assertIn("passwords", self.refusal("google chrome", "Google Password Manager - Google Chrome"))
+        self.assertEqual(self.refusal("google chrome", "Inbox - Gmail - Google Chrome"), "")
 
 
 class CredentialsAreNeverLoggedTests(unittest.TestCase):

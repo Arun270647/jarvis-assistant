@@ -49,6 +49,9 @@ DENIED_COMMANDS = [
     "shutdown", "rmdir /s", "rd /s", "del /s", "del /q", "rm -rf", "rm -r", "git push --force", "git push -f",
     "git clean", "git reset --hard", "net user", "powershell", "pwsh", "cmd", "wsl", "bash", "curl", "wget",
     "certutil", "bitsadmin", "mshta", "rundll32", "regsvr32", "schtasks", "sc",
+    # macOS and other Unix systems
+    "sudo", "su", "doas", "zsh", "sh", "fish", "dash", "ksh", "tcsh", "osascript", "launchctl", "csrutil",
+    "diskutil", "dd", "security", "spctl", "nvram", "halt", "reboot", "rm -fr",
 ]
 
 

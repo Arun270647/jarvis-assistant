@@ -18,27 +18,27 @@ class AppDiscoveryTests(unittest.TestCase):
         app_discovery._cache.clear()
 
     def test_only_common_apps_with_aliases(self):
-        apps = app_discovery.discover([self.root])
+        apps = app_discovery.discover([self.root], kind="lnk")
         self.assertEqual(sorted(apps), ["excel", "spotify", "vs code", "zoom"])
         self.assertEqual(Path(apps["spotify"]["path"]).name, "Spotify.lnk", "the uninstaller is skipped")
         self.assertIn("vscode", apps["vs code"]["aliases"])
         self.assertEqual(apps["zoom"]["source"], "start_menu")
 
     def test_cache_follows_changes(self):
-        self.assertNotIn("slack", app_discovery.discover([self.root]))
+        self.assertNotIn("slack", app_discovery.discover([self.root], kind="lnk"))
         later = os.stat(self.root).st_mtime_ns + 2_000_000_000         # a real install is never in the same clock tick
         (self.root / "Slack.lnk").write_bytes(b"")
         os.utime(self.root, ns=(later, later))
-        self.assertIn("slack", app_discovery.discover([self.root]))
+        self.assertIn("slack", app_discovery.discover([self.root], kind="lnk"))
 
     def test_profile_includes_discovered_apps_but_user_entries_win(self):
         found = {"spotify": {"path": "C:/x/Spotify.lnk", "aliases": ["music"], "source": "start_menu"},
-                 "notepad": {"path": "C:/x/Other.lnk", "aliases": [], "source": "start_menu"}}
+                 "calculator": {"path": "C:/x/Other.lnk", "aliases": [], "source": "start_menu"}}
         with mock.patch.dict(os.environ, {"JARVIS__apps__discover": "true"}), \
                 mock.patch.object(app_discovery, "discover", return_value=found):
             apps = config_store.profile_defaults()["apps"]
         self.assertEqual(apps["spotify"]["path"], "C:/x/Spotify.lnk")
-        self.assertEqual(apps["notepad"]["path"], "notepad.exe", "the shipped entry is kept")
+        self.assertNotEqual(apps["calculator"]["path"], "C:/x/Other.lnk", "the shipped entry is kept")
         self.assertNotIn("spotify", config_store.profile_defaults()["apps"], "tests see no Start Menu (tests/__init__)")
         with mock.patch.dict(os.environ, {"JARVIS__apps__discover": "false"}), \
                 mock.patch.object(app_discovery, "discover", return_value=found):

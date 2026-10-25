@@ -18,7 +18,7 @@ from src.core.redact import redact
 
 PACKAGES = ("PySide6", "faster-whisper", "ctranslate2", "onnxruntime", "sounddevice", "numpy", "kokoro-onnx",
             "phonemizer", "espeakng-loader", "piper-tts", "claude-agent-sdk", "anthropic", "openai", "jsonschema",
-            "platformdirs", "pywin32", "uiautomation", "torch")
+            "platformdirs", "pywin32", "uiautomation", "pyobjc-core", "keyring", "torch")
 EMAIL = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
 
 
@@ -26,8 +26,9 @@ def _mask(text: str) -> str:
     text = redact(text)
     home = os.path.expanduser("~")
     if home and home != "~":
-        text = re.sub(re.escape(home), "%USERPROFILE%", text, flags=re.I)
-        text = re.sub(re.escape(home.replace("\\", "/")), "%USERPROFILE%", text, flags=re.I)
+        mark = "~" if sys.platform == "darwin" else "%USERPROFILE%"
+        text = re.sub(re.escape(home), mark, text, flags=re.I)
+        text = re.sub(re.escape(home.replace("\\", "/")), mark, text, flags=re.I)
     return EMAIL.sub("[email]", text)
 
 
@@ -111,6 +112,12 @@ def _claude_code(cfg: dict) -> list:
     return [(res.stdout or res.stderr or f"exit {res.returncode}").strip()[:200]]
 
 
+def _permissions() -> list:
+    """What the OS allows Jarvis (macOS asks for each; Windows reports unknown)."""
+    from src.platform import PERMISSIONS, current
+    return [f"{kind}: {current().permission(kind)}" for kind in PERMISSIONS]
+
+
 def _log(n: int) -> list:
     from src.core import logging_setup
     return [line.rstrip("\n") for line in logging_setup.tail(n)] or ["(empty)"]
@@ -124,6 +131,7 @@ def build_report(log_lines: int = 200) -> str:
              _section("Packages", _safe(_packages)),
              _section("Hardware", _safe(_hardware)),
              _section("Audio devices", _safe(_audio)),
+             _section("Permissions", _safe(_permissions)),
              _section("Settings", _safe(_settings, cfg)),
              _section("Models on disk", _safe(_models)),
              _section("Claude Code", _safe(_claude_code, cfg)),

@@ -47,6 +47,7 @@ class InstallRootTests(unittest.TestCase):
         self.assertIsNone(paths.install_root(), "this checkout runs from source")
 
 
+@unittest.skipUnless(sys.platform == "win32", "the Windows zip's layout (test_macos.py covers Jarvis.app)")
 class ZipFolderTests(unittest.TestCase):
     def setUp(self):
         self.root = fake_jarvis(Path(tempfile.mkdtemp(prefix="jarvis-zip-")) / "Jarvis")

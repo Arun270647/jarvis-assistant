@@ -6,8 +6,10 @@ Chrome tests use a fake Local State and a stubbed launcher; page reading uses a 
 """
 import http.server
 import json
+import os
 import shutil
 import socketserver
+import sys
 import tempfile
 import threading
 import unittest
@@ -211,6 +213,7 @@ class EmailTests(unittest.TestCase):
         self.assertFalse(r.ok)
         self.assertIn("Settings > Email", r.content)
 
+    @unittest.skipIf(sys.platform == "darwin" and os.environ.get("CI"), "a CI Mac's Keychain may be locked")
     def test_credential_manager_round_trip(self):
         email_tools.get_password = self._orig
         user = "jarvis-unittest@example.invalid"

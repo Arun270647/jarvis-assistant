@@ -1,21 +1,21 @@
 """Jarvis desktop application (PySide6 + Qt WebEngine).
 
-Windows:
-  MainWindow   native Windows 11 frame (dark caption), hosts web/index.html
+  MainWindow   native frame (dark caption on Windows 11, dark appearance on macOS), hosts web/index.html
   OrbWindow    frameless, translucent, always-on-top floating orb (web/compact.html)
-  Tray         QSystemTrayIcon coloured by state, with Show / Start / Stop / Mute / Quit
+  Tray         QSystemTrayIcon coloured by state (the menu bar on macOS), with Show / Start / Stop / Mute / Quit
+
+What the windows need from the OS (global shortcut, foreground, title bar) is in src/gui/native.py.
 
 All long-running work (microphone, Whisper, Claude, tools, voice) lives on the
 pipeline thread owned by AssistantController; this module only renders and
 forwards clicks, so the UI thread never blocks on the assistant.
 """
-import ctypes
 import os
 import sys
 import threading
 from pathlib import Path
 
-from PySide6.QtCore import QAbstractNativeEventFilter, QByteArray, QRect, Qt, QTimer, QUrl
+from PySide6.QtCore import QEvent, QObject, QRect, Qt, QTimer, QUrl
 from PySide6.QtGui import QAction, QColor, QGuiApplication, QIcon, QPainter, QPen
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtWebChannel import QWebChannel
@@ -25,11 +25,12 @@ from PySide6.QtWidgets import QApplication, QMainWindow, QMenu, QSystemTrayIcon,
 
 from src.app.controller import AssistantController
 from src.core import config_store, logging_setup, paths
+from src.gui import native
 from src.gui.bridge import Bridge, EventHub
+from src.platform import current
 
 WEB = Path(__file__).resolve().parent / "web"
 INSTANCE_KEY = "jarvis-assistant-single-instance"
-APP_ID = "Jarvis.Assistant.Desktop"
 
 STATE_COLORS = {
     "stopped": "#7a7a7d", "loading": "#749dc4", "idle": "#94bce3", "paused": "#b7b7ba",
@@ -41,11 +42,6 @@ STATE_LABELS = {
     "listening": "Listening", "transcribing": "Transcribing", "thinking": "Thinking",
     "executing": "Executing", "approval": "Awaiting your approval", "speaking": "Speaking", "error": "Error",
 }
-
-HOTKEY_ID = 0x4A41  # 'JA'
-MOD_CONTROL, MOD_SHIFT, MOD_NOREPEAT = 0x0002, 0x0004, 0x4000
-WM_HOTKEY = 0x0312
-
 
 LOGO_ICO = Path(__file__).resolve().parent / "assets" / "jarvis.ico"   # scripts/make_logo.py
 
@@ -63,46 +59,6 @@ def make_icon(color: str = "#94bce3", size: int = 64) -> QIcon:
     p.drawEllipse(QRect(size - d - 1, size - d - 1, d, d))
     p.end()
     return QIcon(pm)
-
-
-def force_foreground(widget: QWidget) -> None:
-    """Bring a window to the front even when Jarvis is a background (tray) process.
-
-    Windows' focus-stealing rules normally only flash the taskbar button for
-    SetForegroundWindow from a background process; a synthetic ALT key press
-    plus AttachThreadInput is the documented-in-practice way around it.
-    """
-    try:
-        user32 = ctypes.windll.user32
-        hwnd = int(widget.winId())
-        if user32.IsIconic(hwnd):
-            user32.ShowWindow(hwnd, 9)                      # SW_RESTORE
-        fg = user32.GetForegroundWindow()
-        fg_thread = user32.GetWindowThreadProcessId(fg, None)
-        me = ctypes.windll.kernel32.GetCurrentThreadId()
-        user32.keybd_event(0x12, 0, 0, 0)                   # ALT down
-        user32.keybd_event(0x12, 0, 2, 0)                   # ALT up
-        if fg_thread and fg_thread != me:
-            user32.AttachThreadInput(me, fg_thread, True)
-        user32.BringWindowToTop(hwnd)
-        user32.SetForegroundWindow(hwnd)
-        if fg_thread and fg_thread != me:
-            user32.AttachThreadInput(me, fg_thread, False)
-    except Exception as e:
-        print(f"[GUI] Could not bring the window to the front: {e}")
-
-
-def _dark_title_bar(widget: QWidget) -> None:
-    try:
-        hwnd = int(widget.winId())
-        value = ctypes.c_int(1)
-        for attr in (20, 19):  # DWMWA_USE_IMMERSIVE_DARK_MODE (new / pre-20H1)
-            if ctypes.windll.dwmapi.DwmSetWindowAttribute(hwnd, attr, ctypes.byref(value), ctypes.sizeof(value)) == 0:
-                break
-        caption = ctypes.c_int(0x003D2D1D)  # COLORREF 0x00BBGGRR of #1d2d3d
-        ctypes.windll.dwmapi.DwmSetWindowAttribute(hwnd, 35, ctypes.byref(caption), ctypes.sizeof(caption))
-    except Exception:
-        pass
 
 
 class WebPage(QWebEnginePage):
@@ -143,7 +99,7 @@ class MainWindow(QMainWindow):
         self.bridge = Bridge(app, "main")
         self.view = make_view(self, self.bridge, "index.html")
         self.setCentralWidget(self.view)
-        _dark_title_bar(self)
+        native.style_window(self)
 
     def closeEvent(self, event):
         if self.app.quitting:
@@ -187,28 +143,28 @@ class OrbWindow(QWidget):
         super().showEvent(event)
 
 
-class HotkeyFilter(QAbstractNativeEventFilter):
-    def __init__(self, callback):
-        super().__init__()
-        self.callback = callback
+class QuitFilter(QObject):
+    """A quit that doesn't come from Jarvis (macOS's Quit menu or ⌘Q, signing out) goes through JarvisQtApp.quit(),
+    so the assistant stops in order; ignoring the event tells macOS to wait."""
 
-    def nativeEventFilter(self, event_type, message):
-        if event_type in (b"windows_generic_MSG", "windows_generic_MSG", QByteArray(b"windows_generic_MSG")):
-            try:
-                from ctypes import wintypes
-                msg = wintypes.MSG.from_address(int(message))
-                if msg.message == WM_HOTKEY and msg.wParam == HOTKEY_ID:
-                    self.callback()
-                    return True, 0
-            except Exception:
-                pass
-        return False, 0
+    def __init__(self, app: "JarvisQtApp"):
+        super().__init__()
+        self.app = app
+
+    def eventFilter(self, obj, event):
+        if event.type() == QEvent.Quit and not self.app.quitting:
+            event.ignore()
+            QTimer.singleShot(0, self.app.quit)
+            return True
+        return False
 
 
 class JarvisQtApp:
     def __init__(self, qapp: QApplication, start_minimized: bool = False):
         self.qapp = qapp
         self.quitting = False
+        self._quit_filter = QuitFilter(self)
+        qapp.installEventFilter(self._quit_filter)
         self.icon = make_icon()
         qapp.setWindowIcon(self.icon)
         self.name = config_store.assistant_name()       # what the user calls the assistant (Settings › General)
@@ -232,7 +188,7 @@ class JarvisQtApp:
         if self.setup_needed:
             self.main.show()                    # the setup wizard; the assistant starts from its last screen
         elif start_minimized or cfg.get("start_minimized", False):
-            # Started with Windows: the floating orb (click it to talk, Ctrl+Shift+J for the window), or tray only.
+            # Started at sign-in: the floating orb (click it to talk, Ctrl+Shift+J for the window), or tray only.
             if cfg.get("startup_view", "tray") == "orb":
                 self.orb.show()
             self._announce_ready = True
@@ -361,7 +317,7 @@ class JarvisQtApp:
             self._pending_ready = None
             if self._announce_ready and not self.main.isVisible():
                 self._announce_ready = False
-                hint = "Click the tray icon or press Ctrl+Shift+J to open it."
+                hint = f"Click the {'menu bar' if sys.platform == 'darwin' else 'tray'} icon or press {native.HOTKEY_LABEL} to open it."
                 self.tray.showMessage(f"{self.name} is running", hint, QSystemTrayIcon.Information, 5000)
         approval = getattr(self, "_pending_approval", None)
         if approval is not None:
@@ -382,7 +338,7 @@ class JarvisQtApp:
                                 triggered=lambda: threading.Thread(target=self.controller.stop, daemon=True).start())
         self.act_mute = QAction("Mute microphone", menu, checkable=True,
                                 triggered=lambda checked: self.controller.set_muted(checked))
-        self.act_log = QAction("Open log file", menu, triggered=lambda: __import__("os").startfile(str(logging_setup.LOG_FILE)))
+        self.act_log = QAction("Open log file", menu, triggered=lambda: current().open_path(str(logging_setup.LOG_FILE)))
         self.act_quit = QAction("Quit", menu, triggered=self.quit)
         for a in (self.act_show, self.act_orb, None, self.act_start, self.act_stop, self.act_mute, None, self.act_log, None, self.act_quit):
             menu.addSeparator() if a is None else menu.addAction(a)
@@ -425,7 +381,7 @@ class JarvisQtApp:
         self.main.raise_()
         self.main.activateWindow()
         if force:
-            force_foreground(self.main)
+            native.force_foreground(self.main)
         self.orb.hide()
         self.hub.emit_event({"type": "window", "state": "expanded", "reason": reason})
         if greet and opening:
@@ -499,14 +455,9 @@ class JarvisQtApp:
         self.refresh_tray()
 
     def _register_hotkey(self):
-        """Ctrl+Shift+J anywhere in Windows toggles the main window / orb."""
-        self._hotkey_filter = HotkeyFilter(lambda: QTimer.singleShot(0, self.on_hotkey))
-        self.qapp.installNativeEventFilter(self._hotkey_filter)
-        try:
-            ok = ctypes.windll.user32.RegisterHotKey(None, HOTKEY_ID, MOD_CONTROL | MOD_SHIFT | MOD_NOREPEAT, ord("J"))
-            print("[GUI] Global hotkey Ctrl+Shift+J " + ("registered" if ok else "unavailable (in use by another app)"))
-        except Exception as e:
-            print(f"[GUI] Global hotkey failed: {e}")
+        """Ctrl+Shift+J (⌃⇧J on a Mac) in any app toggles the main window / orb."""
+        self.hotkey = native.GlobalHotkey(self.qapp, lambda: QTimer.singleShot(0, self.on_hotkey))
+        self.hotkey.register()
 
     # ------------------------------------------------------------ quit
 
@@ -518,10 +469,7 @@ class JarvisQtApp:
         self.main.hide()
         self.orb.hide()
         self.tray.setToolTip(f"{self.name} — shutting down")
-        try:
-            ctypes.windll.user32.UnregisterHotKey(None, HOTKEY_ID)
-        except Exception:
-            pass
+        self.hotkey.unregister()
 
         def _stop():
             self.controller.shutdown()
@@ -548,10 +496,9 @@ def run(argv=None) -> int:
     argv = list(sys.argv if argv is None else argv)
     logging_setup.setup_logging(capture_std=True)
     print(f"[GUI] Starting Jarvis desktop (Python {sys.version.split()[0]}, pid {__import__('os').getpid()})")
-    try:
-        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(APP_ID)
-    except Exception:
-        pass
+    native.set_app_id()
+    from src.core import winproc
+    winproc.extend_path()
     print(f"[GUI] Data folder: {paths.home()}")
     config_store.migrate_user_config()
 

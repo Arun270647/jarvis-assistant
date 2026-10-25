@@ -1,5 +1,6 @@
 """The diagnostic report: complete enough to debug from, and safe to attach to a public issue."""
 import os
+import sys
 import unittest
 from unittest import mock
 
@@ -18,7 +19,8 @@ class DiagnoseTests(unittest.TestCase):
         for title in ("System", "Packages", "Hardware", "Settings", "Models on disk", "Last 3 log lines"):
             self.assertIn(f"== {title}", report)
         self.assertIn("AI main: claude_code", report)
-        self.assertIn("%USERPROFILE%\\Documents\\notes.txt", report)
+        mark = "~" if sys.platform == "darwin" else "%USERPROFILE%"
+        self.assertIn(f"{mark}\\Documents\\notes.txt", report)
         self.assertNotIn(home, report)
         self.assertNotIn("alex@example.com", report)
         self.assertNotIn("sk-ant-abcdefghijklmnop", report)  # export-scan: ignore

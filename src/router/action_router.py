@@ -206,27 +206,10 @@ class ActionRouter:
 
 
 def _send_media_key(key_name: str):
-    """Send a media key press via Windows API."""
-    import ctypes
-
-    VK_MAP = {
-        "play_pause": 0xB3,
-        "stop": 0xB2,
-        "next_track": 0xB0,
-        "prev_track": 0xB1,
-        "volume_up": 0xAF,
-        "volume_down": 0xAE,
-        "volume_mute": 0xAD,
-    }
-
-    vk = VK_MAP.get(key_name)
-    if vk is None:
-        raise ValueError(f"Unknown media key: {key_name}")
-
-    KEYEVENTF_EXTENDEDKEY = 0x0001
-    KEYEVENTF_KEYUP = 0x0002
-    ctypes.windll.user32.keybd_event(vk, 0, KEYEVENTF_EXTENDEDKEY, 0)
-    ctypes.windll.user32.keybd_event(vk, 0, KEYEVENTF_EXTENDEDKEY | KEYEVENTF_KEYUP, 0)
+    """Press a media key (src/platform: virtual keys on Windows, system-defined key events and AppleScript's volume
+    on macOS)."""
+    from src.platform import current
+    current().send_media_key(key_name)
 
 
 def _resolve_project(project_ref: str, agent_cfg: dict, profile: dict) -> dict:

@@ -4,14 +4,19 @@
   the profile the user names ("Marina", "SPARK IT", an email address ...) with that
   profile's logins. Profiles are read from Chrome's "Local State" file.
 - Chrome refuses DevTools automation of the real profiles (Chrome 136+), so clicking and
-  typing inside pages goes through desktop_tools (UI Automation + real mouse/keyboard).
+  typing inside pages goes through desktop_tools (UI Automation or the macOS Accessibility API + real
+  mouse/keyboard).
+- On macOS the program inside Google Chrome.app is started with the same arguments: a running Chrome takes them
+  over and opens the pages in the right profile (`open -a` would drop them).
 - read_webpage / search_web fetch public pages over plain HTTP in the background (no
   window, no cookies, no logins) and return their text as untrusted data.
 """
 import html
 import json
 import os
+import plistlib
 import re
+import sys
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -22,9 +27,12 @@ from src.core import winproc
 from src.core.redact import redact
 from src.tools.registry import ToolResult, ToolSpec
 
-DEFAULT_USER_DATA = Path(os.path.expandvars(r"%LOCALAPPDATA%\Google\Chrome\User Data"))
-USER_AGENT = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) "
-              "Chrome/155.0.0.0 Safari/537.36")
+IS_MAC = sys.platform == "darwin"
+DEFAULT_USER_DATA = (Path.home() / "Library" / "Application Support" / "Google" / "Chrome" if IS_MAC
+                     else Path(os.path.expandvars(r"%LOCALAPPDATA%\Google\Chrome\User Data")))
+DEFAULT_CHROME = "/Applications/Google Chrome.app" if IS_MAC else r"C:\Program Files\Google\Chrome\Application\chrome.exe"
+USER_AGENT = (f"Mozilla/5.0 ({'Macintosh; Intel Mac OS X 10_15_7' if IS_MAC else 'Windows NT 10.0; Win64; x64'}) "
+              "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36")
 MAX_BYTES = 3_000_000
 
 
@@ -50,6 +58,19 @@ def list_profiles(config: dict) -> tuple:
                  "email": v.get("user_name", "")} for d, v in info.items()]
     profiles.sort(key=lambda p: (p["dir"] != "Default", p["name"].lower()))
     return profiles, (state.get("profile") or {}).get("last_used", "")
+
+
+def chrome_program(path: str) -> str:
+    """The program to start: chrome.exe as given, or the executable inside a macOS app bundle."""
+    bundle = Path(path)
+    if bundle.suffix != ".app":
+        return path
+    try:
+        with open(bundle / "Contents" / "Info.plist", "rb") as f:
+            name = plistlib.load(f).get("CFBundleExecutable") or bundle.stem
+    except (OSError, ValueError, plistlib.InvalidFileException):
+        name = bundle.stem
+    return str(bundle / "Contents" / "MacOS" / name)
 
 
 def _norm(s: str) -> str:
@@ -178,8 +199,7 @@ def _ddg_results(body: str) -> list:
 # ------------------------------------------------------------------ tools
 
 def register_chrome_tools(reg, profile: dict, config: dict) -> None:
-    chrome_path = (profile.get("apps", {}).get("chrome", {}) or {}).get(
-        "path", r"C:\Program Files\Google\Chrome\Application\chrome.exe")
+    chrome_path = (profile.get("apps", {}).get("chrome", {}) or {}).get("path", DEFAULT_CHROME)
 
     def blocked(url: str) -> str:
         host = (urllib.parse.urlparse(url).hostname or "").lower()
@@ -218,7 +238,7 @@ def register_chrome_tools(reg, profile: dict, config: dict) -> None:
         p, err = pick_profile(a.get("profile", ""))
         if p is None:
             return ToolResult(ok=False, status="failed", content=err)
-        argv = [chrome_path, f"--profile-directory={p['dir']}"]
+        argv = [chrome_program(chrome_path), f"--profile-directory={p['dir']}"]
         if a.get("new_window"):
             argv.append("--new-window")
         argv += urls

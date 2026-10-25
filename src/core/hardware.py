@@ -5,7 +5,8 @@ detect() returns plain facts; config/models.json turns them into recommendations
 tool or driver simply means "not found".
 
 Facts: os, cpu_logical_cores, ram_gb, nvidia_gpu, gpu_name, nvidia_vram_gb, nvidia_free_vram_gb, cuda_libs
-(cuBLAS and cuDNN for CUDA 12 can be found, which faster-whisper needs to use the graphics card).
+(cuBLAS and cuDNN for CUDA 12 can be found, which faster-whisper needs to use the graphics card), apple_silicon
+(a Mac with an M-series chip, where the speech models run on the processor).
 """
 import ctypes
 import glob
@@ -19,6 +20,13 @@ CUDA_LIBS = {"windows": (("cublas64_12.dll",), ("cudnn64_9.dll", "cudnn_ops64_9.
 
 
 def _ram_gb() -> Optional[float]:
+    if sys.platform == "darwin":
+        from src.core import winproc
+        try:
+            res = winproc.run_hidden(["/usr/sbin/sysctl", "-n", "hw.memsize"], timeout=5, capture_output=True, text=True)
+            return round(int(res.stdout.strip()) / 1024 ** 3, 1)
+        except (OSError, ValueError, winproc.subprocess.SubprocessError):
+            return None
     if sys.platform != "win32":
         return None
 
@@ -76,7 +84,9 @@ def detect() -> dict:
     facts = {"os": f"{platform.system()} {platform.release()} ({platform.version()})",
              "cpu_logical_cores": os.cpu_count() or 1, "ram_gb": _ram_gb(),
              "nvidia_gpu": False, "gpu_name": None, "nvidia_vram_gb": 0.0, "nvidia_free_vram_gb": 0.0,
-             "cuda_libs": False}
+             "cuda_libs": False, "apple_silicon": sys.platform == "darwin" and platform.machine() == "arm64"}
+    if sys.platform == "darwin":
+        return facts                        # no NVIDIA graphics cards in Macs
     gpu = _nvidia()
     if gpu:
         facts.update(gpu, nvidia_gpu=True)

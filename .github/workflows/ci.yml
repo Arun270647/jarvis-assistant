@@ -4,18 +4,23 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:         # Actions › CI › Run workflow: test another branch (and the Mac) before a pull request
 
 permissions:
   contents: read
 
 jobs:
   python:
-    name: Python ${{ matrix.python }} tests
-    runs-on: windows-latest
+    name: Python ${{ matrix.python }} tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
+        os: [windows-latest]
         python: ["3.11", "3.12", "3.13"]
+        include:
+          - os: macos-latest           # Apple silicon: keeps the shared code portable and runs the macOS tests
+            python: "3.13"
     env:
       PYTHONIOENCODING: utf-8
     steps:
@@ -44,8 +49,10 @@ jobs:
           with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as env:
               env.write(f"JARVIS_TEST_SILERO={path}\n")
       - name: Lint
+        if: runner.os == 'Windows'
         run: ruff check .
       - name: Third-party license list is complete
+        if: runner.os == 'Windows'
         run: python scripts/third_party_licenses.py --check
       - name: Tests
         # tests/__init__.py gives the run a throwaway data folder; no microphone, GPU, network or keys needed.

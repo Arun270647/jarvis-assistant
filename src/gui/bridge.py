@@ -6,7 +6,6 @@ pipeline thread reach the page through EventHub's Qt signal, which Qt queues
 onto the UI thread.
 """
 import json
-import os
 import sys
 import threading
 import time
@@ -15,6 +14,8 @@ from pathlib import Path
 from PySide6.QtCore import QObject, Signal, Slot
 
 from src.core import config_store, logging_setup, paths, startup
+from src.gui import native
+from src.platform import current
 
 WHISPER_SIZES = ["base", "small", "medium", "large-v3-turbo"]   # downloaded into models/whisper on first use
 
@@ -78,6 +79,8 @@ class Bridge(QObject):
             "dry_run": cfg.get("dry_run", False),
             "history": history,
             "log_file": str(logging_setup.LOG_FILE),
+            "os": current().name,                       # "windows" or "macos": the page words a few things per OS
+            "hotkey": native.HOTKEY_LABEL,
         })
 
     # ------------------------------------------------------------ assistant
@@ -406,11 +409,28 @@ class Bridge(QObject):
             return
         guide = paths.APP_ROOT / "docs" / "GETTING_STARTED.md"
         if guide.exists():
-            os.startfile(str(guide))
+            current().open_path(str(guide))
 
     @Slot()
     def openMicPrivacy(self) -> None:
-        os.startfile("ms-settings:privacy-microphone")
+        current().privacy_settings("microphone")
+
+    # ------------------------------------------------------------ permissions (macOS asks for each)
+
+    @Slot(result=str)
+    def permissions(self) -> str:
+        """{permission: 'granted' | 'denied' | 'not_determined' | 'unknown'} (src.platform.PERMISSIONS)."""
+        from src.platform import PERMISSIONS
+        return _dumps({kind: current().permission(kind) for kind in PERMISSIONS})
+
+    @Slot(str, result=str)
+    def requestPermission(self, kind: str) -> str:
+        """Ask macOS for a permission (its own prompt, shown once); the page offers System Settings after that."""
+        return current().request_permission(kind)
+
+    @Slot(str, result=bool)
+    def openPrivacySettings(self, kind: str) -> bool:
+        return current().privacy_settings(kind)
 
     @Slot(str, str)
     def hearVoice(self, option_id: str, name: str) -> None:
@@ -565,7 +585,7 @@ class Bridge(QObject):
         return _dumps({"version": __version__, "data": str(paths.home()), "models": str(paths.models_dir()),
                        "installed": uninstall.installed_copy(), "updates_url": bool(cfg.get("updates", {}).get("url")),
                        "updater": updates.updater_available(), "update_ready": updates.staged_version(),
-                       "install": install.state() if sys.platform == "win32" else {"available": False}})
+                       "install": install.state() if sys.platform in ("win32", "darwin") else {"available": False}})
 
     @Slot()
     def checkUpdates(self) -> None:
@@ -595,8 +615,8 @@ class Bridge(QObject):
 
     @Slot(bool, bool)
     def installForMe(self, desktop: bool, remove_copy: bool) -> None:
-        """Install for me: copy to %LOCALAPPDATA%\Programs\Jarvis in the background (about a gigabyte), then quit
-        so the installed copy can start."""
+        """Install for me: copy to %LOCALAPPDATA%\Programs\Jarvis (or Jarvis.app to Applications) in the background
+        (about a gigabyte), then quit so the installed copy can start."""
         def run():
             from src.app import install
             self.app.hub.emit_event({"type": "install", "state": "copying", "to": install.state()["to"]})
@@ -786,30 +806,29 @@ class Bridge(QObject):
 
     @Slot(result=str)
     def saveReport(self) -> str:
-        """Settings › Save a report: the redacted diagnostic report, shown in Explorer."""
+        """Settings › Save a report: the redacted diagnostic report, shown in Explorer or the Finder."""
         try:
             from src.core.diagnose import save_report
             path = save_report()
-            from src.core import winproc
-            winproc.popen_hidden(["explorer", "/select,", str(path)])
+            current().reveal(str(path))
             return _dumps({"ok": True, "path": str(path)})
         except Exception as e:
             return _dumps({"ok": False, "error": str(e)})
 
     @Slot()
     def openLog(self) -> None:
-        os.startfile(str(logging_setup.LOG_FILE))
+        current().open_path(str(logging_setup.LOG_FILE))
 
     @Slot()
     def openLogFolder(self) -> None:
-        os.startfile(str(logging_setup.LOG_DIR))
+        current().open_path(str(logging_setup.LOG_DIR))
 
     @Slot()
     def openConfigFolder(self) -> None:
         """The user's data folder: config.json (their settings), user_profile.json, the database and logs."""
         home = paths.home()
         home.mkdir(parents=True, exist_ok=True)
-        os.startfile(str(home))
+        current().open_path(str(home))
 
     @Slot(int, result=str)
     def logTail(self, n: int) -> str:

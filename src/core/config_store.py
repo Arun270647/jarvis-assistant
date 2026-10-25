@@ -10,13 +10,14 @@ keys that differ from the defaults, atomically (a crash mid-save cannot corrupt 
 can change a default the user never touched. The user file carries config_version; migrate_user_config()
 upgrades older files at start-up.
 
-The profile works the same way: config/profile_defaults.json (common apps, media keys, system commands)
-with the user's user_profile.json on top. Every section is optional; a missing or empty profile works.
+The profile works the same way: config/profile_defaults.json (common apps, media keys, system commands;
+config/profile_defaults.macos.json on a Mac) with the user's user_profile.json on top. Every section is optional; a missing or empty profile works.
 """
 import copy
 import json
 import os
 import re
+import sys
 import tempfile
 import threading
 from pathlib import Path
@@ -25,7 +26,8 @@ from typing import Optional
 from src.core import paths
 
 DEFAULTS_PATH = paths.shipped_config_dir() / "defaults.json"
-PROFILE_DEFAULTS_PATH = paths.shipped_config_dir() / "profile_defaults.json"
+PROFILE_DEFAULTS_PATH = paths.shipped_config_dir() / ("profile_defaults.macos.json" if sys.platform == "darwin"
+                                                     else "profile_defaults.json")
 CONFIG_VERSION = 5
 ENV_PREFIX = "JARVIS__"
 
@@ -339,7 +341,8 @@ def load_config(path: Optional[Path] = None) -> dict:
 
 def profile_defaults() -> dict:
     """The shipped profile. Apps with an absolute path (after %VAR% expansion) are offered only when installed;
-    common apps found in the Start Menu are added (src/core/app_discovery.py, unless apps.discover is off)."""
+    common apps found in the Start Menu or the Applications folders are added (src/core/app_discovery.py, unless
+    apps.discover is off)."""
     prof = _read_json(PROFILE_DEFAULTS_PATH)
     apps = {}
     for key, app in (prof.get("apps") or {}).items():
@@ -352,7 +355,7 @@ def profile_defaults() -> dict:
             for key, app in discover().items():
                 apps.setdefault(key, app)
         except Exception as e:            # a broken shortcut folder must never stop the profile from loading
-            print(f"[APPS] Start Menu discovery skipped: {e}")
+            print(f"[APPS] App discovery skipped: {e}")
     prof["apps"] = apps
     return prof
 

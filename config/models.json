@@ -61,6 +61,15 @@
           }
         },
         {
+          "when": "apple_silicon and cpu_logical_cores >= 8",
+          "option": "whisper-small",
+          "reason": "quick on Apple silicon",
+          "config": {
+            "stt.device": "cpu",
+            "stt.compute_type": "int8"
+          }
+        },
+        {
           "when": "cpu_logical_cores >= 8",
           "option": "whisper-small",
           "reason": "your computer has no graphics card that can speed this up",
@@ -264,9 +273,9 @@
         {
           "id": "system",
           "name": "System voice",
-          "summary": "Built into Windows. Always works, sounds more robotic.",
-          "about": "The voice that comes with Windows (SAPI). Nothing to download.",
-          "license": "Part of Windows",
+          "summary": "Built into {os}. Always works, sounds more robotic.",
+          "about": "The voice that comes with {os} (SAPI on Windows, the say command on macOS). Nothing to download.",
+          "license": "Part of {os}",
           "size_mb": 0,
           "files": [],
           "config": {

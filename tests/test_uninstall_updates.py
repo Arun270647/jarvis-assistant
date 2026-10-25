@@ -3,6 +3,7 @@ the cleanup script is written and inspected, never run."""
 import hashlib
 import io
 import json
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -27,7 +28,7 @@ class UninstallTests(unittest.TestCase):
         self.assertEqual(sorted(p["credentials"]), ["JARVIS/LLM/anthropic", "JARVIS/LLM/openai", "JARVIS/SMTP/sam@example.com"])
 
     def test_never_deletes_a_root_the_home_folder_or_the_app(self):
-        self.assertFalse(uninstall.safe_to_delete(Path("C:/")))
+        self.assertFalse(uninstall.safe_to_delete(Path(Path.home().anchor)))
         self.assertFalse(uninstall.safe_to_delete(Path.home()))
         self.assertFalse(uninstall.safe_to_delete(paths.APP_ROOT))
         self.assertFalse(uninstall.safe_to_delete(paths.APP_ROOT.parent))
@@ -47,9 +48,11 @@ class UninstallTests(unittest.TestCase):
         text = script.read_text(encoding="utf-8")
         script.unlink()
         lines = text.splitlines()
-        self.assertLess(lines.index('tasklist /FI "PID eq 4242" 2>nul | find "4242" >nul'),
-                        lines.index(f'rmdir /s /q "{folder}"'), "it waits for Jarvis to exit before deleting")
-        self.assertIn(f'rmdir /s /q "{folder}"', text)
+        if sys.platform == "darwin":
+            wait, remove = "while kill -0 4242 2>/dev/null; do sleep 0.5; done", f'rm -rf "{folder}"'
+        else:
+            wait, remove = 'tasklist /FI "PID eq 4242" 2>nul | find "4242" >nul', f'rmdir /s /q "{folder}"'
+        self.assertLess(lines.index(wait), lines.index(remove), "it waits for Jarvis to exit before deleting")
         self.assertNotIn(f'"{Path.home()}"', text)
 
 
@@ -62,7 +65,8 @@ class UpdateTests(unittest.TestCase):
         return lambda req, timeout=None: io.BytesIO(payload)
 
     def test_check(self):
-        latest = {"version": "0.2.0", "notes": "Better voice", "windows": {"url": "https://example.com/J.zip", "sha256": "x"}}
+        latest = {"version": "0.2.0", "notes": "Better voice",
+                  updates.PLATFORM_KEY: {"url": "https://example.com/J.zip", "sha256": "x"}}
         r = updates.check("https://example.com/latest.json", "0.1.0", opener=self.fake(json.dumps(latest).encode()))
         self.assertEqual((r["available"], r["version"]), (True, "0.2.0"))
         r = updates.check("https://example.com/latest.json", "0.2.0", opener=self.fake(json.dumps(latest).encode()))

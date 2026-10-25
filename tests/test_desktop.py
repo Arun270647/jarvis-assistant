@@ -1,9 +1,12 @@
 """Desktop control tools (src/tools/desktop_tools.py) without touching the real mouse or keyboard.
 
 Window lookup, process names and input are patched, so these tests only check the
-safety rules (Jarvis's own windows, consoles, Win-key shortcuts), dry runs and wiring.
+safety rules (Jarvis's own windows, consoles, Win-key shortcuts), dry runs and wiring. They use the Windows
+rules on every OS; the macOS key parser is tested in test_macos.py.
 """
+import contextlib
 import os
+import sys
 import unittest
 from unittest import mock
 
@@ -26,13 +29,17 @@ def fake_process(hwnd):
 
 class DesktopTests(unittest.TestCase):
     def setUp(self):
-        self.patches = [mock.patch.object(dt, "top_windows", lambda: list(WINDOWS)),
+        self.patches = [mock.patch.object(dt, "RULES", dt.WINDOWS_RULES),
+                        mock.patch.object(dt, "top_windows", lambda: list(WINDOWS)),
                         mock.patch.object(dt, "process_name", fake_process),
                         mock.patch.object(dt, "focus_window", lambda h: True),
                         mock.patch.object(dt, "window_title", lambda h: BY_HWND.get(h, {}).get("title", "")),
                         mock.patch.object(dt, "click_at", mock.Mock()),
                         mock.patch.object(dt, "type_unicode", mock.Mock()),
                         mock.patch.object(dt, "press_combo", mock.Mock()),
+                        mock.patch.object(dt, "missing_permission", lambda screen=False: ""),
+                        mock.patch.object(dt, "is_window", lambda h: h in BY_HWND),
+                        mock.patch.object(dt, "thread_scope", contextlib.nullcontext),
                         mock.patch.object(dt.time, "sleep", lambda s: None)]
         for p in self.patches:
             p.start()
@@ -47,6 +54,7 @@ class DesktopTests(unittest.TestCase):
     def run_tool(self, name, args):
         return self.reg.get(name).handler(args, self.ctx)
 
+    @unittest.skipUnless(sys.platform == "win32", "Windows virtual-key codes")
     def test_parse_keys(self):
         self.assertEqual(dt.parse_keys("ctrl+shift+t"), [0x11, 0x10, ord("T")])
         self.assertEqual(dt.parse_keys("Enter"), [0x0D])
@@ -97,12 +105,20 @@ class DesktopTests(unittest.TestCase):
         r = self.run_tool("desktop_click", {"element": 7})
         self.assertEqual(r.status, "invalid")
 
-    def test_keys_refuse_win_and_consoles(self):
-        self.assertEqual(self.run_tool("desktop_keys", {"keys": "win+r"}).status, "invalid")
-        with mock.patch.object(dt.user32, "GetForegroundWindow", lambda: 30):
+    def test_keys_refuse_launcher_shortcuts_and_consoles(self):
+        launcher = "cmd+space" if sys.platform == "darwin" else "win+r"
+        self.assertEqual(self.run_tool("desktop_keys", {"keys": launcher}).status, "invalid")
+        with mock.patch.object(dt, "foreground", lambda: 30):
             self.assertEqual(self.run_tool("desktop_keys", {"keys": "enter"}).status, "denied")
-        with mock.patch.object(dt.user32, "GetForegroundWindow", lambda: 20):
+        with mock.patch.object(dt, "foreground", lambda: 20):
             self.assertTrue(self.run_tool("desktop_keys", {"keys": "ctrl+l"}).ok)
+
+    def test_tools_say_when_the_os_has_not_allowed_desktop_control(self):
+        message = "Turn Jarvis on in System Settings › Privacy & Security › Accessibility."
+        with mock.patch.object(dt, "missing_permission", lambda screen=False: message):
+            r = self.run_tool("desktop_windows", {})
+        self.assertFalse(r.ok)
+        self.assertEqual(r.content, message)
 
     def test_type_without_target_uses_last_window_not_the_front_one(self):
         self.desk.last_hwnd = 20                                         # e.g. after desktop_snapshot of Chrome
@@ -112,8 +128,8 @@ class DesktopTests(unittest.TestCase):
             fg["h"] = h
             return True
         with mock.patch.object(dt, "focus_window", focus), \
-                mock.patch.object(dt.user32, "IsWindow", lambda h: True), \
-                mock.patch.object(dt.user32, "GetForegroundWindow", lambda: fg["h"]):
+                mock.patch.object(dt, "is_window", lambda h: True), \
+                mock.patch.object(dt, "foreground", lambda: fg["h"]):
             r = self.run_tool("desktop_type", {"text": "hi"})
         self.assertTrue(r.ok, r.content)
         self.assertIn("Google Calendar", r.content)

@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Download Jarvis</title>
-<meta name="description" content="Jarvis is a free, open-source voice assistant for your PC.">
+<meta name="description" content="Jarvis is a free, open-source voice assistant for Windows and Mac.">
 <!-- The download page template (website/README.md). It reads latest.json from the same folder: the file the
      release workflow attaches to every GitHub Release, which the app's updater reads too. -->
 <style>
@@ -31,10 +31,16 @@
   a { color: var(--accent); }
   .lead { color: var(--muted); margin-bottom: 28px; }
   .card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 20px; }
+  .downloads { display: flex; flex-wrap: wrap; gap: 20px; }
+  .downloads > div { flex: 1 1 260px; }
   .button { display: inline-block; background: var(--accent); color: var(--accent-text); text-decoration: none;
             font-weight: 600; font-size: 1.1rem; padding: 14px 24px; border-radius: 10px; }
+  .button.secondary { background: transparent; color: var(--accent); border: 1px solid var(--accent);
+                      font-size: 1rem; padding: 11px 18px; }
   .button:focus-visible { outline: 3px solid var(--text); outline-offset: 3px; }
   .meta { color: var(--muted); font-size: .9rem; margin-top: 10px; }
+  .switch { background: none; border: 0; padding: 0; color: var(--accent); font: inherit; font-size: .9rem;
+            text-decoration: underline; cursor: pointer; }
   ol.steps { list-style: none; counter-reset: step; padding: 0; margin: 0; display: grid; gap: 12px; }
   ol.steps li { counter-increment: step; display: flex; gap: 14px; align-items: flex-start; }
   ol.steps li::before { content: counter(step); flex: 0 0 32px; height: 32px; border-radius: 50%; display: grid;
@@ -51,38 +57,70 @@
 <body>
 <main>
   <h1>Jarvis</h1>
-  <p class="lead">A free, open-source voice assistant for your PC. It hears and speaks on your computer, and works
-    with your own Claude account or another AI.</p>
+  <p class="lead">A free, open-source voice assistant for Windows and Mac. It hears and speaks on your computer, and
+    works with your own Claude account or another AI.</p>
 
   <section class="card" aria-labelledby="get">
     <h2 id="get" style="margin-top:0">Download</h2>
-    <div id="windows">
-      <a class="button" id="download" href="#">Download Jarvis for Windows</a>
-      <p class="meta" id="meta">Windows 10 or 11, 64-bit. About 300 MB; the setup downloads the speech and voice
-        models after that.</p>
+    <div class="downloads" id="downloads">
+      <div id="windows">
+        <a class="button" id="download-windows" href="#">Download for Windows</a>
+        <p class="meta" id="meta-windows">Windows 10 or 11, 64-bit. About 300 MB; the setup downloads the speech
+          and voice models after that.</p>
+      </div>
+      <div id="macos">
+        <a class="button" id="download-macos" href="#">Download for Mac</a>
+        <p class="meta" id="meta-macos">Macs with Apple silicon (M1 or later), macOS 13 or later. Not for Intel
+          Macs.</p>
+      </div>
     </div>
-    <p id="other-os" hidden>Jarvis runs on Windows 10 and 11 for now; a Mac version is planned. Open this page on
-      your Windows PC to download it.</p>
     <p id="error" hidden>The download list couldn't be loaded. Try again in a moment.</p>
   </section>
 
-  <h2>Install it in three steps</h2>
-  <ol class="steps">
-    <li><span>Open your <strong>Downloads</strong> folder, right-click the zip file and choose <strong>Extract
-      All</strong>, then <strong>Extract</strong>.</span></li>
-    <li><span>Open the extracted <strong>Jarvis</strong> folder and double-click <strong>Jarvis.exe</strong>.</span></li>
-    <li><span>The setup asks for a name, downloads the models and connects your AI. At the end, <strong>Install for
-      me</strong> moves Jarvis out of Downloads and adds it to the Start Menu.</span></li>
-  </ol>
+  <section id="steps-windows" class="os-steps">
+    <h2>Install it on Windows in three steps</h2>
+    <ol class="steps">
+      <li><span>Open your <strong>Downloads</strong> folder, right-click the zip file and choose <strong>Extract
+        All</strong>, then <strong>Extract</strong>.</span></li>
+      <li><span>Open the extracted <strong>Jarvis</strong> folder and double-click <strong>Jarvis.exe</strong>.</span></li>
+      <li><span>The setup asks for a name, downloads the models and connects your AI. At the end, <strong>Install for
+        me</strong> moves Jarvis out of Downloads and adds it to the Start Menu.</span></li>
+    </ol>
 
-  <h2>"Windows protected your PC"</h2>
-  <div class="warn">
-    <p>Jarvis is free and has no budget for a code-signing certificate, so Windows SmartScreen warns the first time
-      you open it. Click <strong>More info</strong>, then <strong>Run anyway</strong>. Windows only asks once.</p>
-    <p>To make sure the file is the one published here, open PowerShell in your Downloads folder and run:</p>
-    <p><code id="hash-cmd">Get-FileHash Jarvis-windows-x64.zip</code></p>
-    <p>The result must match this SHA-256: <code id="sha">see the table below</code></p>
-  </div>
+    <h2>"Windows protected your PC"</h2>
+    <div class="warn">
+      <p>Jarvis is free and has no budget for a code-signing certificate, so Windows SmartScreen warns the first
+        time you open it. Click <strong>More info</strong>, then <strong>Run anyway</strong>. Windows only asks
+        once.</p>
+      <p>To make sure the file is the one published here, open PowerShell in your Downloads folder and run:</p>
+      <p><code id="hash-cmd-windows">Get-FileHash Jarvis-windows-x64.zip</code></p>
+      <p>The result must match this SHA-256: <code id="sha-windows">see the table below</code></p>
+    </div>
+  </section>
+
+  <section id="steps-macos" class="os-steps">
+    <h2>Install it on a Mac in three steps</h2>
+    <ol class="steps">
+      <li><span>Open the downloaded <strong>.dmg</strong> file and drag <strong>Jarvis</strong> onto the
+        <strong>Applications</strong> folder next to it.</span></li>
+      <li><span>Open <strong>Jarvis</strong> from Applications. The first time, follow "macOS can't check Jarvis"
+        below.</span></li>
+      <li><span>The setup asks for a name and for the microphone, downloads the models and connects your AI. Then
+        you can eject the Jarvis disk image and delete the .dmg file.</span></li>
+    </ol>
+
+    <h2>"macOS can't check Jarvis"</h2>
+    <div class="warn">
+      <p>Jarvis is free and isn't notarized by Apple (that needs a paid developer account), so macOS blocks it the
+        first time. Click <strong>Done</strong>, open <strong>System Settings › Privacy &amp; Security</strong>,
+        scroll down to the message about Jarvis and click <strong>Open Anyway</strong>, then <strong>Open</strong>.
+        macOS only asks once.</p>
+      <p>To make sure the file is the one published here, open Terminal in your Downloads folder and run:</p>
+      <p><code id="hash-cmd-macos">shasum -a 256 Jarvis-macos-arm64.dmg</code></p>
+      <p>The result must match this SHA-256: <code id="sha-macos">see the table below</code></p>
+    </div>
+  </section>
+  <p class="meta"><button class="switch" id="switch" type="button">Show the steps for the other system</button></p>
 
   <h2>All downloads</h2>
   <div class="table-wrap">
@@ -97,35 +135,54 @@
 (() => {
   const $ = id => document.getElementById(id);
   const ua = navigator.userAgent || "";
-  const windows = /Windows/i.test(ua) && !/Windows Phone/i.test(ua);
-  if (!windows) { $("windows").hidden = true; $("other-os").hidden = false; }
+  // Safari on Apple silicon still says "Intel Mac OS X"; iPhones and iPads aren't Macs.
+  let os = /Macintosh|Mac OS X/i.test(ua) && !/iPhone|iPad/i.test(ua) ? "macos" : "windows";
+  const other = name => (name === "macos" ? "windows" : "macos");
+
+  function show(which) {
+    os = which;
+    $("steps-" + which).hidden = false;
+    $("steps-" + other(which)).hidden = true;
+    $(which).style.order = 0;
+    $(other(which)).style.order = 1;
+    $("download-" + other(which)).classList.add("secondary");
+    $("download-" + which).classList.remove("secondary");
+    $("switch").textContent = which === "macos" ? "Show the steps for Windows" : "Show the steps for Mac";
+  }
+  $("switch").addEventListener("click", () => show(other(os)));
+  show(os);
 
   const mb = bytes => `${Math.round(bytes / 1e6)} MB`;
   const fileName = url => decodeURIComponent(url.split("?")[0].split("/").pop());
+  const LABELS = {
+    windows: { name: "Windows", meta: "Windows 10 or 11, 64-bit", hash: "Get-FileHash" },
+    macos: { name: "Mac", meta: "Apple silicon (M1 or later), macOS 13 or later", hash: "shasum -a 256" },
+  };
 
   fetch("latest.json", { cache: "no-cache" })
     .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
     .then(latest => {
-      const win = latest.windows;
       const rows = $("files");
       rows.textContent = "";
-      if (win && win.url) {
-        const name = fileName(win.url);
-        $("download").href = win.url;
-        $("download").textContent = `Download Jarvis ${latest.version} for Windows`;
-        $("meta").textContent = `Windows 10 or 11, 64-bit · ${name} · ${mb(win.size)}. The setup downloads the speech and voice models after that.`;
-        $("hash-cmd").textContent = `Get-FileHash ${name}`;
-        $("sha").textContent = win.sha256;
+      ["windows", "macos"].forEach(key => {
+        const asset = latest[key], label = LABELS[key];
+        if (!asset || !asset.url) { $(key).hidden = true; return; }
+        const name = fileName(asset.url);
+        $("download-" + key).href = asset.url;
+        $("download-" + key).textContent = `Download Jarvis ${latest.version} for ${label.name}`;
+        $("meta-" + key).textContent = `${label.meta} · ${name} · ${mb(asset.size)}. The setup downloads the speech and voice models after that.`;
+        $("hash-cmd-" + key).textContent = `${label.hash} ${name}`;
+        $("sha-" + key).textContent = asset.sha256;
         const tr = document.createElement("tr");
-        [name, latest.version, mb(win.size), win.sha256].forEach((text, i) => {
+        [name, latest.version, mb(asset.size), asset.sha256].forEach((text, i) => {
           const td = document.createElement("td");
           if (i === 3) td.className = "hash";
-          if (i === 0) { const a = document.createElement("a"); a.href = win.url; a.textContent = text; td.appendChild(a); }
+          if (i === 0) { const a = document.createElement("a"); a.href = asset.url; a.textContent = text; td.appendChild(a); }
           else td.textContent = text;
           tr.appendChild(td);
         });
         rows.appendChild(tr);
-      }
+      });
       if (/^https:\/\//.test(latest.notes || "")) { $("notes").href = latest.notes; $("notes").hidden = false; }
     })
     .catch(() => { $("error").hidden = false; $("files").textContent = ""; });

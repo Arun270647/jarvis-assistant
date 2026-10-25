@@ -5,7 +5,9 @@ installed in this Python), and the bundled fonts and models.
     python scripts/third_party_licenses.py --check    # exit 1 if a core requirement is missing from it
 
 Run it before each release, from the environment the release is built from. Licenses come from each package's
-own metadata; a package whose metadata says nothing useful is listed as "see project page".
+own metadata; a package whose metadata says nothing useful is listed as "see project page". Packages that only the
+other OS installs (pywin32 on Windows, PyObjC on macOS) can't be read here: they are taken from requirements.lock,
+with their licenses from OTHER_OS_LICENSES.
 """
 import re
 import sys
@@ -14,6 +16,26 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "THIRD_PARTY_LICENSES.md"
+OS_NAMES = {"win32": "Windows", "darwin": "macOS"}
+
+# Licenses of the packages only one OS installs (from each package's own metadata), for the list made on the other
+# OS. A package missing here is listed as "see project page".
+OTHER_OS_LICENSES = {
+    "pywin32": ("PSF", "https://github.com/mhammond/pywin32"),
+    "uiautomation": ("Apache 2.0", "https://github.com/yinkaisheng/Python-UIAutomation-for-Windows"),
+    "comtypes": ("MIT", "https://github.com/enthought/comtypes"),
+    "colorama": ("BSD License", "https://github.com/tartley/colorama"),
+    "pyobjc-core": ("MIT", "https://github.com/ronaldoussoren/pyobjc"),
+    "pyobjc-framework-*": ("MIT", "https://github.com/ronaldoussoren/pyobjc"),
+    "keyring": ("MIT", "https://github.com/jaraco/keyring"),
+    "jaraco-classes": ("MIT", "https://github.com/jaraco/jaraco.classes"),
+    "jaraco-context": ("MIT", "https://github.com/jaraco/jaraco.context"),
+    "jaraco-functools": ("MIT", "https://github.com/jaraco/jaraco.functools"),
+    "more-itertools": ("MIT", "https://github.com/more-itertools/more-itertools"),
+    "backports-tarfile": ("MIT", "https://github.com/jaraco/backports.tarfile"),
+    "importlib-metadata": ("Apache-2.0", "https://github.com/python/importlib_metadata"),
+    "zipp": ("MIT", "https://github.com/jaraco/zipp"),
+}
 
 
 def canonical(name: str) -> str:
@@ -58,6 +80,33 @@ def closure(names: list) -> dict:
         found[name] = dist
         todo.extend(n for n in (_needed(r) for r in dist.requires or []) if n)
     return found
+
+
+def other_os_packages() -> dict:
+    """{OS name: [(name, version)]} for the packages in requirements.lock that only another OS installs."""
+    from packaging.markers import Marker
+    python = {"python_full_version": "3.11.9", "python_version": "3.11"}     # include the ones for older Pythons
+    here = sys.platform
+    out = {}
+    for line in (ROOT / "requirements.lock").read_text(encoding="utf-8").splitlines():
+        m = re.match(r"([A-Za-z0-9_.\-]+)==([^\s;\\]+)\s*;\s*([^\\]+?)\s*\\?$", line)
+        if not m:
+            continue
+        marker = Marker(m.group(3))
+        if marker.evaluate(dict(python, sys_platform=here)):
+            continue
+        for platform, label in OS_NAMES.items():
+            if platform != here and marker.evaluate(dict(python, sys_platform=platform)):
+                out.setdefault(label, []).append((canonical(m.group(1)), m.group(2)))
+    return out
+
+
+def known_license(name: str) -> tuple:
+    if name in OTHER_OS_LICENSES:
+        return OTHER_OS_LICENSES[name]
+    if name.startswith("pyobjc-framework-"):
+        return OTHER_OS_LICENSES["pyobjc-framework-*"]
+    return "see project page", f"https://pypi.org/project/{name}/"
 
 
 def license_of(dist) -> str:
@@ -113,8 +162,16 @@ def render() -> str:
     for name in sorted(dists):
         d = dists[name]
         lines.append(f"| {name} | {d.version} | {cell(license_of(d))} | {homepage(d)} | {'yes' if name in core else ''} |")
+    other = other_os_packages()
+    missing = [n for n in missing if not any(n == name for pkgs in other.values() for name, _ in pkgs)]
     if missing:
         lines += ["", "Not installed where this list was generated: " + ", ".join(missing) + "."]
+    for label, pkgs in sorted(other.items()):
+        lines += ["", f"### Only on {label}", "",
+                  "| Package | Version | License | Project | In requirements.txt |", "|---|---|---|---|---|"]
+        for name, version in sorted(pkgs):
+            lic, url = known_license(name)
+            lines.append(f"| {name} | {version} | {cell(lic)} | {url} | {'yes' if name in core else ''} |")
     lines += [
         "",
         "## Optional add-ons (not part of Jarvis)",
@@ -146,6 +203,18 @@ def render() -> str:
         "|---|---|",
         f"| Python {runtime['python']['version']} (python.org's embeddable package) | PSF License 2.0; the libraries "
         "it includes are listed in `runtime\\LICENSE.txt` |",
+        f"| pip {runtime['pip']['version']} | MIT |",
+        "",
+        "## Bundled in the Mac app",
+        "",
+        "Jarvis.app (packaging/build_macos.py) carries its own Python too:",
+        "",
+        "| Component | License |",
+        "|---|---|",
+        f"| Python {runtime['macos_python']['version']} (python-build-standalone {runtime['macos_python']['build']}) | "
+        "PSF License 2.0, see `Contents/Resources/runtime/lib/python3.13/LICENSE.txt`; statically linked: OpenSSL "
+        "(Apache-2.0), SQLite (public domain), libffi (MIT), XZ Utils (0BSD), zlib (zlib), bzip2 (bzip2), mpdecimal "
+        "(BSD-2-Clause), expat (MIT), libedit (BSD-3-Clause), ncurses (X11) |",
         f"| pip {runtime['pip']['version']} | MIT |",
         "",
         "## Bundled fonts",

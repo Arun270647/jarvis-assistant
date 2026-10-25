@@ -2,7 +2,9 @@
 approvals and verification. Real TaskManager / Orchestrator / PolicyExecutor / workspace
 tools on a temporary copy of the demo project; Claude is replaced by a scripted backend
 that issues the tool calls a model would (mocked model, real everything else)."""
+import os
 import shutil
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -404,7 +406,8 @@ class WorkspaceSafetyTests(unittest.TestCase):
 
     def test_paths_confined_to_authorized_roots(self):
         self.assertEqual(self.ws.resolve("a.txt", "p").resolve(), (self.dir / "proj" / "a.txt").resolve())
-        for bad in [str(self.dir / "other.txt"), "..\\..\\x.txt", "C:\\Windows\\win.ini"]:
+        outside = Path(self.dir.anchor) / ("Windows" if sys.platform == "win32" else "etc") / "hosts"
+        for bad in [str(self.dir / "other.txt"), os.path.join("..", "..", "x.txt"), str(outside)]:
             with self.assertRaises(WorkspaceError):
                 self.ws.resolve(bad, "p")
         with self.assertRaises(WorkspaceError):

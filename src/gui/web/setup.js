@@ -109,6 +109,37 @@
   const link = (text, onclick) => h("button", { class: "setup-link", onclick, text });
   const note = (text, kind) => h("div", { class: "setup-note" + (kind ? " " + kind : ""), text });
 
+  // macOS asks the user for each permission; the panel shows where each stands, live, with the button that helps.
+  const PERMS = {
+    microphone: ["Microphone", "to hear you when you talk to it"],
+    accessibility: ["Accessibility", "to read, click and type in other apps"],
+    screen: ["Screen & System Audio Recording", "to take screenshots of other apps (it takes effect after a restart)"],
+  };
+  W.asked = W.asked || {};
+  function permissionPanel(kinds) {
+    const box = h("div", { class: "perm-panel", role: "status" });
+    const draw = async () => {
+      const st = JSON.parse(await call("permissions") || "{}");
+      box.textContent = "";
+      kinds.forEach(k => {
+        const s = st[k] || "unknown", [title, why] = PERMS[k];
+        const ask = s === "not_determined" || (s === "denied" && k !== "microphone" && !W.asked[k]);
+        const action = s === "granted" ? null : ask
+          ? secondary("Allow", async () => { W.asked[k] = true; await call("requestPermission", k); draw(); })
+          : secondary("Open System Settings", () => call("openPrivacySettings", k));
+        box.appendChild(h("div", { class: "perm-row" + (s === "granted" ? " ok" : "") },
+          h("span", { class: "option-name", text: title }),
+          h("span", { class: "perm-state", text: s === "granted" ? "✓ Allowed" : s === "denied" ? "Not allowed yet" : s === "not_determined" ? "Not asked yet" : "Can't tell" }),
+          action || h("span"),
+          h("span", { class: "help", text: `${T.name} needs this ${why}.` })));
+      });
+    };
+    draw();
+    const timer = setInterval(() => { if (!document.body.contains(box)) clearInterval(timer); else draw(); }, 1500);
+    return box;
+  }
+  const mac = () => T.os === "macos";
+
   async function save(step, data) {
     const r = JSON.parse(await call("setupSave", step, JSON.stringify(data || {})) || "{}");
     if (!r.ok) A.toast(r.error || "Couldn't save that.");
@@ -260,7 +291,7 @@
     W.onModels = models => { list.textContent = ""; models.forEach(m => list.appendChild(h("option", { value: m }))); line.textContent = `${models.length} models found.`; };
     return h("div", { class: "other-ways" },
       h("div", { class: "grid-2" }, h("div", { class: "field" }, h("label", { text: "Provider" }), pick),
-        h("div", { class: "field" }, h("label", { text: "API key (not needed for a model on this PC)" }), key),
+        h("div", { class: "field" }, h("label", { text: T.t("API key (not needed for a model on this {pc})") }), key),
         h("div", { class: "field" }, h("label", { text: "Model" }), model, list)),
       h("div", { class: "toolbar" },
         secondary("Fetch models", async () => { if (key.value) await call("aiSaveKey", pick.value, key.value); line.textContent = "Asking for the model list…"; call("aiFetchModels", pick.value, ""); }),
@@ -285,8 +316,9 @@
     const result = h("div", { id: "mic-result" });
     const test = secondary(`Test: say “Hello ${T.name}”`, () => { result.textContent = "Listening for 5 seconds…"; W.orbPhase = "listening"; call("micTest", sel.value); });
     page("Let's check your microphone", `${T.name} only listens when you click the orb or hold the talk key. Nothing is recorded in the background.`,
-      devices.length ? [h("div", { class: "field" }, h("label", { text: "Microphone" }), sel), meter, h("div", { class: "toolbar" }, test), result]
-        : [note(`No microphone found. You can still type to ${T.name}.`, "warn")],
+      (mac() ? [permissionPanel(["microphone"])] : []).concat(
+        devices.length ? [h("div", { class: "field" }, h("label", { text: "Microphone" }), sel), meter, h("div", { class: "toolbar" }, test), result]
+          : [note(`No microphone found. You can still type to ${T.name}.`, "warn")]),
       [primary(devices.length ? "Continue" : "Continue without voice input", async () => { if (await save("microphone", { device: W.mic })) next(); })]);
   }
 
@@ -296,7 +328,7 @@
     box.textContent = "";
     if (ev.ok) box.appendChild(note(ev.heard ? `✓ I heard: “${ev.heard.trim()}”` : "✓ I can hear you. (Speech recognition is still downloading.)", "ok"));
     else if (ev.blocked) box.append(note(`${T.name} can't use the microphone because it's turned off in privacy settings.`, "warn"),
-      h("div", { class: "toolbar" }, secondary("Open privacy settings", () => call("openMicPrivacy"))));
+      h("div", { class: "toolbar" }, secondary(mac() ? "Open System Settings" : "Open privacy settings", () => call("openMicPrivacy"))));
     else box.appendChild(note(ev.error || "That didn't work.", "warn"));
   }
 
@@ -340,8 +372,11 @@
     const cards = W.st.presets.map(p => h("label", { class: "preset" + (p.id === preset ? " on" : "") },
       h("input", { type: "radio", name: "preset", checked: p.id === preset, onchange: () => { W.preset = p.id; render(); } }),
       h("span", { class: "option-name", text: p.title }), h("span", { class: "help", text: p.text })));
-    page(`What may ${T.name} do?`, null, [h("div", { class: "presets" }, cards),
-      note(`You can change this any time in Settings. ${T.name} always asks before deleting, sending email or shutting down.`)],
+    const extra = !mac() ? [] : preset === "full"
+      ? [note(`For Full control, macOS asks you to allow ${T.name} twice in System Settings:`), permissionPanel(["accessibility", "screen"])]
+      : preset === "work" ? [note(`The first time ${T.name} opens a Terminal window, macOS asks whether it may control Terminal.`)] : [];
+    page(`What may ${T.name} do?`, null, [h("div", { class: "presets" }, cards)].concat(extra, [
+      note(`You can change this any time in Settings. ${T.name} always asks before deleting, sending email or shutting down.`)]),
       [primary("Continue", async () => { if (await save("permissions", { preset: W.preset || W.st.preset })) next(); })]);
   }
 
@@ -350,7 +385,7 @@
     const cb = h("input", { type: "checkbox" }); cb.checked = W.autostart != null ? W.autostart : true;
     cb.addEventListener("change", () => { W.autostart = cb.checked; });
     page("Start-up", null, [h("label", { class: "check" }, cb, `Start ${T.name} when I sign in to my computer`),
-      note("Your shortcut to talk: Ctrl+Shift+J")],
+      note(T.t("setup.hotkey"))],
       [primary("Continue", async () => { if (await save("startup", { autostart: cb.checked })) next(); })]);
   }
 
@@ -432,5 +467,5 @@
     }
   }
 
-  window.JarvisSetup = { open, onEvent, go, get active() { return W.active; } };     // go: screenshots and dev checks
+  window.JarvisSetup = { open, onEvent, go, permissionPanel, get active() { return W.active; } };     // go: screenshots and dev checks
 })();

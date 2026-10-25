@@ -14,8 +14,8 @@ unless it says otherwise.
 - Some actions **always ask**, and for those a spoken "yes" isn't enough: you click **Allow** or press **Y**.
 - After Jarvis reads a web page, a screen or a file, actions that change something **ask first**. This
   protects you from instructions hidden in that content.
-- API keys and passwords are kept in **Windows Credential Manager** and masked in logs, history and the
-  activity list.
+- API keys and passwords are kept in **Windows Credential Manager** (on a Mac, the **Keychain**) and masked in
+  logs, history and the activity list.
 
 ## What it may do: tool groups
 
@@ -111,12 +111,20 @@ When **Control other apps** is on, Jarvis uses the mouse and keyboard the way yo
   RoboForm, Enpass, Proton Pass;
 - browser **saved-password and payment pages**, and Windows **Credential Manager**.
 
+On a Mac the same rules cover Terminal and the other terminal apps (iTerm2, Warp, kitty, Ghostty and more), Script
+Editor, Automator, Shortcuts, System Settings, Activity Monitor, Keychain Access, the Passwords app, the
+password prompts of macOS, and the same password managers. It doesn't type into Spotlight, the Dock or other
+launchers (Alfred, Raycast), and never presses ⌘Space, ⌃Space, ⌘⌥Esc or the sign-out and lock shortcuts. macOS
+itself only allows it after you turn Jarvis on in System Settings › Privacy & Security › Accessibility (and Screen
+& System Audio Recording for screenshots).
+
 It never sends Windows-key shortcuts. Screenshots it takes are sent to your AI provider like any other
 request. Leave this group off unless you need it.
 
 ## Keys and passwords
 
-- API keys and the email password are stored in **Windows Credential Manager**, never in settings files.
+- API keys and the email password are stored in **Windows Credential Manager** (on a Mac, the **Keychain**),
+  never in settings files.
 - Anything that looks like a key, token or password is **masked** before it is written to the log, stored in
   history, shown in Activity or sent to the AI. Covered: Anthropic, OpenAI, OpenRouter, Groq, xAI, Google,
   Hugging Face and other provider keys, GitHub and Slack tokens, `Authorization` headers, passwords in URLs,
@@ -126,7 +134,7 @@ request. Leave this group off unless you need it.
 ## Extensions
 
 Extensions are extra tools written in Python and placed in the `tools_ext` folder. **They run with your full
-Windows user rights, and nobody has reviewed them.** Jarvis loads only the ones you tick in
+user rights, and nobody has reviewed them.** Jarvis loads only the ones you tick in
 **Settings › Extensions**, and their tools still go through the checks above (they ask by default). Turn one
 on only if you wrote it or trust whoever did.
 

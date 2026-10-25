@@ -6,6 +6,8 @@ into the user turn via compose_user_turn().
 """
 import datetime
 
+from src.platform import current
+
 
 def describe_user(profile: dict) -> str:
     """Stable 'who the user is' section from user_profile.json (no secrets)."""
@@ -33,7 +35,7 @@ def describe_user(profile: dict) -> str:
 
 
 FULL_ACCESS_NOTE = (
-    "- The user has given you access to the whole PC: the file tools and run_command work on any folder (absolute "
+    "- The user has given you access to the whole computer: the file tools and run_command work on any folder (absolute "
     "paths, or relative to the home folder, e.g. Desktop or Downloads) and run without approval. Only deleting files "
     "asks; secret files, the app's own code and config, and dangerous commands stay off limits.\n"
 )
@@ -75,9 +77,10 @@ def _terminal_section(tools: set, coding_cli: str) -> str:
         return ""
     agent = CODING_AGENTS.get(coding_cli, "the coding agent")
     command = CODING_COMMANDS.get(coding_cli)
-    text = ("Terminals: when the user wants a program to work on a project, do it in a visible Command Prompt the "
-            "user can watch: open_terminal (reuse one already open for that project; check with terminal_read), and "
-            "if they ask you to navigate, type cd /d <folder> with terminal_type.")
+    mac = current().name == "macos"
+    text = (f"Terminals: when the user wants a program to work on a project, do it in a visible {current().terminal} "
+            "the user can watch: open_terminal (reuse one already open for that project; check with terminal_read), "
+            f"and if they ask you to navigate, type {'cd' if mac else 'cd /d'} <folder> with terminal_type.")
     if command:
         text += (f" For {agent}, type {command}, wait for its prompt with terminal_read, and type the task as one "
                  f"line. Do not wait for {agent} to finish: once the task is typed, tell the user it is running, and "
@@ -134,15 +137,15 @@ def build_agent_system_prompt(tool_names: list, profile: dict = None, full_acces
                 "), say plainly that you can't do that yet"
                 + (" and record it with note_capability_gap" if "note_capability_gap" in tools else "") + ".\n")
     return (
-        f"You are {name}, a voice assistant running on the user's Windows PC.{app_note}\n"
+        f"You are {name}, a voice assistant running on the user's {current().machine}.{app_note}\n"
         "\n"
         + describe_user(profile)
         + _everyday_section(tools)
         + _terminal_section(tools, coding_cli) +
         "How you act:\n"
-        "- You can only affect the PC through your tools (" + ", ".join(tool_names) + "). "
+        f"- You can only affect the {current().computer} through your tools (" + ", ".join(tool_names) + "). "
         "Nothing happens unless you call a tool.\n"
-        "- For a PC action, call the tool, read its actual result, then tell the user what happened. "
+        f"- For a {current().computer} action, call the tool, read its actual result, then tell the user what happened. "
         "Never say an action succeeded unless the tool result says so. If a result says DRY RUN, say it was "
         "only simulated. If it was denied, cancelled, timed out or failed, say so briefly.\n"
         "- You may chain several tool calls when a request needs more than one step.\n"

@@ -2,6 +2,7 @@
 (no network): resume after a dropped connection, checksum mismatch, import of a file the user already has."""
 import hashlib
 import re
+import sys
 import tempfile
 import threading
 import time
@@ -85,6 +86,8 @@ class HardwareRuleTests(unittest.TestCase):
             facts = hardware.detect()
         self.assertFalse(facts["nvidia_gpu"])
         self.assertGreaterEqual(facts["cpu_logical_cores"], 1)
+        if sys.platform == "darwin":
+            return                                                          # Macs have no NVIDIA cards to find
         fake = subprocess.CompletedProcess([], 0, "NVIDIA GeForce RTX 4070, 12282, 11000\n", "")
         with mock.patch("src.core.winproc.run_hidden", return_value=fake), \
                 mock.patch.object(hardware, "cuda_libs_found", return_value=True):

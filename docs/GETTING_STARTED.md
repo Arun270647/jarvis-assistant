@@ -5,8 +5,9 @@ always asks before doing anything important.
 
 This guide takes about 5 minutes. You don't need any technical knowledge once Jarvis is installed.
 
-**You need:** a Windows 11 PC, a microphone (most laptops have one; without one you can type), an internet
-connection, and a **Claude Pro or Max** plan (sign up at claude.ai). No Claude plan? See
+**You need:** a Windows 11 PC or a Mac with Apple silicon (M1 or later, macOS 13 or later), a microphone (most
+laptops have one; without one you can type), an internet connection, and a **Claude Pro or Max** plan (sign up
+at claude.ai). No Claude plan? See
 [Other ways to connect](#5-other-ways-to-connect).
 
 > Jarvis isn't released yet. Until the first download is published, it runs from its source code: see
@@ -24,6 +25,17 @@ connection, and a **Claude Pro or Max** plan (sign up at claude.ai). No Claude p
 
 The setup wizard opens. On its last screen, **Install for me** moves Jarvis out of your Downloads folder and adds
 it to the Start Menu.
+
+**On a Mac:**
+1. Download Jarvis for Mac (a .dmg file) and open it. Drag **Jarvis** onto the **Applications** folder in the
+   window that opens.
+2. Open **Jarvis** from Applications. The first time, macOS says it can't check it, because Jarvis isn't notarized by
+   Apple: click **Done**, open **System Settings › Privacy & Security**, scroll down and click **Open Anyway**,
+   then **Open**. macOS asks this once.
+3. When the setup wizard reaches the microphone, click **Allow** so macOS lets Jarvis hear you.
+
+If you opened Jarvis straight from the disk image, **Install for me** on its last screen copies it into your
+Applications folder, where it can update itself.
 
 ## 2. Set up (the setup wizard)
 
@@ -90,14 +102,15 @@ same way.
 
 ## 3. Everyday use
 
-- **Talk:** click the orb, or press **Ctrl+Shift+J**, then speak. Jarvis stops listening when you stop talking.
+- **Talk:** click the orb, or press **Ctrl+Shift+J** (on a Mac **Control-Shift-J**, ⌃⇧J), then speak. Jarvis
+  stops listening when you stop talking.
 - **Hold to talk:** in the Jarvis window, hold **Space** while you speak.
 - **Type:** write in the box under the orb and press Enter.
 - **Mute the microphone:** **Ctrl+M** or the microphone button.
 - **Approve or refuse:** when Jarvis wants to do something important, it shows a box and asks out loud. Click
   **Allow** or **Deny**, press **Y** or **N**, or say "yes" / "no".
-- **Hide it:** close the window. Jarvis keeps running as a small orb and an icon in the taskbar tray.
-  Right-click the icon to quit.
+- **Hide it:** close the window. Jarvis keeps running as a small orb and an icon in the taskbar tray (in the
+  menu bar on a Mac). Right-click the icon to quit (on a Mac, click it).
 
 ![The Jarvis window](images/main-window.png)
 
@@ -114,9 +127,11 @@ Open **Settings › Tools and permissions**, or run the setup again (**Settings 
 and pick another card:
 
 - **Everyday**: apps, music and volume, time, web, memory, reading the folders you added, locking the PC.
-- **Work**: also edits files in those folders, runs project commands, opens Command Prompts, sends email and
-  runs coding agents. Asks before risky changes.
-- **Full control**: also looks at, clicks and types in other apps for you and takes screenshots.
+- **Work**: also edits files in those folders, runs project commands, opens Command Prompts (Terminal windows on
+  a Mac), sends email and runs coding agents. Asks before risky changes.
+- **Full control**: also looks at, clicks and types in other apps for you and takes screenshots. On a Mac, this
+  needs two permissions in System Settings › Privacy & Security, **Accessibility** and **Screen & System Audio
+  Recording**: the setup wizard shows both, with buttons that open the right page.
 
 In **Settings › Tools and permissions** you can also switch each group on or off by itself.
 
@@ -145,7 +160,8 @@ that fixes it.
 
 | Problem | What to do |
 |---|---|
-| Jarvis doesn't hear me | **Settings › Microphone**: check the microphone. If the bar says access is blocked, click **Open privacy settings** and turn microphone access on |
+| Jarvis doesn't hear me | **Settings › Microphone**: check the microphone. If the bar says access is blocked, click **Open privacy settings** and turn microphone access on (on a Mac: **System Settings › Privacy & Security › Microphone › Jarvis**) |
+| Mac: "Jarvis can't be opened" | **System Settings › Privacy & Security**, then **Open Anyway** (see step 1) |
 | "Speech recognition isn't downloaded yet" | Click **Open Models** and download it, or wait for the download to finish |
 | "You're signed out of Claude" | Click **Sign in** and sign in again in the browser |
 | "Claude's usage limit is reached" | Your plan's limit resets at the time shown. You can add an API key meanwhile (**Use an API key instead**) |

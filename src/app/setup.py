@@ -20,13 +20,15 @@ NAME_IDEAS = ("Jarvis", "Nova", "Atlas", "Echo", "Iris")
 
 # What may {name} do: each choice switches on a set of tool groups (src/tools/groups.py); permissions and
 # approvals still apply to the tools in them. Settings › Tools and permissions changes single groups later.
+_MAC = sys.platform == "darwin"
 PRESETS = {
     "everyday": {"title": "Everyday",
                  "text": "Open apps, control music and volume, tell the time, read and search the web, remember "
-                         "things you tell it, read the folders you add, lock the PC."},
+                         f"things you tell it, read the folders you add, lock the {'Mac' if _MAC else 'PC'}."},
     "work": {"title": "Work",
-             "text": "Everyday, plus edit files in your folders, run project commands, open Command Prompts, send "
-                     "email and run coding agents. Asks before risky changes."},
+             "text": "Everyday, plus edit files in your folders, run project commands, open "
+                     f"{'Terminal windows' if _MAC else 'Command Prompts'}, send email and run coding agents. Asks "
+                     "before risky changes."},
     "full": {"title": "Full control",
              "text": "Work, plus look at, click and type in other apps for you and take screenshots."},
 }
@@ -59,6 +61,7 @@ def catalogue_view(name: str, facts: dict, cfg: dict) -> list:
             options.append({**{k: o.get(k) for k in ("id", "name", "summary", "about", "license", "license_url", "page",
                                                     "size_mb", "sample")},
                             "summary": models.text(o.get("summary"), name), "about": models.text(o.get("about"), name),
+                            "license": models.text(o.get("license"), name),
                             "files": [{"name": f["name"], "url": f["url"], "size": f["size"]} for f in o.get("files", [])],
                             "status": st["state"], "have": st["have"], "total": st["total"],
                             "addon_missing": bool(st.get("addon")) and not st.get("addon_installed"),
@@ -78,8 +81,9 @@ def _chosen_options(cfg: dict) -> dict:
 
 
 def _install_offer() -> dict:
-    """Install for me on the last screen: only for the Windows zip run from where it was extracted."""
-    if sys.platform != "win32":
+    """Install for me on the last screen: for the Windows zip run from where it was extracted, and a Jarvis.app
+    outside the Applications folder."""
+    if sys.platform not in ("win32", "darwin"):
         return {"available": False}
     from src.app import install
     return install.state()
@@ -212,7 +216,8 @@ def find_claude(cfg: Optional[dict] = None) -> Optional[str]:
     """The Claude Code CLI: the configured path, PATH, or the official installer's folder."""
     cfg = config_store.load_config() if cfg is None else cfg
     configured = ((cfg.get("llm", {}) or {}).get("providers", {}) or {}).get("claude_code", {}).get("cli_path") or "claude"
-    for candidate in (configured, str(Path.home() / ".local" / "bin" / "claude.exe")):
+    installed = Path.home() / ".local" / "bin" / ("claude" if sys.platform == "darwin" else "claude.exe")
+    for candidate in (configured, str(installed)):
         found = shutil.which(candidate) or (candidate if Path(candidate).is_file() else None)
         if found:
             return found
@@ -236,15 +241,18 @@ def claude_status(cli: Optional[str] = None) -> dict:
 
 
 WINDOWS_INSTALLER = "irm https://claude.ai/install.ps1 | iex"     # Anthropic's documented Windows install
+MAC_INSTALLER = "curl -fsSL https://claude.ai/install.sh | bash"   # and the documented macOS one
 
 
 def install_claude_code(timeout_s: float = 600) -> dict:
     """"Get Claude ready": run Anthropic's official installer without a window. Claude Code isn't open source,
     so Jarvis installs it at setup time instead of bundling it. Not yet verified on a clean machine (the
     Sign in with Claude spike); the wizard also links to the official setup page."""
+    command = ["/bin/bash", "-c", MAC_INSTALLER] if sys.platform == "darwin" else \
+        ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", WINDOWS_INSTALLER]
     try:
-        res = winproc.run_hidden(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", WINDOWS_INSTALLER],
-                                 timeout=timeout_s, capture_output=True, text=True, encoding="utf-8", errors="replace")
+        res = winproc.run_hidden(command, timeout=timeout_s, capture_output=True, text=True, encoding="utf-8",
+                                 errors="replace")
     except Exception as e:
         return {"ok": False, "error": f"The installer couldn't run: {e}"}
     cli = find_claude()

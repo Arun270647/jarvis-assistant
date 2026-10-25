@@ -237,7 +237,7 @@ class ProfileTests(unittest.TestCase):
 
     def test_without_a_profile_the_common_apps_media_keys_and_system_commands_remain(self):
         prof = config_store.load_profile(self.dir / "none.json")
-        self.assertIn("notepad", prof["apps"])
+        self.assertIn("calculator", prof["apps"])
         self.assertIn("volume_up", prof["media"])
         self.assertTrue(prof["system"]["shutdown"]["confirm"])
         self.assertTrue(prof["system"]["sleep"]["confirm"])
@@ -249,14 +249,14 @@ class ProfileTests(unittest.TestCase):
         exe = Path(sys.executable)
         shipped.write_text(json.dumps({"apps": {
             "python": {"path": str(exe)},
-            "python_via_var": {"path": "%JARVIS_TEST_DIR%/" + exe.name},
+            "python_via_var": {"path": ("%JARVIS_TEST_DIR%/" if sys.platform == "win32" else "$JARVIS_TEST_DIR/") + exe.name},
             "missing": {"path": str(self.dir / "nope.exe")},
             "on_path": {"path": "notepad.exe"}}}), encoding="utf-8")
         with mock.patch.object(config_store, "PROFILE_DEFAULTS_PATH", shipped), \
                 mock.patch.dict(os.environ, {"JARVIS_TEST_DIR": str(exe.parent)}):
             apps = config_store.load_profile(self.dir / "none.json")["apps"]
         self.assertEqual(sorted(apps), ["on_path", "python", "python_via_var"])
-        self.assertEqual(Path(apps["python_via_var"]["path"]), exe)          # %VAR% expanded
+        self.assertEqual(Path(apps["python_via_var"]["path"]), exe)          # %VAR% ($VAR on macOS) expanded
 
 
 if __name__ == "__main__":

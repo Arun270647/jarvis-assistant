@@ -9,7 +9,6 @@
   default mail app or browser). The user presses Send; needs no setup.
 """
 import mimetypes
-import os
 import re
 import smtplib
 import ssl
@@ -205,7 +204,8 @@ def register_email_tools(reg, profile: dict, config: dict, workspace=None) -> No
                                                                  "or a shorter body.")
         if config.get("dry_run"):
             return ToolResult(ok=True, status="dry_run", dry_run=True, content=f"Would open a draft to {', '.join(to)}")
-        os.startfile(url)   # ShellExecute: opens the default mail handler, no console
+        from src.platform import current
+        current().open_path(url)    # the default mail app (ShellExecute on Windows, open on macOS)
         return ToolResult(ok=True, content=f"Opened a draft to {', '.join(to) or '(no recipient)'} in the mail app; "
                                            "the user reviews it and presses Send.")
 

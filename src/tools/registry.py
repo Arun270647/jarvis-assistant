@@ -11,6 +11,7 @@ handler. Tools whose group is off (groups.py, tools.groups) are not registered.
 """
 import datetime
 import re
+import sys
 import threading
 from dataclasses import dataclass, field
 from typing import Callable, Optional
@@ -173,7 +174,7 @@ def build_default_registry(router, memory=None, config: Optional[dict] = None, a
     app_lines = "; ".join(f"{k} ({', '.join(v.get('aliases', []))})" for k, v in apps.items())
     reg.register(ToolSpec(
         name="open_app",
-        description=f"Open an application on this PC. Known apps (key and aliases): {app_lines}. "
+        description=f"Open an application on this computer. Known apps (key and aliases): {app_lines}. "
                     "Use the key name.",
         input_schema={"type": "object", "properties": {
             "app_name": {"type": "string", "enum": sorted(apps), "description": "App key from the list"}},
@@ -196,20 +197,24 @@ def build_default_registry(router, memory=None, config: Optional[dict] = None, a
         """Shut down or restart: never allowed without asking, whatever the profile says."""
         key, mapping = router._resolve_system_command(a)
         cmd = str((mapping or {}).get("command", "")).lower()
-        return key in ("shutdown", "restart") or bool(re.search(r"\bshutdown(?:\.exe)?\s+/[srgp]\b", cmd))
+        return key in ("shutdown", "restart") or bool(re.search(
+            r"\bshutdown(?:\.exe)?\s+[/-][srgph]\b|\b(?:halt|reboot)\b|to (?:shut down|restart)\b", cmd))
 
     def _sys_rows(a):
         key, mapping = router._resolve_system_command(a)
         cmd = (mapping or {}).get("command", "?")
         rows = [{"k": "Tool", "v": "system_command", "sub": ""}, {"k": "Command", "v": cmd, "sub": ""}]
-        if key in ("shutdown", "restart"):
+        if key in ("shutdown", "restart") and sys.platform == "darwin":
+            rows.append({"k": "Effect", "v": f"The Mac {'shuts down' if key == 'shutdown' else 'restarts'} now",
+                         "sub": "open apps can still ask to save their work"})
+        elif key in ("shutdown", "restart"):
             rows.append({"k": "Effect", "v": f"Windows {'shuts down' if key == 'shutdown' else 'restarts'} in 60 s",
                          "sub": "the cancel_shutdown command aborts it"})
         return rows
 
     reg.register(ToolSpec(
         name="system_command",
-        description="Run a configured Windows system command. Available: " + ", ".join(sorted(system)) +
+        description="Run a configured system command. Available: " + ", ".join(sorted(system)) +
                     ". Commands marked sensitive (" + ", ".join(k for k, v in system.items() if v.get("confirm")) +
                     ") require the user's approval, which Jarvis asks for automatically.",
         input_schema={"type": "object", "properties": {

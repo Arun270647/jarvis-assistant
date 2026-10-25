@@ -38,6 +38,6 @@ atexit.register(remove_tree, PROJECTS)
 from tests.fakes import fixture_profile  # noqa: E402
 import src.core.app_discovery as _app_discovery  # noqa: E402
 
-_app_discovery.start_menu_dirs = lambda: []                          # results must not depend on installed apps
+_app_discovery.app_dirs = lambda: []                                # results must not depend on installed apps
 
 (HOME / "user_profile.json").write_text(json.dumps(fixture_profile(PROJECTS), indent=2), encoding="utf-8")

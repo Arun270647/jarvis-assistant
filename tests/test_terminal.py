@@ -1,5 +1,6 @@
-"""Command Prompts Jarvis opens and types into: the typed-line policy, the approval flow with a
-fake console, and the real console helper against a hidden cmd.exe."""
+"""Terminals Jarvis opens and types into: the typed-line policy, the approval flow with a
+fake console, and the real console helper against a hidden cmd.exe. The flow runs on Windows and macOS (Terminal
+through terminal_mac); the zsh rules are tested in test_macos.py."""
 import ctypes
 import json
 import subprocess
@@ -37,14 +38,21 @@ class FakeConsole:
         self.sent = []
 
     def __call__(self, req, timeout=15):
+        if req["op"] == "open":                         # macOS: Terminal opened a tab in the folder
+            self.opened = req["folder"]
+            return {"tty": "/dev/ttys009", "pid": 4242}
         if req["op"] == "read":
             before = "" if self.programs else self.cwd + ">"
-            return {"lines": ["Microsoft Windows", before], "before_cursor": before, "after_cursor": "",
-                    "programs": list(self.programs)}
+            out = {"lines": ["Microsoft Windows", before], "before_cursor": before, "after_cursor": "",
+                   "programs": list(self.programs)}
+            if terminal_tools.IS_MAC:
+                out["cwd"] = "" if self.programs else self.cwd
+            return out
         self.sent.append(req)
         return {"ok": True}
 
 
+@unittest.skipUnless(sys.platform == "win32", "cmd's rules with Windows paths")
 class TypedLinePolicyTests(unittest.TestCase):
     def setUp(self):
         self.dir = Path(tempfile.mkdtemp())
@@ -93,13 +101,18 @@ class TerminalToolFlowTests(unittest.TestCase):
         self.launched = []
         self.proc = FakeProc()
         patches = [(terminal_tools, "console", self.console),
-                   (terminal_tools.winproc, "launch_program", lambda argv, **k: self.launched.append((argv, k)) or self.proc)]
+                   (terminal_tools.winproc, "launch_program", lambda argv, **k: self.launched.append((argv, k)) or self.proc),
+                   (terminal_tools.terminal_mac, "TabProcess", lambda tty, pid: self.proc)]
         for obj, name, value in patches:
             orig = getattr(obj, name)
             setattr(obj, name, value)
             self.addCleanup(setattr, obj, name, orig)
         terminal_tools._TERMINALS.clear()
         self.addCleanup(terminal_tools._TERMINALS.clear)
+
+    @property
+    def tty(self):
+        return "/dev/ttys009" if terminal_tools.IS_MAC else None
 
     def answer(self, allowed):
         def prompter(req):
@@ -114,14 +127,17 @@ class TerminalToolFlowTests(unittest.TestCase):
         r = self.run_tool("open_terminal", {"project": "p"})
         self.assertTrue(r.ok, r.content)
         self.assertEqual(r.data["terminal"], 1)
-        argv, kw = self.launched[0]
-        self.assertTrue(argv[0].lower().endswith("cmd.exe"))
-        self.assertEqual(len(argv), 1)
-        self.assertTrue(kw["show_console"])
-        self.assertEqual(Path(kw["cwd"]).resolve(), self.proj.resolve())   # the temp folder may be an 8.3 name
-        r = self.run_tool("open_terminal", {"project": "p", "path": "C:\\Windows"})
+        if terminal_tools.IS_MAC:
+            self.assertEqual(Path(self.console.opened).resolve(), self.proj.resolve())
+        else:
+            argv, kw = self.launched[0]
+            self.assertTrue(argv[0].lower().endswith("cmd.exe"))
+            self.assertEqual(len(argv), 1)
+            self.assertTrue(kw["show_console"])
+            self.assertEqual(Path(kw["cwd"]).resolve(), self.proj.resolve())   # the temp folder may be an 8.3 name
+        r = self.run_tool("open_terminal", {"project": "p", "path": str(self.dir.parent)})
         self.assertEqual(r.status, "denied")
-        self.assertEqual(len(self.launched), 1)
+        self.assertEqual(len(self.launched), 0 if terminal_tools.IS_MAC else 1)
 
     def test_pre_approved_command_is_typed_without_asking(self):
         self.answer(False)
@@ -129,8 +145,8 @@ class TerminalToolFlowTests(unittest.TestCase):
         r = self.run_tool("terminal_type", {"text": "npm test"})
         self.assertTrue(r.ok, r.content)
         self.assertEqual(self.asked, [])
-        self.assertEqual(self.console.sent, [{"op": "type", "pid": 4242, "text": "npm test", "submit": True,
-                                              "clear": True}])
+        self.assertEqual(self.console.sent, [{"op": "type", "pid": 4242, "tty": self.tty, "text": "npm test",
+                                              "submit": True, "clear": True}])
         self.assertIn("back at the prompt", r.content)
 
     def test_other_commands_ask_and_a_no_types_nothing(self):
@@ -148,7 +164,7 @@ class TerminalToolFlowTests(unittest.TestCase):
     def test_refused_lines_never_ask(self):
         self.answer(True)
         self.run_tool("open_terminal", {"project": "p"})
-        for line in ("npm test & del x", "powershell", "cd C:\\Windows", "type .env"):
+        for line in ("npm test & del x", "powershell", f'cd "{self.dir.parent}"', "cat .env"):
             r = self.run_tool("terminal_type", {"text": line})
             self.assertEqual(r.status, "denied", line)
         self.assertEqual(self.asked, [])

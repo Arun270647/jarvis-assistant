@@ -8,6 +8,7 @@ The risky groups are off on a new install. Basics can't be switched off (plannin
 there; deny single tools instead). Extension tools are in no group: they load only when listed in
 tools.extensions.
 """
+import sys
 GROUPS = {
     "basic": {
         "title": "Basics",
@@ -68,6 +69,18 @@ GROUPS = {
         "tools": ("delegate_to_coding_agent",),
     },
 }
+
+WINDOWS_TITLES = {gid: g["title"] for gid, g in GROUPS.items()}     # docs/TOOLS.md's section names
+# On a Mac the same groups use the Mac's words.
+MAC_WORDING = {
+    "terminals": {"title": "Terminal windows",
+                  "text": "Open Terminal windows and type into them, for example to start a coding agent you can "
+                          "watch."},
+    "system": {"text": "Lock the Mac right away; sleep, shut down and restart always ask first."},
+}
+if sys.platform == "darwin":
+    for _gid, _words in MAC_WORDING.items():
+        GROUPS[_gid] = dict(GROUPS[_gid], **_words)
 
 GROUP_OF = {tool: gid for gid, g in GROUPS.items() for tool in g["tools"]}
 

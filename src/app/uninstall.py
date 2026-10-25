@@ -1,12 +1,12 @@
 """Uninstall from Settings › About: remove what Jarvis put on this computer, and the user's data if they ask.
 
 plan(delete_data) lists exactly what will go, so the confirmation can show it; run(plan) does it:
-- always: the start-at-login shortcut, Start Menu and Desktop shortcuts, the Apps-list entry
-  (Install for me creates the last three);
-- with "delete my data": the saved keys and passwords (Credential Manager) and the data, models and cache
-  folders;
-- a copy from the Windows zip (installed or not) also removes its Jarvis folder; a copy run from source never
-  deletes itself.
+- always: the start-at-login shortcut (a LaunchAgent on macOS), Start Menu and Desktop shortcuts, the Apps-list
+  entry (Install for me creates the last three, on Windows);
+- with "delete my data": the saved keys and passwords (Credential Manager, or the Keychain) and the data, models
+  and cache folders;
+- a copy from the Windows zip or Jarvis.app (installed or not) also removes its Jarvis folder or app; a copy run
+  from source never deletes itself.
 Folders still in use (the database, the log) are deleted by a small script that waits for Jarvis to exit.
 A folder is only deleted if it is clearly Jarvis's: never a drive root, the user's home folder or a folder
 that contains the app.
@@ -29,9 +29,13 @@ def installed_copy() -> bool:
 
 
 def app_folder() -> Optional[Path]:
-    """The Jarvis folder to delete after exit: the zip's folder (Jarvis.exe, runtime, app), never source code."""
-    from src.app.install import is_jarvis_folder
+    """The Jarvis folder to delete after exit: the zip's folder (Jarvis.exe, runtime, app) or Jarvis.app (where the
+    user keeps it, not the read-only copy macOS may run), never source code."""
+    from src.app.install import is_jarvis_app, is_jarvis_folder, original_location
     root = paths.install_root()
+    if root and sys.platform == "darwin":
+        root = original_location(root)
+        return root if is_jarvis_app(root) else None
     return root if root and is_jarvis_folder(root) else None
 
 
@@ -56,6 +60,8 @@ def safe_to_delete(folder: Path) -> bool:
 
 
 def _shortcuts() -> list:
+    if sys.platform != "win32":
+        return []
     found = []
     try:
         from src.platform.windows import WindowsPlatform
@@ -129,12 +135,20 @@ def run(p: dict, pid: Optional[int] = None) -> dict:
     script = cleanup_script(folders, pid or os.getpid()) if folders else None
     if script:
         from src.core import winproc
-        winproc.popen_hidden(["cmd", "/d", "/c", str(script)])
+        winproc.popen_hidden(["/bin/sh", str(script)] if sys.platform == "darwin" else ["cmd", "/d", "/c", str(script)])
     return {"ok": True, "removed": done, "deleting_after_exit": folders}
 
 
 def cleanup_script(folders: list, pid: int) -> Path:
-    """A throwaway .cmd that waits for the Jarvis process to end, deletes the folders, then itself."""
+    """A throwaway .cmd (a shell script on macOS) that waits for the Jarvis process to end, deletes the folders,
+    then itself."""
+    if sys.platform == "darwin":
+        lines = ["#!/bin/sh", f"while kill -0 {pid} 2>/dev/null; do sleep 0.5; done"]
+        lines += [f'rm -rf "{f}"' for f in folders] + ['rm -f "$0"']
+        fd, path = tempfile.mkstemp(prefix="jarvis-uninstall-", suffix=".sh")
+        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as f:
+            f.write("\n".join(lines) + "\n")
+        return Path(path)
     lines = ["@echo off",
              "chcp 65001 >nul",                                          # UTF-8, for folder names in any language
              ":wait",

@@ -63,7 +63,7 @@ class PlatformTests(unittest.TestCase):
     def test_current_platform(self):
         plat = current()
         self.assertIs(plat, current())                                     # one instance
-        self.assertEqual(plat.name, "windows" if sys.platform == "win32" else "generic")
+        self.assertEqual(plat.name, {"win32": "windows", "darwin": "macos"}.get(sys.platform, "generic"))
 
     def test_generic_platform_has_folders_but_no_os_services(self):
         plat = Platform()
@@ -102,10 +102,10 @@ class FreshInstallTests(unittest.TestCase):
         self.assertEqual(cfg, config_store.defaults())
         router = ActionRouter()
         router.dry_run = True
-        self.assertIn("notepad", router.profile["apps"])
+        self.assertIn("calculator", router.profile["apps"])                 # shipped on Windows and macOS
         reg = build_default_registry(router, None, cfg)
         ex = PolicyExecutor(reg, lambda: cfg, None, None)
-        self.assertEqual(ex.execute("open_app", {"app_name": "notepad"}, ToolContext()).status, "dry_run")
+        self.assertEqual(ex.execute("open_app", {"app_name": "calculator"}, ToolContext()).status, "dry_run")
         self.assertEqual(ex.execute("media_control", {"control": "volume_up"}, ToolContext()).status, "dry_run")
 
         self.assertEqual(describe_user(router.profile), "")

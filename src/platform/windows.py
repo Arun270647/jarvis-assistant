@@ -1,4 +1,5 @@
-"""Windows: Credential Manager for secrets, a Startup-folder shortcut (made through COM) for start at login.
+"""Windows: Credential Manager for secrets, a Startup-folder shortcut (made through COM) for start at login,
+ShellExecute for files and links, virtual media keys.
 
 Folders: %APPDATA%\\Jarvis for settings and data, %LOCALAPPDATA%\\Jarvis\\models and \\cache for large
 local files. Shortcuts are created with WScript.Shell over COM (pywin32), in-process, because shelling
@@ -13,8 +14,17 @@ from src.platform.base import APP_NAME, Platform
 SHORTCUT_NAME = f"{APP_NAME}.lnk"
 
 
+# Virtual-key codes of the media keys (keybd_event)
+MEDIA_KEYS = {"play_pause": 0xB3, "stop": 0xB2, "next_track": 0xB0, "prev_track": 0xB1,
+              "volume_up": 0xAF, "volume_down": 0xAE, "volume_mute": 0xAD}
+
+
 class WindowsPlatform(Platform):
     name = "windows"
+    label = "Windows"
+    computer = "PC"
+    machine = "Windows PC"
+    terminal = "Command Prompt"
 
     def cache_dir(self) -> Path:
         return self.local_dir() / "cache"
@@ -95,3 +105,29 @@ class WindowsPlatform(Platform):
         elif path.exists():
             path.unlink()
         return path.exists()
+
+    # ------------------------------------------------------------ files, links, settings
+
+    def open_path(self, target: str) -> None:
+        os.startfile(target)            # ShellExecute: the default app, no console
+
+    def reveal(self, path: str) -> None:
+        from src.core import winproc
+        winproc.popen_hidden(["explorer", "/select,", str(path)])
+
+    def privacy_settings(self, kind: str) -> bool:
+        if kind != "microphone":
+            return False
+        os.startfile("ms-settings:privacy-microphone")
+        return True
+
+    # ------------------------------------------------------------ media keys
+
+    def send_media_key(self, key: str) -> None:
+        import ctypes
+        vk = MEDIA_KEYS.get(key)
+        if vk is None:
+            raise ValueError(f"Unknown media key: {key}")
+        KEYEVENTF_EXTENDEDKEY, KEYEVENTF_KEYUP = 0x0001, 0x0002
+        ctypes.windll.user32.keybd_event(vk, 0, KEYEVENTF_EXTENDEDKEY, 0)
+        ctypes.windll.user32.keybd_event(vk, 0, KEYEVENTF_EXTENDEDKEY | KEYEVENTF_KEYUP, 0)

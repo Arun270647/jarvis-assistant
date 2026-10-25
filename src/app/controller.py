@@ -213,7 +213,8 @@ class AssistantController:
                 "active_task_id": self.active_task_id, "queued": self.commands.qsize(),
                 "pending_approval": self.broker.pending.title if self.broker.pending else None,
                 "model": self.ready_info.get("model"), "voice": self.voice_ok,
-                "dry_run": bool(self.ready_info.get("dry_run")), "pc": os.environ.get("COMPUTERNAME", "PC"),
+                "dry_run": bool(self.ready_info.get("dry_run")),
+                "pc": os.environ.get("COMPUTERNAME") or __import__("platform").node() or "PC",
                 "assistant_name": assistant_name(load_config())}
 
     def send_text(self, text: str) -> str:

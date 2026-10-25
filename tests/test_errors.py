@@ -1,6 +1,7 @@
 """The error catalogue (src/app/errors.py): raw errors from the pipeline, the backends and the downloader become
 one plain sentence and the button that fixes it. Also the assistant's name in spoken approvals."""
 import subprocess
+import sys
 import unittest
 from unittest import mock
 
@@ -66,7 +67,8 @@ class ClaudeInstallTests(unittest.TestCase):
         with mock.patch("src.core.winproc.run_hidden", return_value=subprocess.CompletedProcess([], 0, "ok", "")) as run, \
                 mock.patch.object(setup, "find_claude", return_value="C:/Users/x/.local/bin/claude.exe"):
             self.assertEqual(setup.install_claude_code(), {"ok": True, "cli": "C:/Users/x/.local/bin/claude.exe"})
-        self.assertIn("irm https://claude.ai/install.ps1 | iex", run.call_args[0][0])
+        installer = setup.MAC_INSTALLER if sys.platform == "darwin" else setup.WINDOWS_INSTALLER
+        self.assertIn(installer, run.call_args[0][0])
         with mock.patch("src.core.winproc.run_hidden", return_value=subprocess.CompletedProcess([], 1, "", "blocked\nby policy")), \
                 mock.patch.object(setup, "find_claude", return_value=None):
             r = setup.install_claude_code()

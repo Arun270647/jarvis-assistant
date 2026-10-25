@@ -27,6 +27,12 @@ Nothing has been released yet. The first release will be `0.1.0-alpha.1`, with:
   so if it's still inside the zip), Install for me adds it to the Start Menu and Settings › Apps without
   administrator rights, and updates download in the background and install with Restart to update (the old
   version comes back if anything fails). Releases aren't code-signed; each one lists its SHA-256.
+- macOS (Apple silicon, macOS 13 or later): Jarvis.app on a disk image (.dmg: drag it onto Applications) with
+  its own Python, signed ad hoc and not notarized
+  (System Settings › Privacy & Security › Open Anyway the first time). The Keychain for keys, a login item for
+  start at login, ⌃⇧J as the shortcut, the menu bar icon, the Mac's own voice, Terminal windows, desktop control
+  through the Accessibility API, and setup screens that show which permissions macOS has given, live. Install
+  for me moves the app into Applications; updates and uninstall work as on Windows.
 
 ### Licensing
 - Apache License 2.0. Nothing GPL ships with Jarvis: the Kokoro voice engine (which uses espeak-ng and

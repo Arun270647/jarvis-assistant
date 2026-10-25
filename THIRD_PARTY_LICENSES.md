@@ -72,6 +72,27 @@ Installed by `requirements.txt` ("yes" in the last column) and what those requir
 | uiautomation | 2.0.29 | Apache 2.0 | https://github.com/yinkaisheng/Python-UIAutomation-for-Windows | yes |
 | uvicorn | 0.54.0 | BSD-3-Clause | https://uvicorn.dev/ |  |
 
+### Only on macOS
+
+| Package | Version | License | Project | In requirements.txt |
+|---|---|---|---|---|
+| backports-tarfile | 1.2.0 | MIT | https://github.com/jaraco/backports.tarfile |  |
+| importlib-metadata | 10.1.0 | Apache-2.0 | https://github.com/python/importlib_metadata |  |
+| jaraco-classes | 3.4.0 | MIT | https://github.com/jaraco/jaraco.classes |  |
+| jaraco-context | 6.1.2 | MIT | https://github.com/jaraco/jaraco.context |  |
+| jaraco-functools | 4.6.0 | MIT | https://github.com/jaraco/jaraco.functools |  |
+| keyring | 25.7.0 | MIT | https://github.com/jaraco/keyring | yes |
+| more-itertools | 11.2.1 | MIT | https://github.com/more-itertools/more-itertools |  |
+| pyobjc-core | 12.2.2 | MIT | https://github.com/ronaldoussoren/pyobjc |  |
+| pyobjc-framework-applicationservices | 12.2.2 | MIT | https://github.com/ronaldoussoren/pyobjc | yes |
+| pyobjc-framework-avfoundation | 12.2.2 | MIT | https://github.com/ronaldoussoren/pyobjc | yes |
+| pyobjc-framework-cocoa | 12.2.2 | MIT | https://github.com/ronaldoussoren/pyobjc | yes |
+| pyobjc-framework-coreaudio | 12.2.2 | MIT | https://github.com/ronaldoussoren/pyobjc |  |
+| pyobjc-framework-coremedia | 12.2.2 | MIT | https://github.com/ronaldoussoren/pyobjc |  |
+| pyobjc-framework-coretext | 12.2.2 | MIT | https://github.com/ronaldoussoren/pyobjc |  |
+| pyobjc-framework-quartz | 12.2.2 | MIT | https://github.com/ronaldoussoren/pyobjc | yes |
+| zipp | 4.1.2 | MIT | https://github.com/jaraco/zipp |  |
+
 ## Optional add-ons (not part of Jarvis)
 
 Installed only when the user chooses them, from their own sources, and never shipped with Jarvis:
@@ -98,6 +119,15 @@ The zip (packaging/build_windows.py) also carries its own Python, so Jarvis need
 | Component | License |
 |---|---|
 | Python 3.13.16 (python.org's embeddable package) | PSF License 2.0; the libraries it includes are listed in `runtime\LICENSE.txt` |
+| pip 26.2.1 | MIT |
+
+## Bundled in the Mac app
+
+Jarvis.app (packaging/build_macos.py) carries its own Python too:
+
+| Component | License |
+|---|---|
+| Python 3.13.16 (python-build-standalone 20261009) | PSF License 2.0, see `Contents/Resources/runtime/lib/python3.13/LICENSE.txt`; statically linked: OpenSSL (Apache-2.0), SQLite (public domain), libffi (MIT), XZ Utils (0BSD), zlib (zlib), bzip2 (bzip2), mpdecimal (BSD-2-Clause), expat (MIT), libedit (BSD-3-Clause), ncurses (X11) |
 | pip 26.2.1 | MIT |
 
 ## Bundled fonts

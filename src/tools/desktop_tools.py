@@ -1,30 +1,40 @@
 """Desktop control for Jarvis: see and operate windows the way a person does.
 
-- desktop_snapshot reads a window's UI Automation tree (buttons, links, fields, text) in one
-  cached call and numbers the elements; desktop_click / desktop_type act on those numbers.
-  Chrome exposes web pages to UI Automation, so this works inside the user's real Chrome
-  profiles (with their logins) on pages opened by open_chrome, and in any other app.
+- desktop_snapshot reads a window's accessibility tree (buttons, links, fields, text) and numbers the
+  elements; desktop_click / desktop_type act on those numbers. Chrome exposes web pages to it, so this works
+  inside the user's real Chrome profiles (with their logins) on pages opened by open_chrome, and in any other app.
 - desktop_screenshot returns an image of a window for Claude to look at; desktop_click x/y
   are pixels in the latest screenshot.
-- Input is real mouse and keyboard (SendInput). Jarvis's own windows (its approval dialog),
+- Input is real mouse and keyboard. Jarvis's own windows (its approval dialog),
   consoles, password managers, desktop.blocked_processes and windows whose title matches
-  desktop.blocked_titles (browser password pages, Credential Manager) are refused, typing is refused in
-  desktop.no_typing_processes (Start menu, Explorer's address bar) and Win-key shortcuts are
-  not sent, so desktop control cannot get around the approval and command policies.
-  (Command Prompts Jarvis opens are typed into through terminal_tools, under the command policy.)
+  desktop.blocked_titles (browser password pages, Credential Manager, Keychain Access) are refused, typing is
+  refused in desktop.no_typing_processes (Start menu, Explorer's address bar, Spotlight) and shortcuts that open a
+  launcher (the Windows key, Command-Space) are not sent, so desktop control cannot get around the approval and
+  command policies. (Terminals Jarvis opens are typed into through terminal_tools, under the command policy.)
+
+This module holds the tools and the safety rules; desktop_win.py (UI Automation, SendInput) and desktop_mac.py
+(the Accessibility API, Quartz events) talk to the OS. Their functions are imported here by name, so the tests
+can replace them.
 """
 import base64
-import ctypes
 import io
 import os
+import sys
 import threading
 import time
-from ctypes import wintypes
 
 from src.tools.registry import ToolResult, ToolSpec
 
-user32 = ctypes.windll.user32
-kernel32 = ctypes.windll.kernel32
+if sys.platform == "darwin":
+    from src.tools.desktop_mac import (DELETE, ENTER, KEYS_HELP, SELECT_ALL, UI_TREE, click_at, focus_window,
+                                       foreground, is_window, missing_permission, parse_keys, press_combo,
+                                       process_name, read_elements, root_at, screen_box, scroll_at, thread_scope,
+                                       top_windows, type_unicode, window_rect, window_title)
+else:
+    from src.tools.desktop_win import (DELETE, ENTER, KEYS_HELP, SELECT_ALL, UI_TREE, click_at, focus_window,
+                                       foreground, is_window, missing_permission, parse_keys, press_combo,
+                                       process_name, read_elements, root_at, screen_box, scroll_at, thread_scope,
+                                       top_windows, type_unicode, window_rect, window_title)
 
 BLOCKED_PROCESSES = ["cmd.exe", "powershell.exe", "pwsh.exe", "windowsterminal.exe", "conhost.exe",
                      "openconsole.exe", "wsl.exe", "bash.exe", "regedit.exe", "mmc.exe", "taskmgr.exe",
@@ -41,224 +51,25 @@ BLOCKED_TITLES = ["password manager", "about:logins", "logins & passwords", "log
 CONSOLE_PROCESSES = {"cmd.exe", "powershell.exe", "pwsh.exe", "windowsterminal.exe", "conhost.exe", "openconsole.exe"}
 NO_TYPING_PROCESSES = ["explorer.exe", "searchhost.exe", "startmenuexperiencehost.exe",
                        "shellexperiencehost.exe", "searchapp.exe"]
+WINDOWS_RULES = {"blocked_processes": BLOCKED_PROCESSES, "blocked_titles": BLOCKED_TITLES,
+                 "no_typing_processes": NO_TYPING_PROCESSES, "consoles": CONSOLE_PROCESSES}
 
-# UI Automation property and control type ids
-P_RECT, P_TYPE, P_NAME, P_FOCUS, P_ENABLED, P_OFFSCREEN, P_PASSWORD, P_VALUE = \
-    30001, 30003, 30005, 30008, 30010, 30022, 30019, 30045
-CONTROL_TYPES = {50000: "button", 50002: "checkbox", 50003: "combobox", 50004: "edit", 50005: "link",
-                 50006: "image", 50007: "listitem", 50011: "menuitem", 50012: "progressbar", 50013: "radio",
-                 50015: "slider", 50016: "spinner", 50018: "tab", 50019: "tabitem", 50020: "text",
-                 50024: "treeitem", 50029: "dataitem", 50031: "splitbutton", 50030: "document"}
-ACTIONABLE = {50000, 50002, 50003, 50004, 50005, 50007, 50011, 50013, 50015, 50016, 50019, 50024, 50029, 50031}
-TEXTUAL = {50020, 50006}
-
-VK = {"enter": 0x0D, "return": 0x0D, "tab": 0x09, "esc": 0x1B, "escape": 0x1B, "space": 0x20,
-      "backspace": 0x08, "delete": 0x2E, "del": 0x2E, "insert": 0x2D, "home": 0x24, "end": 0x23,
-      "pageup": 0x21, "pagedown": 0x22, "up": 0x26, "down": 0x28, "left": 0x25, "right": 0x27,
-      "ctrl": 0x11, "control": 0x11, "shift": 0x10, "alt": 0x12, "menu": 0x5D, "apps": 0x5D}
-VK.update({f"f{i}": 0x6F + i for i in range(1, 13)})
-EXTENDED = {0x2E, 0x2D, 0x24, 0x23, 0x21, 0x22, 0x26, 0x28, 0x25, 0x27}
-
-
-# ------------------------------------------------------------------ SendInput
-
-class _KEYBDINPUT(ctypes.Structure):
-    _fields_ = [("wVk", wintypes.WORD), ("wScan", wintypes.WORD), ("dwFlags", wintypes.DWORD),
-                ("time", wintypes.DWORD), ("dwExtraInfo", ctypes.c_size_t)]
-
-
-class _MOUSEINPUT(ctypes.Structure):
-    _fields_ = [("dx", wintypes.LONG), ("dy", wintypes.LONG), ("mouseData", wintypes.DWORD),
-                ("dwFlags", wintypes.DWORD), ("time", wintypes.DWORD), ("dwExtraInfo", ctypes.c_size_t)]
-
-
-class _INPUTUNION(ctypes.Union):
-    _fields_ = [("ki", _KEYBDINPUT), ("mi", _MOUSEINPUT), ("pad", ctypes.c_byte * 32)]
-
-
-class _INPUT(ctypes.Structure):
-    _fields_ = [("type", wintypes.DWORD), ("u", _INPUTUNION)]
-
-
-def _send(inputs: list) -> None:
-    arr = (_INPUT * len(inputs))(*inputs)
-    user32.SendInput(len(inputs), arr, ctypes.sizeof(_INPUT))
-
-
-def _key(vk: int = 0, up: bool = False, char: str = "") -> _INPUT:
-    flags = (0x0002 if up else 0) | (0x0001 if vk in EXTENDED else 0)
-    if char:
-        return _INPUT(type=1, u=_INPUTUNION(ki=_KEYBDINPUT(0, ord(char), flags | 0x0004, 0, 0)))  # KEYEVENTF_UNICODE
-    return _INPUT(type=1, u=_INPUTUNION(ki=_KEYBDINPUT(vk, 0, flags, 0, 0)))
-
-
-def _mouse(flags: int, data: int = 0) -> _INPUT:
-    return _INPUT(type=0, u=_INPUTUNION(mi=_MOUSEINPUT(0, 0, data & 0xFFFFFFFF, flags, 0, 0)))
-
-
-def type_unicode(text: str) -> None:
-    """Type text as Unicode key packets. Down and up go as separate inputs with small gaps:
-    sent together, a busy target sometimes loses the key-up and auto-repeats ("tttttt")."""
-    for ch in text:
-        if ch == "\n":
-            pairs = [(_key(0x0D), _key(0x0D, up=True))]
-        else:
-            units = memoryview(ch.encode("utf-16-le")).cast("H")          # surrogate pairs for emoji
-            pairs = [(_key(char=chr(u)), _key(char=chr(u), up=True)) for u in units]
-        for down, up in pairs:
-            _send([down])
-            time.sleep(0.006)
-            _send([up])
-            time.sleep(0.01)
-
-
-def parse_keys(combo: str) -> list:
-    """'ctrl+shift+t' -> [vk, ...]. Raises ValueError for unknown or Win keys."""
-    vks = []
-    for part in [p.strip().lower() for p in combo.replace(" ", "").split("+") if p.strip()]:
-        if part in ("win", "windows", "lwin", "rwin", "super", "meta", "cmd"):
-            raise ValueError("Windows-key shortcuts are not allowed")
-        if part in VK:
-            vks.append(VK[part])
-        elif len(part) == 1 and (part.isalnum()):
-            vks.append(ord(part.upper()))
-        elif len(part) == 1:
-            r = user32.VkKeyScanW(ord(part))
-            if r == -1:
-                raise ValueError(f"Unknown key: {part}")
-            vks.append(r & 0xFF)
-        else:
-            raise ValueError(f"Unknown key: {part}")
-    if not vks:
-        raise ValueError("No keys given")
-    return vks
-
-
-def press_combo(vks: list) -> None:
-    for v in vks:                     # one input at a time: batched, the modifier can arrive late
-        _send([_key(v)])
-        time.sleep(0.015)
-    for v in reversed(vks):
-        _send([_key(v, up=True)])
-        time.sleep(0.015)
-
-
-def click_at(x: int, y: int, button: str = "left", double: bool = False) -> None:
-    user32.SetCursorPos(int(x), int(y))
-    time.sleep(0.03)
-    down, up = {"left": (0x0002, 0x0004), "right": (0x0008, 0x0010), "middle": (0x0020, 0x0040)}[button]
-    for _ in range(2 if double else 1):
-        _send([_mouse(down), _mouse(up)])
-        time.sleep(0.06)
-
-
-def scroll_at(x: int, y: int, clicks: int) -> None:
-    user32.SetCursorPos(int(x), int(y))
-    time.sleep(0.03)
-    _send([_mouse(0x0800, 120 * clicks)])        # MOUSEEVENTF_WHEEL, positive = up
-
-
-# ------------------------------------------------------------------ windows
-
-def process_name(hwnd: int) -> tuple:
-    pid = wintypes.DWORD()
-    user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
-    name = ""
-    h = kernel32.OpenProcess(0x1000, False, pid.value)          # PROCESS_QUERY_LIMITED_INFORMATION
-    if h:
-        buf = ctypes.create_unicode_buffer(1024)
-        size = wintypes.DWORD(1024)
-        if kernel32.QueryFullProcessImageNameW(h, 0, buf, ctypes.byref(size)):
-            name = os.path.basename(buf.value)
-        kernel32.CloseHandle(h)
-    return pid.value, name.lower()
-
-
-def window_title(hwnd: int) -> str:
-    buf = ctypes.create_unicode_buffer(512)
-    user32.GetWindowTextW(hwnd, buf, 512)
-    return buf.value
-
-
-def window_rect(hwnd: int) -> tuple:
-    r = wintypes.RECT()
-    user32.GetWindowRect(hwnd, ctypes.byref(r))
-    return r.left, r.top, r.right, r.bottom
-
-
-def _cloaked(hwnd: int) -> bool:
-    val = ctypes.c_int(0)
-    try:
-        ctypes.windll.dwmapi.DwmGetWindowAttribute(hwnd, 14, ctypes.byref(val), ctypes.sizeof(val))
-    except Exception:
-        return False
-    return bool(val.value)
-
-
-def top_windows() -> list:
-    """Visible top-level windows with a title, front to back: [{hwnd, title, process, pid}]."""
-    out = []
-
-    @ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
-    def cb(hwnd, _):
-        if user32.IsWindowVisible(hwnd) and not _cloaked(hwnd) and user32.GetWindowTextLengthW(hwnd) > 0 \
-                and not (user32.GetWindowLongW(hwnd, -20) & 0x80):          # skip WS_EX_TOOLWINDOW
-            pid, proc = process_name(hwnd)
-            out.append({"hwnd": int(hwnd), "title": window_title(hwnd), "process": proc, "pid": pid})
-        return True
-
-    user32.EnumWindows(cb, 0)
-    return out
-
-
-def focus_window(hwnd: int) -> bool:
-    """Bring a window to the front from a background process.
-
-    A zero-distance synthetic mouse move makes this process the last input source, which lifts
-    the foreground lock. (The usual ALT tap is not used: it opens the target's menu bar, and
-    the text typed next turns into menu shortcuts.)
-    """
-    if user32.IsIconic(hwnd):
-        user32.ShowWindow(hwnd, 9)                                  # SW_RESTORE
-    fg = user32.GetForegroundWindow()
-    if fg == hwnd:
-        return True
-    fg_thread = user32.GetWindowThreadProcessId(fg, None)
-    me = kernel32.GetCurrentThreadId()
-    _send([_mouse(0x0001)])                                         # MOUSEEVENTF_MOVE by (0, 0)
-    if fg_thread and fg_thread != me:
-        user32.AttachThreadInput(me, fg_thread, True)
-    user32.BringWindowToTop(hwnd)
-    user32.SetForegroundWindow(hwnd)
-    if fg_thread and fg_thread != me:
-        user32.AttachThreadInput(me, fg_thread, False)
-    for _ in range(20):
-        if user32.GetForegroundWindow() == hwnd:
-            break
-        time.sleep(0.025)
-    else:
-        return False
-    # Input sent the moment a window becomes foreground is sometimes dropped or garbled, so
-    # wait until its thread has a focused control, then a little longer for it to settle.
-    target_thread = user32.GetWindowThreadProcessId(hwnd, None)
-    info = _GUITHREADINFO(cbSize=ctypes.sizeof(_GUITHREADINFO))
-    for _ in range(20):
-        if user32.GetGUIThreadInfo(target_thread, ctypes.byref(info)) and info.hwndFocus:
-            break
-        time.sleep(0.025)
-    time.sleep(0.2)
-    return True
-
-
-class _GUITHREADINFO(ctypes.Structure):
-    _fields_ = [("cbSize", wintypes.DWORD), ("flags", wintypes.DWORD), ("hwndActive", wintypes.HWND),
-                ("hwndFocus", wintypes.HWND), ("hwndCapture", wintypes.HWND), ("hwndMenuOwner", wintypes.HWND),
-                ("hwndMoveSize", wintypes.HWND), ("hwndCaret", wintypes.HWND), ("rcCaret", wintypes.RECT)]
-
-
-def root_at(x: int, y: int) -> int:
-    hwnd = user32.WindowFromPoint(wintypes.POINT(int(x), int(y)))
-    return int(user32.GetAncestor(hwnd, 2) or 0) if hwnd else 0          # GA_ROOT
+# macOS: a process is named by its program in lower case ("terminal", "1password").
+MAC_CONSOLES = {"terminal", "iterm2", "warp", "stable", "alacritty", "kitty", "wezterm-gui", "hyper", "ghostty",
+                "tabby"}
+MAC_RULES = {
+    "blocked_processes": sorted(MAC_CONSOLES) + [
+        "script editor", "automator", "shortcuts", "system settings", "system preferences", "activity monitor",
+        "keychain access", "passwords", "securityagent", "coreautha", "loginwindow", "installer",
+        # password managers
+        "1password", "1password 7", "bitwarden", "keepassxc", "lastpass", "dashlane", "nordpass",
+        "keeper password manager", "roboform", "enpass", "proton pass", "strongbox", "secrets"],
+    "blocked_titles": BLOCKED_TITLES + ["keychain access", "passwords"],
+    "no_typing_processes": ["spotlight", "dock", "systemuiserver", "controlcenter", "notificationcenter", "alfred",
+                            "raycast", "launchbar"],
+    "consoles": MAC_CONSOLES,
+}
+RULES = MAC_RULES if sys.platform == "darwin" else WINDOWS_RULES
 
 
 # ------------------------------------------------------------------ the tools
@@ -269,9 +80,10 @@ class Desktop:
     def __init__(self, config: dict):
         cfg = config.get("desktop", {}) or {}
         self.config = config
-        self.blocked = {p.lower() for p in cfg.get("blocked_processes", BLOCKED_PROCESSES)}
-        self.blocked_titles = [t.lower() for t in cfg.get("blocked_titles", BLOCKED_TITLES)]
-        self.no_typing = {p.lower() for p in cfg.get("no_typing_processes", NO_TYPING_PROCESSES)}
+        self.blocked = {p.lower() for p in cfg.get("blocked_processes", RULES["blocked_processes"])}
+        self.blocked_titles = [t.lower() for t in cfg.get("blocked_titles", RULES["blocked_titles"])]
+        self.no_typing = {p.lower() for p in cfg.get("no_typing_processes", RULES["no_typing_processes"])}
+        self.consoles = set(RULES["consoles"])
         self.max_side = int(cfg.get("screenshot_max_side", 1400))
         self.own_pid = os.getpid()
         self.elements = {}            # id -> {name, type, rect, hwnd}
@@ -286,8 +98,8 @@ class Desktop:
         if pid == self.own_pid:
             return "That is a Jarvis window. Jarvis does not operate its own windows (approvals stay with the user)."
         if proc in self.blocked:
-            hint = (" For a Command Prompt, use open_terminal, then terminal_type / terminal_read."
-                    if proc in CONSOLE_PROCESSES else "")
+            hint = (" For a terminal, use open_terminal, then terminal_type / terminal_read."
+                    if proc in self.consoles else "")
             return f"Desktop control is not allowed in {proc} (desktop.blocked_processes).{hint}"
         title = window_title(hwnd).lower()
         hit = next((t for t in self.blocked_titles if t in title), None)
@@ -317,7 +129,7 @@ class Desktop:
     def prepare(self, query: str, typing: bool = False) -> tuple:
         """(window, error): the window named by query, else the one Jarvis last worked in, else
         the frontmost non-Jarvis window; checked against the blocklists and brought to the front."""
-        if not query and self.last_hwnd and user32.IsWindow(self.last_hwnd):
+        if not query and self.last_hwnd and is_window(self.last_hwnd):
             pid, proc = process_name(self.last_hwnd)
             w = {"hwnd": self.last_hwnd, "title": window_title(self.last_hwnd), "process": proc, "pid": pid}
         else:
@@ -334,63 +146,13 @@ class Desktop:
     # -- reading
 
     def snapshot(self, hwnd: int, query: str = "", include_text: bool = True, limit: int = 150) -> list:
-        import uiautomation.uiautomation as U
-        cl = U._AutomationClient.instance()
-        ia = cl.IUIAutomation
-        cr = ia.CreateCacheRequest()
-        for p in (P_RECT, P_TYPE, P_NAME, P_FOCUS, P_ENABLED, P_OFFSCREEN, P_PASSWORD, P_VALUE):
-            cr.AddProperty(p)
-        root = ia.ElementFromHandle(hwnd)
-        arr = root.FindAllBuildCache(4, ia.ControlViewCondition, cr)       # TreeScope_Descendants
-        wl, wt, wr, wb = window_rect(hwnd)
-        q = (query or "").lower().strip()
-        out, seen_text = [], set()
-        for i in range(arr.Length):
-            try:
-                e = arr.GetElement(i)
-                ct = e.CachedControlType
-                if ct not in ACTIONABLE and not (include_text and ct in TEXTUAL):
-                    continue
-                r = e.CachedBoundingRectangle
-                if e.CachedIsOffscreen or r.right - r.left < 2 or r.bottom - r.top < 2:
-                    continue
-                if r.right < wl or r.left > wr or r.bottom < wt or r.top > wb:
-                    continue
-                name = " ".join((e.CachedName or "").split())
-                value = ""
-                if ct in (50004, 50003) and not e.CachedIsPassword:
-                    try:
-                        value = " ".join(str(e.GetCachedPropertyValue(P_VALUE) or "").split())
-                    except Exception:
-                        value = ""
-                if ct in TEXTUAL:
-                    if not name or name in seen_text:
-                        continue
-                    seen_text.add(name)
-                if q and q not in name.lower() and q not in value.lower():
-                    continue
-                if ct not in TEXTUAL and not name and not value and ct not in (50004,):
-                    continue
-                rect = (r.left, r.top, r.right, r.bottom)
-                if any(o["name"] == name[:160] and o["rect"][0] <= rect[0] and o["rect"][1] <= rect[1]
-                       and o["rect"][2] >= rect[2] and o["rect"][3] >= rect[3] for o in out[-6:]):
-                    continue                    # the same item nested inside itself (web list rows)
-                out.append({"name": name[:160], "type": CONTROL_TYPES.get(ct, str(ct)), "value": value[:160],
-                            "rect": (r.left, r.top, r.right, r.bottom), "hwnd": hwnd,
-                            "enabled": bool(e.CachedIsEnabled), "focused": bool(e.CachedHasKeyboardFocus),
-                            "password": bool(e.CachedIsPassword)})
-            except Exception:
-                continue
-            if len(out) >= limit:
-                break
-        return out
+        return read_elements(hwnd, query, include_text, limit)
 
     def screenshot(self, hwnd: int) -> dict:
         from PIL import ImageGrab
-        l, t, r, b = window_rect(hwnd)
-        sl, st = user32.GetSystemMetrics(76), user32.GetSystemMetrics(77)      # virtual screen origin
-        sw, sh = user32.GetSystemMetrics(78), user32.GetSystemMetrics(79)
-        l, t, r, b = max(l, sl), max(t, st), min(r, sl + sw), min(b, st + sh)
+        l, t, r, b = screen_box(hwnd)
+        # Screen coordinates: pixels on Windows, points on macOS (Pillow scales a Retina capture to points), the
+        # units the mouse uses on each.
         img = ImageGrab.grab(bbox=(l, t, r, b), all_screens=True).convert("RGB")
         scale = min(1.0, self.max_side / max(img.width, img.height))
         if scale < 1.0:
@@ -418,12 +180,15 @@ def _line(i: int, el: dict) -> str:
 def register_desktop_tools(reg, config: dict) -> Desktop:
     if not (config.get("desktop", {}) or {}).get("enabled", True):
         return None
-    import uiautomation as auto
     d = Desktop(config)
 
-    def com(fn):
+    def com(fn, screen: bool = False):
+        """Run a tool inside the OS's per-thread setup, once the OS allows desktop control (macOS asks)."""
         def run(a, c):
-            with auto.UIAutomationInitializerInThread():
+            missing = missing_permission(screen)
+            if missing:
+                return ToolResult(ok=False, status="failed", content=missing)
+            with thread_scope():
                 return fn(a, c)
         return run
 
@@ -436,7 +201,7 @@ def register_desktop_tools(reg, config: dict) -> Desktop:
 
     def desktop_windows(a, c):
         wins = [w for w in top_windows() if w["pid"] != d.own_pid]
-        fg = user32.GetForegroundWindow()
+        fg = foreground()
         lines = [f"- {w['title'][:100]} ({w['process']})" + (" — in front" if w["hwnd"] == fg else "") for w in wins]
         return ToolResult(ok=True, content="Open windows, front to back:\n" + "\n".join(lines),
                           data={"windows": [{k: w[k] for k in ("title", "process")} for w in wins]})
@@ -463,7 +228,11 @@ def register_desktop_tools(reg, config: dict) -> Desktop:
             lines.append("(Nothing readable. Try desktop_screenshot, scroll, or a different query.)")
         res = ToolResult(ok=True, untrusted=True, content="\n".join(lines), data={"window": w["title"]})
         if a.get("screenshot"):
-            res.data["images"] = [d.screenshot(w["hwnd"])]
+            missing = missing_permission(screen=True)
+            if missing:
+                res.content += f"\n(No screenshot: {missing})"
+            else:
+                res.data["images"] = [d.screenshot(w["hwnd"])]
         return res
 
     def desktop_screenshot(a, c):
@@ -550,13 +319,13 @@ def register_desktop_tools(reg, config: dict) -> Desktop:
             click_at(x, y)
             time.sleep(0.15)
         if a.get("clear"):
-            press_combo([0x11, ord("A")])
-            press_combo([0x2E])
-        if user32.GetForegroundWindow() != hwnd or d.refusal(user32.GetForegroundWindow(), typing=True):
+            press_combo(SELECT_ALL)
+            press_combo(DELETE)
+        if foreground() != hwnd or d.refusal(foreground(), typing=True):
             return ToolResult(ok=False, status="failed", content="The target window lost focus; nothing was typed.")
         type_unicode(a["text"])
         if a.get("submit"):
-            press_combo([0x0D])
+            press_combo(ENTER)
         after(a)
         return ToolResult(ok=True, content=f"Typed into {label}" + (" and pressed Enter." if a.get("submit") else "."))
 
@@ -570,7 +339,7 @@ def register_desktop_tools(reg, config: dict) -> Desktop:
             return ToolResult(ok=False, status="denied" if "allowed" in err or "Jarvis" in err else "failed",
                               content=err)
         time.sleep(0.1)
-        hwnd = user32.GetForegroundWindow()
+        hwnd = foreground()
         err = d.refusal(hwnd, typing=True)
         if err:
             return ToolResult(ok=False, status="denied", content=err)
@@ -620,12 +389,12 @@ def register_desktop_tools(reg, config: dict) -> Desktop:
     common = dict(risk="sensitive", timeout_s=30)
 
     reg.register(ToolSpec(
-        name="desktop_windows", description="List the open windows on the PC (title and process), front to back.",
+        name="desktop_windows", description="List the open windows on the computer (title and process), front to back.",
         input_schema={"type": "object", "properties": {}}, handler=com(desktop_windows), category="read",
         purpose=lambda a: "List open windows"))
     reg.register(ToolSpec(
         name="desktop_snapshot",
-        description="Read a window's visible controls and text through Windows UI Automation and number them, so "
+        description=f"Read a window's visible controls and text through {UI_TREE} and number them, so "
                     "desktop_click / desktop_type can act on them. Works on web pages in the user's real Chrome "
                     "(after open_chrome) with their logins, and on any desktop app. query filters by text. "
                     "screenshot=true also returns an image. Take a new snapshot after every action that changes "
@@ -644,7 +413,7 @@ def register_desktop_tools(reg, config: dict) -> Desktop:
         description="Take a screenshot of a window and look at it. Use when desktop_snapshot does not show what you "
                     "need (canvas, images, custom widgets); desktop_click x/y are pixels in this image.",
         input_schema={"type": "object", "properties": {"window": window_arg}},
-        handler=com(desktop_screenshot), category="read", **common,
+        handler=com(desktop_screenshot, screen=True), category="read", **common,
         purpose=lambda a: f"Screenshot {a.get('window') or 'the front window'}"))
     reg.register(ToolSpec(
         name="desktop_click",
@@ -669,8 +438,7 @@ def register_desktop_tools(reg, config: dict) -> Desktop:
     reg.register(ToolSpec(
         name="desktop_keys",
         description="Press a key or shortcut in window (default: the window you last looked at or acted in): "
-                    "'enter', 'tab', 'esc', 'ctrl+l', 'ctrl+shift+t', 'alt+left', 'pagedown', 'f5' ... "
-                    "times repeats it. Windows-key shortcuts are not allowed.",
+                    f"{KEYS_HELP} times repeats it.",
         input_schema={"type": "object", "properties": {
             "keys": {"type": "string", "minLength": 1, "maxLength": 60}, "window": window_arg,
             "times": {"type": "integer", "minimum": 1, "maximum": 30},

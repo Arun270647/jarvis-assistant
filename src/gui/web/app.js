@@ -514,7 +514,7 @@
 
       root.appendChild(this.section("General", t("settings.general"), h("div", { class: "grid-2" }, this.nameField()),
         h("div", { class: "toolbar" }, h("button", { class: "btn btn-secondary btn-sm", onclick: () => call("setupRunAgain"), text: "Run setup again" }))));
-      root.appendChild(this.section("AI", "The brain that understands requests and decides which tools to run. Claude uses your Claude account through Claude Code; the other providers use an API key, or a model running on this PC.",
+      root.appendChild(this.section("AI", t("The brain that understands requests and decides which tools to run. Claude uses your Claude account through Claude Code; the other providers use an API key, or a model running on this {pc}."),
         h("div", { id: "ai-body", class: "ai-body" })));
       this.renderAI();
 
@@ -537,10 +537,10 @@
       root.appendChild(this.section("Voice", null,
         h("div", { class: "grid-2" },
           this.toggle("tts.enabled", "Speak replies aloud"),
-          this.select("tts.engine", [["kokoro", "Kokoro (the default)"], ["chatterbox", "Chatterbox-Turbo"], ["piper", "Piper"], ["system", "Windows voice"]], "Voice engine", "Kokoro sounds natural and runs on the processor. Chatterbox sounds the most natural but is slow without an NVIDIA card (Kokoro speaks while it loads). Piper is the quickest. The Windows voice needs no download. Kokoro and Piper install their engine the first time you download one of their voices in Models below."),
+          this.select("tts.engine", [["kokoro", "Kokoro (the default)"], ["chatterbox", "Chatterbox-Turbo"], ["piper", "Piper"], ["system", t("{voice}")]], "Voice engine", t("Kokoro sounds natural and runs on the processor. Chatterbox sounds the most natural but is slow without an NVIDIA card (Kokoro speaks while it loads). Piper is the quickest. The {voice} needs no download. Kokoro and Piper install their engine the first time you download one of their voices in Models below.")),
           this.select("tts.kokoro.voice", o.kokoro_voices || [], "Kokoro voice", "The first letter is the accent (a: American, b: British) and the second is f or m. Download Kokoro in Models below to get all its voices."),
           this.number("tts.kokoro.speed", "Kokoro speed", "1 is normal; 0.5 to 2.", 0.1, true),
-          this.select("tts.system.voice", [["", "Windows default"]].concat((o.system_voices || []).map(v => [v, v])), "Windows voice", "Also used whenever the chosen voice can't start."),
+          this.select("tts.system.voice", [["", t("{os} default")]].concat((o.system_voices || []).map(v => [v, v])), t("{voice}"), "Also used whenever the chosen voice can't start."),
           this.select("tts.piper.voice", o.voices || [], "Piper voice", "Voices in the piper folder of the models folder."))));
 
       root.appendChild(this.section("Models", "The AI models that hear and speak, on this computer. Changes apply when the assistant restarts.",
@@ -586,6 +586,9 @@
       root.appendChild(this.section("Tools and permissions", "What the assistant may do at all, then how each tool is checked. A group that is off isn't even shown to the AI. “ask” shows the permission dialog and asks aloud; “deny” blocks the tool.",
         h("div", { class: "section-title", style: "font-size:12px; margin-top:4px", text: "What it may do" }),
         groupList,
+        window.JarvisStrings.os === "macos" && window.JarvisSetup ? h("div", { class: "field" },
+          h("div", { class: "section-title", style: "font-size:12px; margin-top:4px", text: "What macOS allows" }),
+          window.JarvisSetup.permissionPanel(["microphone", "accessibility", "screen"])) : null,
         h("div", { class: "grid-2" },
           this.toggle("tools.untrusted_asks", t("settings.untrusted"), t("settings.untrusted.help")),
           this.toggle("voice_approval.high_risk", "Accept a spoken yes for high-risk actions", t("settings.voice_high_risk.help"))),
@@ -600,7 +603,7 @@
       const exts = o.extensions || [];
       const extOn = () => this.cur("tools.extensions") || [];
       root.appendChild(this.section("Extensions", t("settings.extensions"),
-        h("div", { class: "banner", style: "position:static; margin:0 0 10px" }, h("span", { class: "msg", text: "Extensions run with your full Windows user rights and nobody has reviewed them. Turn one on only if you wrote it or trust whoever did." })),
+        h("div", { class: "banner", style: "position:static; margin:0 0 10px" }, h("span", { class: "msg", text: t("settings.extensions.warning") })),
         exts.length ? h("div", { class: "grid-2" }, exts.map(name => {
           const cb = h("input", { type: "checkbox" }); cb.checked = extOn().includes(name);
           cb.addEventListener("change", () => {
@@ -635,7 +638,7 @@
           listField("email.trusted_recipients", "Trusted recipients (comma separated)", "Mail only to these (and your own address) is sent without asking."),
           this.text("email.signature", "Signature")),
         h("div", { class: "toolbar" }, pw,
-          h("button", { class: "btn btn-primary btn-sm", onclick: async () => { const r = JSON.parse(await call("emailSavePassword", pw.value)); pw.value = ""; emailLine.textContent = r.ok ? "Password saved to Windows Credential Manager." : "Not saved: " + r.error; }, text: "Save password" }),
+          h("button", { class: "btn btn-primary btn-sm", onclick: async () => { const r = JSON.parse(await call("emailSavePassword", pw.value)); pw.value = ""; emailLine.textContent = r.ok ? t("Password saved to {keystore}.") : "Not saved: " + r.error; }, text: "Save password" }),
           h("button", { class: "btn btn-secondary btn-sm", onclick: () => { emailLine.textContent = "Sending a test email to yourself…"; call("emailTest"); }, text: "Send test email to myself" }),
           h("button", { class: "btn btn-ghost btn-sm", onclick: async () => { await call("emailForgetPassword"); emailLine.textContent = "Password removed."; }, text: "Forget password" })),
         emailLine));
@@ -646,13 +649,15 @@
           this.text("chrome.default_profile", "Default profile", "Name or email used when you don't say one. Empty: the last used profile."),
           listField("chrome.blocked_domains", "Never open or read these sites"))));
 
-      root.appendChild(this.section("Windows and tray", null,
+      const mac = window.JarvisStrings.os === "macos";
+      root.appendChild(this.section(mac ? "Windows and menu bar" : "Windows and tray", null,
         h("div", { class: "grid-2" },
-          this.toggle("__startup__", t("settings.startup"), "Adds a shortcut to the Startup folder (starts as the floating orb)."),
+          this.toggle("__startup__", t("settings.startup"), mac ? "Adds a login item for your account (starts as the floating orb)."
+            : "Adds a shortcut to the Startup folder (starts as the floating orb)."),
           this.toggle("gui.start_minimized", "Start as the floating orb"),
           this.toggle("gui.close_to_tray", t("settings.close_to_tray")),
           this.toggle("gui.autostart_pipeline", "Start listening as soon as the app opens"),
-          this.select("gui.startup_view", [["tray", "Tray icon only"], ["orb", "Floating orb"]], "When Windows starts, show"),
+          this.select("gui.startup_view", [["tray", mac ? "Menu bar icon only" : "Tray icon only"], ["orb", "Floating orb"]], t("When {os} starts, show")),
           this.field("Orb style", "gui.orb_style", orbSeg))));
 
       root.appendChild(this.aboutSection());
@@ -706,7 +711,7 @@
         this.text(base + "model", "Model", p.kind === "claude_code" ? "Any model id your Claude plan can use."
           : p.local ? "The model's name as the server lists it (Fetch models, or `ollama list`)." : "A model id from the provider (Fetch models lists them).", listId)];
       if (this.editable(base + "effort")) fields.push(this.select(base + "effort", ["low", "medium", "high", "xhigh", "max"], "Effort", "Lower is faster; voice commands rarely need more than medium."));
-      if (this.editable(base + "base_url")) fields.push(this.text(base + "base_url", "Server address (base URL)", p.local ? "Where the server listens on this PC." : null));
+      if (this.editable(base + "base_url")) fields.push(this.text(base + "base_url", "Server address (base URL)", p.local ? t("Where the server listens on this {pc}.") : null));
       const timeout = this.editable(base + "timeout_seconds") ? base + "timeout_seconds" : "llm.timeout_seconds";
       fields.push(this.number(timeout, p.kind === "claude_code" ? "Idle timeout (s)" : "Wait for the model (s)",
         p.kind === "claude_code" ? "Gives up if Claude is silent this long while no tool is running." : "Longest silence while waiting for the model."));
@@ -720,7 +725,7 @@
       box.appendChild(h("div", { class: "grid-2" },
         this.select("llm.utility.provider", [["", "Same as the main provider"]].concat(ai.providers.map(x => [x.name, x.label])), "Background jobs (greetings, summaries)", "A small, cheap model writes greetings and shortens long conversations."),
         this.text("llm.utility.model", "Background model", `Empty: ${utilDefault}.`),
-        this.select("tools.profile", [["auto", "Automatic (short list for models on this PC)"], ["full", "All tools"], ["core", "Short list (apps, media, memory, web, read-only files, tasks)"], ["custom", "Custom (tools.custom_list in config.json)"]], "Tools the model sees", "Small local models do better with the short list. Permissions apply either way."),
+        this.select("tools.profile", [["auto", t("Automatic (short list for models on this {pc})")], ["full", "All tools"], ["core", "Short list (apps, media, memory, web, read-only files, tasks)"], ["custom", "Custom (tools.custom_list in config.json)"]], "Tools the model sees", "Small local models do better with the short list. Permissions apply either way."),
         this.number("agent.max_turns", "Max steps per request", "Bounds multi-step tool use."),
         this.number("agent.max_seconds", "Total time limit per request (s)"),
         this.number("agent.memory_context_items", "Memories sent with each request"),
@@ -730,13 +735,13 @@
       box.appendChild(h("div", { class: "toolbar" }, h("button", { class: "btn btn-secondary", id: "btn-test", onclick: () => this.test(), text: "Test connection" }), h("div", { id: "test-line", class: "help", text: "" })));
     },
     keyRow(p) {
-      const status = p.key_source === "saved" ? "Key saved in Windows Credential Manager."
+      const status = p.key_source === "saved" ? t("settings.key_saved")
         : p.key_source ? `Using ${p.key_source.slice(4)} from the environment.`
         : p.needs_key ? "No API key saved yet." : "No key needed (save one if your server asks for it).";
       const line = h("div", { class: "help", id: "ai-key-line", text: status });
       const pw = h("input", { class: "input", type: "password", placeholder: "Paste the API key", autocomplete: "new-password", spellcheck: "false" });
       return h("div", { class: "facts" }, h("div", { class: "toolbar" }, pw,
-        h("button", { class: "btn btn-primary btn-sm", onclick: async () => { const r = JSON.parse(await call("aiSaveKey", p.name, pw.value)); pw.value = ""; if (r.ok) p.key_source = "saved"; line.textContent = r.ok ? "Key saved in Windows Credential Manager." : "Not saved: " + r.error; }, text: "Save key" }),
+        h("button", { class: "btn btn-primary btn-sm", onclick: async () => { const r = JSON.parse(await call("aiSaveKey", p.name, pw.value)); pw.value = ""; if (r.ok) p.key_source = "saved"; line.textContent = r.ok ? t("settings.key_saved") : "Not saved: " + r.error; }, text: "Save key" }),
         h("button", { class: "btn btn-ghost btn-sm", onclick: async () => { await call("aiForgetKey", p.name); p.key_source = null; line.textContent = "Key removed."; }, text: "Forget key" }),
         h("button", { class: "btn btn-secondary btn-sm", onclick: () => { line.textContent = "Asking the server for its models…"; call("aiFetchModels", p.name, this.cur(`llm.providers.${p.name}.base_url`) || ""); }, text: "Fetch models" })), line);
     },
@@ -744,14 +749,14 @@
       const model = this.cur(base + "model") || "";
       let vision = p.kind !== "openai_compat" ? true : this.cur(base + "vision");
       const guessed = vision == null; if (guessed) vision = !!p.vision_guess;
-      const tags = [p.kind === "claude_code" ? "Your Claude plan" : p.local ? "Runs on this PC" : "Cloud API", "Uses tools",
+      const tags = [p.kind === "claude_code" ? "Your Claude plan" : p.local ? t("Runs on this {pc}") : "Cloud API", "Uses tools",
         (vision ? "Sees images" : "Text only") + (guessed ? " (guess)" : "")];
       if (p.kind === "anthropic") tags.push("Prompt caching");
       const profile = this.cur("tools.profile"), short = profile === "core" || (profile === "auto" && p.local);
       const tokens = (this.data.options.prompt_tokens || {})[short ? "core" : "full"] || 0, kt = Math.round(tokens / 1000);
       let cost;
       if (p.kind === "claude_code") cost = "Included in your Claude plan (its usage limits apply).";
-      else if (p.local) cost = "Free: the model runs on this PC, and nothing leaves it.";
+      else if (p.local) cost = t("Free: the model runs on this {pc}, and nothing leaves it.");
       else {
         const price = ((this.data.config.llm || {}).prices || {})[model];
         cost = !price ? `About ${kt}k tokens go with each request. No price is known for this model; add one under llm.prices in config.json to see costs.`
@@ -979,6 +984,7 @@
     J.snapshot(raw => {
       const s = JSON.parse(raw);
       S.phase = s.phase; S.running = s.running; S.voiceOk = s.voice_ok; S.muted = s.muted; S.orbStyle = s.orb_style; S.dryRun = s.dry_run;
+      window.JarvisStrings.setOS(s.os);
       window.JarvisStrings.setName(s.assistant_name);
       if (s.setup_needed && window.JarvisSetup) window.JarvisSetup.open();
       if (s.ready && s.ready.type === "ready") S.info = s.ready;
