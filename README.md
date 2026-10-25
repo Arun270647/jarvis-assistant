@@ -10,10 +10,10 @@ click / hold Space ─► VAD ─► Whisper (local) ─► AI model (your choic
                                         typed text joins here ───┘
 ```
 
-> **Status: in development, not released yet.** The downloads (an installer for Windows and a disk image for Macs with Apple
-> silicon, each with its own Python, no installer and no administrator rights needed) come with the first
-> release. Until then you run it from source, or build it yourself, and a setup wizard walks you through the
-> rest.
+> **Status: alpha.** `0.1.0-alpha.1` is out for testing. Download it from
+> **https://jarvis-desktop-assistant.vercel.app/download**: an installer for Windows and a disk image for Macs with
+> Apple silicon, each with its own Python, no administrator rights needed. A setup wizard walks you through the
+> rest. Expect rough edges, and please report them.
 
 ## What works today
 
