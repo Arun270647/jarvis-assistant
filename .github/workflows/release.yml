@@ -53,7 +53,7 @@ jobs:
           print(f"Jarvis {version}, release tag {tag}, draft a release: {draft}")
 
   windows:
-    name: Windows zip
+    name: Windows installer
     needs: meta
     runs-on: windows-latest
     env:

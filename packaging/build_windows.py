@@ -239,7 +239,7 @@ def prune(runtime: Path) -> int:
     for f in (qt / "translations").rglob("*") if (qt / "translations").is_dir() else []:
         if f.is_file() and f.name != "en-US.pak":
             f.unlink()
-    for f in list((qt / "resources").glob("*.debug.*")) + list((qt / "resources").glob("*devtools*")):
+    for f in set((qt / "resources").glob("*.debug.*")) | set((qt / "resources").glob("*devtools*")):
         f.unlink()                                      # DevTools' pages: Jarvis never opens the web inspector
     needed, todo = set(), [qt / f"{m}.pyd" for m in QT_MODULES] + [qt / "QtWebEngineProcess.exe"] + \
         [p for p in (qt / "plugins").rglob("*.dll")]
