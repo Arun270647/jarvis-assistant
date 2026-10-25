@@ -6,6 +6,53 @@ each entry names the phase it belongs to.
 
 ---
 
+## 2026-10-25 · Phase 9 and going public: the website, the repository and 0.1.0-alpha.1
+
+The maintainer chose to make the repository public right away, so the website's download buttons work.
+`0.1.0-alpha.1` is published as a pre-release.
+
+### What changed
+
+**The website** (`website/`, Next.js on Vercel): https://jarvis-assistant-oss.vercel.app
+- **Home:** the app's HUD orb running a short demo: two tools allowed, and a restart that needs a click and is
+  denied. Then how it works, what it can do, the ways to connect an AI, and the safety rules.
+- **Download:** your system first. The buttons, size, version and SHA-256 come from `/latest.json`. Steps for
+  the installer and the disk image, with the SmartScreen and "Open Anyway" notes and the hash commands.
+- **Guide, privacy and safety, troubleshooting, changelog:** rendered at build time from the repository's own
+  Markdown, so they never drift. Headings get GitHub's ids, because the app's ? buttons open `help.url` plus an
+  anchor.
+- **Look:** dark by default with a light theme. It works at phone width and respects reduced motion. Components
+  are adapted from Aceternity UI and 21st.dev.
+- **`/latest.json`** is a static file. `website-latest.yml` commits each published release's copy, and the
+  download page and installed copies read it.
+- The project is called `jarvis-assistant-oss`. Two Vercel addresses turned out to be taken
+  (`jarvis-assistant` and `jarvis-desktop-assistant`): the first tag of the alpha pointed the app at the second,
+  so it was cancelled and the tag moved to the commit with the right address.
+- Vercel's "ignored build step" compares with the last deployed commit (`VERCEL_GIT_PREVIOUS_SHA`). Comparing
+  only with the commit before skipped the first production build.
+
+**The repository is public**
+- Before the switch, every file version in the history (571 in 29 commits) was scanned for personal data and
+  keys. Nothing turned up apart from the fake keys in the redaction tests.
+- GitHub's private vulnerability reporting is on (SECURITY.md points to it).
+- The personal-data scan now allows exactly the public account name, which appears in release and repository
+  links. CI's copy of the patterns is a repository secret that the maintainer updates.
+
+**0.1.0-alpha.1**
+- Built by the Release workflow: the Windows installer (148 MB) and the Mac disk image (421 MB), with their
+  SHA-256 sums and one `latest.json`.
+- Before the tag, two rehearsals ran on GitHub. The first caught a build bug that a reused local runtime had
+  hidden (a Qt file matched two clean-up patterns and was deleted twice). In the second, the installer installed
+  silently on a clean Windows machine, the installed copy reported its version and Settings › Apps listed it.
+  The disk image mounted, its app reported its version, and the updater copied it out intact.
+
+### How it was checked
+- The website builds and lints cleanly (every page static). It was viewed at desktop and phone widths in both
+  themes. The guide has the anchors the app's ? buttons use.
+- After the switch, the repository page and the website answer signed-out.
+
+---
+
 ## 2026-10-25 · Releases: a Windows installer instead of the zip, smaller downloads, 0.1.0-alpha.1
 
 The maintainer asked for a plain .exe and .dmg to download, with no zip to extract. The Mac download already
