@@ -6,6 +6,45 @@ each entry names the phase it belongs to.
 
 ---
 
+## 2026-10-25 · 0.1.0-alpha.2: a Mac download less than half the size
+
+The maintainer asked why the Mac disk image was about 400 MB. Measured inside the released 0.1.0-alpha.1 image
+(extracted with 7-Zip):
+- 850 MB of the 1.22 GB app was universal code, Intel and Apple silicon in every file, nearly all of it Qt.
+  `QtWebEngineCore` alone was 533 MB.
+- Qt Multimedia's FFmpeg libraries (about 80 MB, versioned copies included) shipped although Jarvis never loads
+  them: the clean-up followed Qt's frameworks, not its loose libraries.
+- Also shipped: Qt's developer tools (`qmlls`, `qmlformat`, `lupdate`…), the bindings of Qt modules the app
+  doesn't import, and PyObjC's test suite (15 MB).
+
+### What changed (`packaging/build_macos.py`, shared parts in `build_windows.py`)
+- **`thin()`:** `ditto --arch arm64` copies the app keeping only the Apple silicon code (386 MB less).
+- **`prune()`:**
+  - follows otool's links to loose libraries as well as frameworks, so the FFmpeg ones go;
+  - removes Qt's tool programs;
+  - keeps Python bindings only for the seven Qt modules the app imports, plus `QtPrintSupport`.
+- **Bindings, tested on Windows first:** I removed each extra binding in turn. Only `QtPrintSupport` is loaded by
+  `QtWebEngineCore`'s (for `QWebEngineView.print`). The rest can go together, and pages still render.
+- **Both builds:** Qt's `platforminputcontexts` plugin is left out. It holds only the virtual keyboard: macOS and
+  Windows input methods live in the platform plugins. PyObjC's tests go too.
+- **Standard library:** the Mac's ships compiled only, as the Windows runtime's does.
+- **Compression:** the disk image is LZMA (ULMO) instead of LZFSE.
+
+| | 0.1.0-alpha.1 | 0.1.0-alpha.2 |
+|---|---|---|
+| Mac disk image | 421 MB | 175 MB |
+| Jarvis.app unpacked | 1,259 MB | 718 MB |
+| Windows installer | 148 MB | 146 MB |
+
+### How it was checked
+- A release rehearsal on GitHub ran the whole CI first, then both builds, and every check passed:
+  - **Mac:** imports, Qt WebEngine rendering, the launcher's version and the signature; the image mounted, and
+    the updater's `stage()` copied the app out intact.
+  - **Windows:** the silent install.
+- The packaging and macOS tests pass, and Ruff is clean.
+
+---
+
 ## 2026-10-25 · Phase 9 and going public: the website, the repository and 0.1.0-alpha.1
 
 The maintainer chose to make the repository public right away, so the website's download buttons work.

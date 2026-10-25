@@ -7,6 +7,15 @@ All notable changes to Jarvis are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.1.0-alpha.2] - 2026-10-25
+
+### Changed
+- The Mac download is 175 MB instead of 421 MB, and Jarvis.app takes 718 MB instead of 1.26 GB.
+  - Qt came with an Intel copy of every library; the app keeps only the Apple silicon code.
+  - Qt Multimedia's FFmpeg libraries, Qt's developer tools, unused Qt bindings and PyObjC's tests are left out.
+  - The disk image uses stronger (LZMA) compression.
+- The Windows installer drops the same unused Qt parts (146 MB).
+
 ## [0.1.0-alpha.1] - 2026-10-25
 
 The first public pre-release, for testing: a Windows installer and a Mac disk image, from
