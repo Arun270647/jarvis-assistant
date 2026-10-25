@@ -13,5 +13,5 @@ export const NAV = [
 
 export const REQUIREMENTS = {
   windows: "Windows 11 (Windows 10 may work), 64-bit",
-  macos: "Apple silicon (M1 or later), macOS 13 or later",
+  macos: "Apple silicon (M1 or later), macOS 14 or later",
 } as const;

@@ -5,7 +5,7 @@ always asks before doing anything important.
 
 This guide takes about 5 minutes. You don't need any technical knowledge once Jarvis is installed.
 
-**You need:** a Windows 11 PC or a Mac with Apple silicon (M1 or later, macOS 13 or later), a microphone (most
+**You need:** a Windows 11 PC or a Mac with Apple silicon (M1 or later, macOS 14 or later), a microphone (most
 laptops have one; without one you can type), an internet connection, and a **Claude Pro or Max** plan (sign up
 at claude.ai). No Claude plan? See
 [Other ways to connect](#5-other-ways-to-connect).

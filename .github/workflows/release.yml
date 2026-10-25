@@ -184,7 +184,7 @@ jobs:
 
           \`$win_sha\`
 
-          ### Mac (Apple silicon, macOS 13 or later)
+          ### Mac (Apple silicon, macOS 14 or later)
           Download **$(basename "$mac")** and open it, then drag **Jarvis** onto **Applications** (or open it from there and let Jarvis install itself on its last setup screen).
 
           Jarvis isn't notarized by Apple, so the first time macOS says it can't check it: open **System Settings › Privacy & Security**, scroll down and click **Open Anyway**, then **Open**.

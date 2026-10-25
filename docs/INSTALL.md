@@ -9,9 +9,9 @@ wizard takes over ([GETTING_STARTED.md](GETTING_STARTED.md)).
 
 ## What you need
 
-- Windows 11 (Windows 10 may work but isn't tested), or a Mac with Apple silicon (M1 or later) and macOS 13
-  Ventura or later. Macs with an Intel processor aren't supported: a library Jarvis needs (ONNX Runtime) no longer
-  ships for them.
+- Windows 11 (Windows 10 may work but isn't tested), or a Mac with Apple silicon (M1 or later) and macOS 14
+  Sonoma or later (numpy and ONNX Runtime, which Jarvis needs, require it). Macs with an Intel processor aren't
+  supported: ONNX Runtime no longer ships for them.
 - For a source install: Python 3.11, 3.12 or 3.13 from [python.org](https://www.python.org/downloads/) (3.12
   recommended), and Git, or download the repository as a zip.
 - A microphone if you want to talk to it (typing works without one).

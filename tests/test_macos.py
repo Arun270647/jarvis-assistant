@@ -342,6 +342,7 @@ class MacBuildTests(unittest.TestCase):
         self.assertEqual(info["CFBundleVersion"], "0.2.0-beta.1")
         self.assertEqual(info["CFBundleIdentifier"], BUNDLE_ID)
         self.assertEqual(info["CFBundleExecutable"], "Jarvis")
+        self.assertEqual(info["LSMinimumSystemVersion"], "14.0", "numpy and onnxruntime ship macOS 14 wheels")
         self.assertIn("Nothing is recorded", info["NSMicrophoneUsageDescription"])
         self.assertTrue(info["NSAppleEventsUsageDescription"])
         plistlib.dumps(info)                                            # valid plist types

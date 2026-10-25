@@ -218,6 +218,8 @@ DROP_PACKAGES = ["av", "av.libs", "hf_xet",             # hf_xet: an optional do
                  "PyObjCTest"]                          # PyObjC's own test suite (macOS)
 DROP_FOLDERS = ["tests", "test"]                        # the packages' own test suites
 ONNX_TOOLS = ["transformers", "tools", "quantization"]  # ONNX Runtime's model-conversion tooling
+# ONNX Runtime's C API library: its Python module has the engine built in and loads only system libraries.
+ONNX_C_API = ["onnxruntime.dll", "libonnxruntime*.dylib"]
 PYWIN32_EXTRAS = ["pythonwin", "PyWin32.chm", "adodbapi", "isapi"]      # the Pythonwin editor, help, IIS and ADO parts
 KEEP_SOURCE = {"pip", "PySide6", "shiboken6"}           # shipped as .py: pip installs add-ons, Qt's own helpers
 AV_STANDIN = ("# Stand-in for PyAV, which Jarvis's builds leave out (packaging/build_windows.py, DROP_PACKAGES):\n"
@@ -289,6 +291,9 @@ def slim(site: Path, python: Path) -> int:
         shutil.rmtree(folder, ignore_errors=True)
     for name in ONNX_TOOLS:
         shutil.rmtree(site / "onnxruntime" / name, ignore_errors=True)
+    for pattern in ONNX_C_API:
+        for f in (site / "onnxruntime" / "capi").glob(pattern):
+            f.unlink()
     keep = "|".join(sorted(KEEP_SOURCE))
     run([str(python), "-m", "compileall", "-b", "-q", "-j0", "-x", rf"[\\/]({keep})[\\/]", str(site)])
     for f in site.rglob("*.py"):

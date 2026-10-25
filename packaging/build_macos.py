@@ -51,7 +51,7 @@ CONTENTS = APP / "Contents"
 RESOURCES = CONTENTS / "Resources"
 MACOS = ROOT / "packaging" / "macos"
 BUNDLE_ID = "jarvis.assistant.desktop"          # src/platform/macos.py (the LaunchAgent's name)
-MIN_MACOS = "13.0"                              # Qt 6.10+ supports macOS 13 Ventura and later
+MIN_MACOS = "14.0"                              # numpy and onnxruntime ship macOS 14 wheels (Qt alone would do 13)
 DMG_FORMAT = "ULMO"                             # LZMA (macOS 10.15+): the smallest download hdiutil can make
 ARCH = "arm64"                                  # PySide6's wheels are universal (Intel too): thinned to this
 CORE_IMPORTS = ["sounddevice", "numpy", "faster_whisper", "ctranslate2", "onnxruntime", "claude_agent_sdk",
@@ -148,6 +148,9 @@ def prune(runtime: Path) -> int:
             f.unlink()
     for f in list(lib.rglob("qtwebengine_devtools_resources*.pak")):   # Jarvis never opens the web inspector
         f.unlink(missing_ok=True)
+    for f in list(lib.rglob("qtwebengine_locales/*.pak")):  # Chromium's own texts: English only, as on Windows
+        if f.name != "en-US.pak":
+            f.unlink()
     frameworks = {p.name[:-len(".framework")]: p for p in lib.glob("*.framework")}
     dylibs = {p.name: p for p in lib.glob("*.dylib")}
     process = next(lib.glob("QtWebEngineCore.framework/**/QtWebEngineProcess.app/Contents/MacOS/QtWebEngineProcess"),
@@ -173,6 +176,7 @@ def prune(runtime: Path) -> int:
     for name, path in dylibs.items():
         if name not in needed_dylibs:
             path.unlink()
+    link_framework_copies(lib)
     for f in qt.iterdir():                  # bindings the app doesn't import, Qt's tools (qmlls, lupdate…)
         if f.is_file() and ((f.name.endswith(".abi3.so") and f.name.split(".")[0] not in bindings) or
                             (not f.suffix and os.access(f, os.X_OK))):
@@ -222,6 +226,63 @@ def compile_launcher(runtime: Path) -> None:
     dylib = runtime / "lib" / f"lib{libname}.dylib"
     old = next(link for link in macho_links(out) if f"lib{libname}.dylib" in link)
     run(["install_name_tool", "-change", old, f"@executable_path/../Resources/runtime/lib/{dylib.name}", str(out)])
+
+
+def compile_python_command(runtime: Path) -> None:
+    """bin/python3.13 from packaging/macos/python.c: a small program on the bundled libpython, in place of the
+    standalone build's second, statically linked copy of the interpreter (18 MB)."""
+    include = next((runtime / "include").glob("python3.*"))
+    libname = include.name                                      # python3.13
+    out = runtime / "bin" / libname
+    log("compiling the python3 command")
+    run(["cc", "-O2", "-Wall", "-Wextra", f"-mmacosx-version-min={MIN_MACOS}", "-arch", "arm64", f"-I{include}",
+         str(MACOS / "python.c"), f"-L{runtime / 'lib'}", f"-l{libname}", "-o", str(out) + ".new"])
+    old = next(link for link in macho_links(Path(str(out) + ".new")) if f"lib{libname}.dylib" in link)
+    run(["install_name_tool", "-change", old, f"@executable_path/../lib/lib{libname}.dylib", str(out) + ".new"])
+    Path(str(out) + ".new").replace(out)
+
+
+def link_framework_copies(lib: Path) -> None:
+    """Wheels can't hold symlinks, so each Qt framework's top-level Resources (and Helpers) is a second copy of
+    Versions/A's. Put the standard layout back: Versions/Current -> A, and each top-level copy replaced by a link
+    to Versions/Current/<name>, plus the framework's own binary link. Both paths then reach the same files."""
+    for framework in lib.glob("*.framework"):
+        versions = framework / "Versions"
+        a = versions / "A"
+        if not a.is_dir():
+            continue
+        if not (versions / "Current").exists():
+            (versions / "Current").symlink_to("A")
+        for item in list(framework.iterdir()):
+            twin = a / item.name
+            if item.name == "Versions" or item.is_symlink() or not twin.exists():
+                continue
+            if item.is_dir():
+                mine = sorted((p.relative_to(item).as_posix(), p.stat().st_size) for p in item.rglob("*") if p.is_file())
+                theirs = sorted((p.relative_to(twin).as_posix(), p.stat().st_size) for p in twin.rglob("*") if p.is_file())
+                if mine != theirs:
+                    continue
+                shutil.rmtree(item)
+            else:
+                item.unlink()
+            item.symlink_to(Path("Versions") / "Current" / item.name)
+        binary = framework / framework.stem
+        if (a / framework.stem).is_file() and not binary.exists():
+            binary.symlink_to(Path("Versions") / "Current" / framework.stem)
+
+
+def strip_binaries() -> int:
+    """Local symbols out of every Mach-O file (strip -x keeps the global ones other libraries and Python link to);
+    ONNX Runtime alone carries 27 MB of them. Done before signing, which strip would undo."""
+    before = folder_size(APP)
+    for path in APP.rglob("*"):
+        if path.is_symlink() or not path.is_file():
+            continue
+        with open(path, "rb") as f:
+            if f.read(4) != b"\xcf\xfa\xed\xfe":
+                continue
+        subprocess.run(["strip", "-x", str(path)], capture_output=True)     # a file strip can't handle stays as is
+    return before - folder_size(APP)
 
 
 def write_bundle_files(version: str) -> None:
@@ -380,9 +441,11 @@ def main(argv=None) -> int:
     log(f"slimmed site-packages by {slim(_site(RESOURCES / 'runtime'), python) / 1e6:.0f} MB")
     log(f"copied {copy_app()} app files")
     compile_launcher(RESOURCES / "runtime")
+    compile_python_command(RESOURCES / "runtime")
     write_bundle_files(version)
     compile_bytecode(python)
     log(f"thinned to {ARCH}, {thin() / 1e6:.0f} MB of Intel code left out")
+    log(f"stripped {strip_binaries() / 1e6:.0f} MB of local symbols")
     sign()
     check(version, python)
     target = make_dmg(version)

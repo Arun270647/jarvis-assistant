@@ -35,7 +35,8 @@ class SlimTests(unittest.TestCase):
         files = {
             "av/__init__.py": "import av._core\n", "av.libs/avcodec.dll": "", "av-19.0.dist-info/METADATA": "",
             "hf_xet/__init__.py": "", "numpy/__init__.py": "VALUE = 42\n", "numpy/tests/test_x.py": "this isn't python",
-            "onnxruntime/__init__.py": "", "onnxruntime/transformers/big.py": "", "pip/__init__.py": "",
+            "onnxruntime/__init__.py": "", "onnxruntime/transformers/big.py": "", "onnxruntime/capi/onnxruntime.dll": "",
+            "onnxruntime/capi/libonnxruntime.1.31.0.dylib": "", "onnxruntime/capi/state.pyd": "", "pip/__init__.py": "",
             "pip/__pycache__/__init__.cpython-313.pyc": "", "plain.py": "def answer():\n    return 42\n",
         }
         for rel, text in files.items():
@@ -47,8 +48,10 @@ class SlimTests(unittest.TestCase):
 
     def test_leaves_out_what_jarvis_never_loads(self):
         self.slim()
-        for gone in ("av.libs", "av-19.0.dist-info", "hf_xet", "numpy/tests", "onnxruntime/transformers"):
+        for gone in ("av.libs", "av-19.0.dist-info", "hf_xet", "numpy/tests", "onnxruntime/transformers",
+                     "onnxruntime/capi/onnxruntime.dll", "onnxruntime/capi/libonnxruntime.1.31.0.dylib"):
             self.assertFalse((self.site / gone).exists(), gone)
+        self.assertTrue((self.site / "onnxruntime" / "capi" / "state.pyd").exists(), "the Python module stays")
 
     def test_ships_compiled_modules_without_their_source(self):
         self.slim()

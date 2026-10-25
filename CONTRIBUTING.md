@@ -119,8 +119,11 @@ Applications on a compressed disk image), its `.sha256` file and
 the `macos` entry of `dist/latest.json` (added to the Windows build's file when there is one). Inside the app:
 
 - `Contents/Resources/runtime`: python-build-standalone's Python for Apple silicon (pinned with its SHA-256 in
-  `packaging/runtime.json`), pip, and `requirements.lock` installed with hashes. Qt frameworks that Jarvis never
-  loads are left out (the build follows `otool -L` from the Qt modules the app uses), and so is Tk.
+  `packaging/runtime.json`), pip, and `requirements.lock` installed with hashes. Qt frameworks and libraries that
+  Jarvis never loads are left out (the build follows `otool -L` from the Qt modules the app uses), and so are Tk,
+  Chromium's non-English texts and ONNX Runtime's C API library. Qt's frameworks get their standard symlinks back
+  (wheels store them as copies), every binary is thinned to arm64 and stripped of local symbols, and `bin/python3`
+  is a small program on the bundled libpython (`packaging/macos/python.c`).
 - `Contents/Resources/app`: the files from `git ls-files` that Jarvis reads at run time, compiled to `.pyc`
   (the app never writes into itself, which would break its signature).
 - `Contents/MacOS/Jarvis`, compiled from `packaging/macos/launcher.c`: it runs the app on the bundled Python

@@ -43,7 +43,7 @@ click / hold Space ─► VAD ─► Whisper (local) ─► AI model (your choic
 
 ## Running from source
 
-You need Windows 11 or a Mac with Apple silicon (macOS 13 or later), Python 3.11 to 3.13, and one way to reach
+You need Windows 11 or a Mac with Apple silicon (macOS 14 Sonoma or later), Python 3.11 to 3.13, and one way to reach
 an AI model (below). Details, the Mac commands, optional voices and updating are in
 [docs/INSTALL.md](docs/INSTALL.md).
 
