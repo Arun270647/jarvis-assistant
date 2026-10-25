@@ -205,13 +205,17 @@ def pe_imports(path: Path) -> set:
 
 
 # What the app uses from Qt (CORE_IMPORTS' PySide6 modules), and what Qt loads at run time without importing it.
+# Only these modules' Python bindings ship, plus QT_BINDINGS_EXTRA: QtWebEngineCore's binding loads QtPrintSupport's
+# (QWebEngineView.print). Other Qt libraries ship only as the libraries the kept ones link to. No
+# platforminputcontexts: it only holds Qt's virtual keyboard (system input methods live in the platform plugin).
 QT_MODULES = ["QtCore", "QtGui", "QtWidgets", "QtNetwork", "QtWebChannel", "QtWebEngineCore", "QtWebEngineWidgets"]
-QT_PLUGINS = ["platforms", "styles", "imageformats", "iconengines", "tls", "networkinformation",
-              "platforminputcontexts", "generic"]
+QT_BINDINGS_EXTRA = ["QtPrintSupport"]
+QT_PLUGINS = ["platforms", "styles", "imageformats", "iconengines", "tls", "networkinformation", "generic"]
 # Third-party files Jarvis never loads, left out of both builds (slim()). PyAV goes too: faster-whisper imports it
 # only to read audio files, Jarvis hands it microphone audio, and its wheels bundle FFmpeg with GPL encoders (x264,
 # x265) that an Apache-2.0 download can't carry. A stand-in (AV_STANDIN) keeps faster-whisper's import working.
-DROP_PACKAGES = ["av", "av.libs", "hf_xet"]             # hf_xet: an optional download accelerator for huggingface_hub
+DROP_PACKAGES = ["av", "av.libs", "hf_xet",             # hf_xet: an optional download accelerator for huggingface_hub
+                 "PyObjCTest"]                          # PyObjC's own test suite (macOS)
 DROP_FOLDERS = ["tests", "test"]                        # the packages' own test suites
 ONNX_TOOLS = ["transformers", "tools", "quantization"]  # ONNX Runtime's model-conversion tooling
 PYWIN32_EXTRAS = ["pythonwin", "PyWin32.chm", "adodbapi", "isapi"]      # the Pythonwin editor, help, IIS and ADO parts
@@ -241,7 +245,7 @@ def prune(runtime: Path) -> int:
             f.unlink()
     for f in set((qt / "resources").glob("*.debug.*")) | set((qt / "resources").glob("*devtools*")):
         f.unlink()                                      # DevTools' pages: Jarvis never opens the web inspector
-    needed, todo = set(), [qt / f"{m}.pyd" for m in QT_MODULES] + [qt / "QtWebEngineProcess.exe"] + \
+    needed, todo = set(), [qt / f"{m}.pyd" for m in QT_MODULES + QT_BINDINGS_EXTRA] + [qt / "QtWebEngineProcess.exe"] + \
         [p for p in (qt / "plugins").rglob("*.dll")]
     local = {p.name.lower(): p for p in qt.glob("*.dll")}
     while todo:
@@ -249,8 +253,7 @@ def prune(runtime: Path) -> int:
             if name in local and name not in needed:
                 needed.add(name)
                 todo.append(local[name])
-    keep_modules = {m.lower() for m in QT_MODULES} | {"qt" + n[len("qt6"):-len(".dll")] for n in needed
-                                                      if n.startswith("qt6")}
+    keep_modules = {m.lower() for m in QT_MODULES + QT_BINDINGS_EXTRA}
     for f in qt.iterdir():
         if f.is_dir():
             continue

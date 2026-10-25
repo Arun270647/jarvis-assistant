@@ -15,13 +15,15 @@ file. What goes in the app:
         MacOS/Jarvis          packaging/macos/launcher.c: runs Resources/app/jarvis_gui.pyw on the bundled Python
                               inside its own process, so macOS treats Jarvis.app as the app (permissions, Dock icon)
         Resources/runtime/    python-build-standalone's CPython (packaging/runtime.json, checked by SHA-256), pip,
-                              and requirements.lock installed with its hashes
+                              and requirements.lock installed with its hashes; pruned (prune(), slim()), the
+                              standard library compiled only, and every binary thinned to arm64 (thin())
         Resources/app/        the code and the shipped files Jarvis reads at run time, compiled to .pyc
         Resources/jarvis.icns, LICENSE, NOTICE, THIRD_PARTY_LICENSES.md
 
 Before the disk image: the runtime must import every core package, Qt WebEngine must render a page, the app must
 report its version through the real launcher, and the signature must verify. After it: the image must mount and
-hold a signed app that reports its version, and the updater's own code must copy the app out of it intact. The app is signed ad hoc (codesign --sign -),
+hold a signed app that reports its version, and the updater's own code must copy the app out of it intact. The
+image is LZMA-compressed (ULMO). The app is signed ad hoc (codesign --sign -),
 which Apple silicon needs to run it at all; it isn't notarized (no Apple Developer Program), so the first start
 needs System Settings › Privacy & Security › Open Anyway. No hardened runtime: only notarization requires it, and
 without it Qt WebEngine's JavaScript engine needs no extra entitlements.
@@ -40,8 +42,8 @@ import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from build_windows import (APP_FILES, CACHE, DIST, ROOT, TOP_FILES, WEB_PROBE, app_version, fetch,  # noqa: E402
-                           folder_size, log, run, sha256_of, slim, tracked_files)
+from build_windows import (APP_FILES, CACHE, DIST, QT_BINDINGS_EXTRA, QT_MODULES, ROOT, TOP_FILES,  # noqa: E402
+                           WEB_PROBE, app_version, fetch, folder_size, log, run, sha256_of, slim, tracked_files)
 
 WORK = ROOT / "build" / "macos"
 APP = WORK / "Jarvis.app"
@@ -50,14 +52,14 @@ RESOURCES = CONTENTS / "Resources"
 MACOS = ROOT / "packaging" / "macos"
 BUNDLE_ID = "jarvis.assistant.desktop"          # src/platform/macos.py (the LaunchAgent's name)
 MIN_MACOS = "13.0"                              # Qt 6.10+ supports macOS 13 Ventura and later
-DMG_FORMAT = "ULFO"                             # lzfse: about as small as zlib, and quicker to copy the app out of
+DMG_FORMAT = "ULMO"                             # LZMA (macOS 10.15+): the smallest download hdiutil can make
+ARCH = "arm64"                                  # PySide6's wheels are universal (Intel too): thinned to this
 CORE_IMPORTS = ["sounddevice", "numpy", "faster_whisper", "ctranslate2", "onnxruntime", "claude_agent_sdk",
                 "anthropic", "openai", "jsonschema", "platformdirs", "PySide6.QtWidgets", "PySide6.QtWebEngineWidgets",
                 "PySide6.QtWebChannel", "objc", "AppKit", "Quartz", "ApplicationServices", "AVFoundation", "keyring",
                 "PIL", "pip"]
-QT_MODULES = ["QtCore", "QtGui", "QtWidgets", "QtNetwork", "QtWebChannel", "QtWebEngineCore", "QtWebEngineWidgets"]
-QT_PLUGINS = ["platforms", "styles", "imageformats", "iconengines", "tls", "networkinformation",
-              "platforminputcontexts", "generic", "permissions"]
+QT_PLUGINS = ["platforms", "styles", "imageformats", "iconengines", "tls", "networkinformation", "generic",
+              "permissions"]                    # QT_MODULES and QT_BINDINGS_EXTRA: build_windows.py
 MICROPHONE_TEXT = ("Jarvis listens when you click the orb or press its shortcut, to hear what you ask. Nothing is "
                    "recorded in the background.")
 AUTOMATION_TEXT = ("Jarvis controls Terminal when you ask it to open a terminal window or type into one, and "
@@ -127,9 +129,10 @@ def macho_links(path: Path) -> list:
 
 
 def prune(runtime: Path) -> int:
-    """Remove what Jarvis never loads: Qt frameworks the app's Qt modules don't link (followed through otool),
-    QML, translations other than WebEngine's English, Qt's tools, type stubs, and the Agent SDK's copy of Claude
-    Code (the wizard installs Claude Code from Anthropic instead)."""
+    """Remove what Jarvis never loads: Qt frameworks and loose libraries the app's Qt modules don't link (followed
+    through otool; the loose ones are FFmpeg for Qt Multimedia), the Python bindings of Qt modules the app doesn't
+    import, QML, translations other than WebEngine's English, Qt's tools, type stubs, and the Agent SDK's copy of
+    Claude Code (the wizard installs Claude Code from Anthropic instead)."""
     site = _site(runtime)
     qt, before = site / "PySide6", folder_size(runtime)
     lib = qt / "Qt" / "lib"
@@ -146,10 +149,12 @@ def prune(runtime: Path) -> int:
     for f in list(lib.rglob("qtwebengine_devtools_resources*.pak")):   # Jarvis never opens the web inspector
         f.unlink(missing_ok=True)
     frameworks = {p.name[:-len(".framework")]: p for p in lib.glob("*.framework")}
+    dylibs = {p.name: p for p in lib.glob("*.dylib")}
     process = next(lib.glob("QtWebEngineCore.framework/**/QtWebEngineProcess.app/Contents/MacOS/QtWebEngineProcess"),
                    None)
-    todo = [qt / f"{m}.abi3.so" for m in QT_MODULES] + list(plugins.rglob("*.dylib")) + ([process] if process else [])
-    needed = set()
+    bindings = set(QT_MODULES + QT_BINDINGS_EXTRA)
+    todo = [qt / f"{m}.abi3.so" for m in bindings] + list(plugins.rglob("*.dylib")) + ([process] if process else [])
+    needed, needed_dylibs = set(), set()
     while todo:
         for link in macho_links(todo.pop()):
             m = re.search(r"([^/]+)\.framework/", link)
@@ -158,12 +163,23 @@ def prune(runtime: Path) -> int:
                 binary = next((frameworks[m.group(1)] / "Versions").glob("*/" + m.group(1)), None)
                 if binary is not None:
                     todo.append(binary)
+            name = link.rsplit("/", 1)[-1]
+            if name in dylibs and name not in needed_dylibs:
+                needed_dylibs.add(name)
+                todo.append(dylibs[name])
     for name, path in frameworks.items():
         if name not in needed:
             shutil.rmtree(path)
-    keep = set(QT_MODULES) | needed
-    for f in qt.glob("Qt*.abi3.so"):
-        if f.name.split(".")[0] not in keep:
+    for name, path in dylibs.items():
+        if name not in needed_dylibs:
+            path.unlink()
+    for f in qt.iterdir():                  # bindings the app doesn't import, Qt's tools (qmlls, lupdate…)
+        if f.is_file() and ((f.name.endswith(".abi3.so") and f.name.split(".")[0] not in bindings) or
+                            (not f.suffix and os.access(f, os.X_OK))):
+            f.unlink()
+    linked = {link.rsplit("/", 1)[-1] for m in bindings for link in macho_links(qt / f"{m}.abi3.so")}
+    for f in qt.glob("libpyside6*.dylib"):  # libpyside6qml serves only the QML bindings
+        if f.name not in linked:
             f.unlink()
     for f in site.rglob("*.pyi"):
         f.unlink()
@@ -221,10 +237,32 @@ def write_bundle_files(version: str) -> None:
 
 
 def compile_bytecode(python: Path) -> None:
-    """The app writes no .pyc at run time (it would change the signed app), so compile everything now."""
+    """The app writes no .pyc at run time (it would change the signed app), so compile everything now. The standard
+    library ships compiled only, like the Windows runtime's (site-packages already is, from slim()); the app keeps its
+    sources next to its __pycache__, for readable tracebacks."""
     log("compiling the Python files")
+    stdlib = next((RESOURCES / "runtime" / "lib").glob("python3.*"))
+    run([str(python), "-m", "compileall", "-b", "-q", "-j0", "-x", r"[\\/]site-packages[\\/]", str(stdlib)])
+    in_stdlib = [p for p in stdlib.rglob("*") if "site-packages" not in p.relative_to(stdlib).parts]
+    for f in in_stdlib:
+        if f.suffix == ".py" and f.with_suffix(".pyc").is_file():
+            f.unlink()
+    for cache in [p for p in in_stdlib if p.name == "__pycache__"]:
+        shutil.rmtree(cache, ignore_errors=True)
     run([str(python), "-m", "compileall", "-q", "-j0", "--invalidation-mode", "unchecked-hash",
-         str(RESOURCES / "app"), str(next((RESOURCES / "runtime" / "lib").glob("python3.*")))])
+         str(RESOURCES / "app"), str(_site(RESOURCES / "runtime"))])
+
+
+def thin() -> int:
+    """PySide6's Mac wheels are universal: every Qt library carries an Intel copy as well. The app runs on Apple
+    silicon only, so ditto copies the app keeping the arm64 code alone (about half of Qt)."""
+    before = folder_size(APP)
+    thinned = APP.with_name(APP.name + ".thin")
+    shutil.rmtree(thinned, ignore_errors=True)
+    run(["ditto", "--arch", ARCH, str(APP), str(thinned)])
+    shutil.rmtree(APP)
+    thinned.rename(APP)
+    return before - folder_size(APP)
 
 
 def sign() -> None:
@@ -344,6 +382,7 @@ def main(argv=None) -> int:
     compile_launcher(RESOURCES / "runtime")
     write_bundle_files(version)
     compile_bytecode(python)
+    log(f"thinned to {ARCH}, {thin() / 1e6:.0f} MB of Intel code left out")
     sign()
     check(version, python)
     target = make_dmg(version)
