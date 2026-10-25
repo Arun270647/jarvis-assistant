@@ -28,3 +28,8 @@ updates:
     groups:
       website:
         patterns: ["*"]
+    # Major versions wait for the tools around them (TypeScript 7 broke typescript-eslint, which Next's lint
+    # config needs, in October 2026): take those by hand once `npm run build` and `npm run lint` pass.
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
