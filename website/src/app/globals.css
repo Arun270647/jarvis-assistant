@@ -1,0 +1,222 @@
+@import "tailwindcss";
+
+/* Jarvis website. The look follows the app: navy ground, cyan light, Barlow and Barlow Condensed, HUD corner
+   brackets (src/gui/web/app.css and the "Industry" tokens in src/gui/web/ds/styles.css). Dark is the default;
+   <html data-theme="light"> switches the page tokens. The orb "screen" stays dark in both themes, like the app. */
+
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-bg-2: var(--bg-2);
+  --color-surface: var(--surface);
+  --color-panel: var(--panel);
+  --color-text: var(--text);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-divider: var(--divider);
+  --color-accent: var(--accent);
+  --color-accent-strong: var(--accent-strong);
+  --color-accent-ink: var(--accent-ink);
+  --color-warn: var(--warn);
+  --font-sans: var(--font-barlow), system-ui, sans-serif;
+  --font-display: var(--font-barlow-condensed), var(--font-barlow), system-ui, sans-serif;
+  --font-mono: ui-monospace, "Cascadia Code", "SF Mono", Menlo, Consolas, monospace;
+}
+
+:root,
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  /* the app's cyan ramp (app.css) and neutral ramp (ds/styles.css) */
+  --a100: #e4fbff; --a200: #b3f0ff; --a300: #74e1ff; --a400: #35cdfa; --a500: #14acdf;
+  --a600: #0b86b4; --a700: #08618a; --a800: #06314d; --a900: #03111e;
+  --bg: #03111e;
+  --bg-2: #041a2c;
+  --surface: #020c16;
+  --panel: color-mix(in srgb, #f5f5f8 4%, transparent);
+  --text: #f5f5f8;
+  --muted: color-mix(in srgb, #f5f5f8 66%, transparent);
+  --faint: color-mix(in srgb, #f5f5f8 46%, transparent);
+  --divider: color-mix(in srgb, #f5f5f8 13%, transparent);
+  --accent: #35cdfa;
+  --accent-strong: #74e1ff;
+  --accent-ink: #03111e;
+  --warn: #ffcf7a;
+  --bracket: color-mix(in srgb, #35cdfa 42%, transparent);
+  --glow: color-mix(in srgb, #35cdfa 32%, transparent);
+  --shadow: 0 0 0 1px color-mix(in srgb, #f5f5f8 9%, transparent), 0 24px 60px rgba(0, 0, 0, .55);
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f3f5f7;
+  --bg-2: #e8eef3;
+  --surface: #ffffff;
+  --panel: color-mix(in srgb, #1d1f20 3.5%, transparent);
+  --text: #1d1f20;
+  --muted: color-mix(in srgb, #1d1f20 72%, transparent);
+  --faint: color-mix(in srgb, #1d1f20 55%, transparent);
+  --divider: color-mix(in srgb, #1d1f20 14%, transparent);
+  --accent: #08618a;
+  --accent-strong: #0b86b4;
+  --accent-ink: #ffffff;
+  --warn: #8a5a00;
+  --bracket: color-mix(in srgb, #0b86b4 50%, transparent);
+  --glow: color-mix(in srgb, #0b86b4 22%, transparent);
+  --shadow: 0 1px 2px rgba(29, 31, 32, .08), 0 16px 40px rgba(29, 31, 32, .12);
+}
+
+@layer base {
+html {
+  background: var(--bg);
+  -webkit-text-size-adjust: 100%;
+  scroll-padding-top: 5.5rem;
+}
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+h1, h2, h3, h4 { font-family: var(--font-display); font-weight: 600; letter-spacing: -0.01em; line-height: 1.08; }
+::selection { background: color-mix(in srgb, var(--accent) 32%, transparent); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 2px; }
+a { color: inherit; text-underline-offset: 3px; }
+}
+
+@layer components {
+/* ---------------------------------------------------------------- HUD pieces */
+
+/* Four corner brackets drawn with backgrounds, as on the app's orb stage. */
+.hud-frame { position: relative; }
+.hud-frame::before {
+  content: ""; position: absolute; inset: 0; pointer-events: none; --l: 22px; --b: var(--bracket);
+  background:
+    linear-gradient(var(--b), var(--b)) top left / var(--l) 1px no-repeat,
+    linear-gradient(var(--b), var(--b)) top left / 1px var(--l) no-repeat,
+    linear-gradient(var(--b), var(--b)) top right / var(--l) 1px no-repeat,
+    linear-gradient(var(--b), var(--b)) top right / 1px var(--l) no-repeat,
+    linear-gradient(var(--b), var(--b)) bottom left / var(--l) 1px no-repeat,
+    linear-gradient(var(--b), var(--b)) bottom left / 1px var(--l) no-repeat,
+    linear-gradient(var(--b), var(--b)) bottom right / var(--l) 1px no-repeat,
+    linear-gradient(var(--b), var(--b)) bottom right / 1px var(--l) no-repeat;
+}
+.hud-frame.hud-lg::before { --l: 64px; }
+
+.dot-grid {
+  background-image: radial-gradient(circle, color-mix(in srgb, var(--accent) 16%, transparent) 1px, transparent 1.4px);
+  background-size: 26px 26px;
+  background-position: center;
+}
+
+/* The app's screen: always dark, whatever the page theme (it brings its own copy of the dark tokens). */
+.screen {
+  --bg: #03111e; --surface: #020c16; --panel: color-mix(in srgb, #f5f5f8 4%, transparent);
+  --text: #f5f5f8; --muted: color-mix(in srgb, #f5f5f8 66%, transparent); --faint: color-mix(in srgb, #f5f5f8 46%, transparent);
+  --divider: color-mix(in srgb, #f5f5f8 13%, transparent); --accent: #35cdfa; --accent-strong: #74e1ff; --accent-ink: #03111e;
+  color: #f5f5f8;
+  background:
+    radial-gradient(ellipse 60% 70% at 50% 42%, color-mix(in srgb, #14acdf 18%, transparent), transparent 70%),
+    radial-gradient(circle, color-mix(in srgb, #74e1ff 9%, transparent) 1px, transparent 1.3px) center / 26px 26px,
+    linear-gradient(180deg, #041a2c, #03111e 75%);
+  --bracket: color-mix(in srgb, #35cdfa 40%, transparent);
+}
+
+.eyebrow {
+  font-family: var(--font-display); font-weight: 600; font-size: 0.8rem; letter-spacing: 0.22em;
+  text-transform: uppercase; color: var(--accent);
+}
+
+/* Buttons: a cut corner, like the HUD tags in the app. */
+.btn {
+  --cut: 12px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.6rem;
+  min-height: 3rem; padding: 0 1.4rem;
+  font-family: var(--font-display); font-weight: 600; font-size: 1.05rem; letter-spacing: 0.08em;
+  text-transform: uppercase; text-decoration: none; white-space: nowrap;
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - var(--cut)), calc(100% - var(--cut)) 100%, 0 100%);
+  transition: background-color .18s ease, color .18s ease, box-shadow .18s ease, transform .12s ease;
+}
+.btn:active { transform: translateY(1px); }
+.btn-primary { background: var(--accent); color: var(--accent-ink); }
+.btn-primary:hover { background: var(--accent-strong); }
+.btn-ghost {
+  background: var(--panel); color: var(--text);
+  box-shadow: inset 0 0 0 1px var(--divider);
+}
+.btn-ghost:hover { box-shadow: inset 0 0 0 1px var(--accent); color: var(--accent); }
+.btn-lg { min-height: 3.5rem; padding: 0 1.8rem; font-size: 1.15rem; }
+
+.tag {
+  display: inline-flex; align-items: center; gap: .4rem; padding: .2rem .6rem;
+  font-family: var(--font-display); font-weight: 600; font-size: .78rem; letter-spacing: .14em; text-transform: uppercase;
+  color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
+.card {
+  background: var(--panel);
+  border: 1px solid var(--divider);
+}
+}
+
+/* Entrance: content rises into place once; nothing moves for people who ask for less motion. */
+@keyframes rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+.rise { animation: rise .6s cubic-bezier(.2, .7, .2, 1) both; }
+.rise-1 { animation-delay: .05s; } .rise-2 { animation-delay: .1s; } .rise-3 { animation-delay: .15s; } .rise-4 { animation-delay: .2s; }
+
+@keyframes travel { from { offset-distance: 0%; } to { offset-distance: 100%; } }
+@keyframes pulse-dot { 0%, 100% { opacity: .35; } 50% { opacity: 1; } }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}
+
+@layer components {
+/* ---------------------------------------------------------------- documents rendered from the repo */
+
+.doc { color: var(--text); font-size: 1.05rem; line-height: 1.7; overflow-wrap: anywhere; }
+.doc > * + * { margin-top: 1.05em; }
+.doc h2 { font-size: 2rem; margin-top: 2.4em; padding-top: .6em; border-top: 1px solid var(--divider); position: relative; }
+.doc h3 { font-size: 1.45rem; margin-top: 1.9em; position: relative; }
+.doc h4 { font-size: 1.15rem; margin-top: 1.6em; }
+.doc h2 + *, .doc h3 + * { margin-top: .7em; }
+.doc a { color: var(--accent); text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--accent) 40%, transparent); }
+.doc a:hover { text-decoration-color: var(--accent); }
+.doc .anchor { margin-left: .4rem; color: var(--faint); text-decoration: none; opacity: 0; transition: opacity .15s; font-family: var(--font-sans); font-weight: 400; }
+.doc h2:hover .anchor, .doc h3:hover .anchor, .doc .anchor:focus-visible { opacity: 1; }
+.doc strong { font-weight: 600; color: var(--text); }
+.doc ul, .doc ol { padding-left: 1.4em; }
+.doc ul { list-style: none; }
+.doc ul > li { position: relative; }
+.doc ul > li::before { content: ""; position: absolute; left: -1em; top: .72em; width: .42em; height: 1px; background: var(--accent); }
+.doc ol { list-style: decimal; }
+.doc ol > li::marker { color: var(--accent); font-family: var(--font-display); font-weight: 600; }
+.doc li + li { margin-top: .4em; }
+.doc li > ul, .doc li > ol { margin-top: .4em; }
+.doc li > p { margin: 0; }
+.doc li > p + p { margin-top: .5em; }
+.doc li img { margin-top: .8em; }
+.doc code {
+  font-family: var(--font-mono); font-size: .88em; padding: .1em .35em;
+  background: color-mix(in srgb, var(--accent) 10%, transparent); border: 1px solid color-mix(in srgb, var(--accent) 18%, transparent);
+}
+.doc pre { padding: 1rem 1.2rem; overflow-x: auto; background: var(--surface); border: 1px solid var(--divider); line-height: 1.5; }
+.doc pre code { padding: 0; border: 0; background: none; font-size: .88rem; }
+.doc blockquote {
+  padding: .9rem 1.2rem; border-left: 2px solid var(--accent); background: color-mix(in srgb, var(--accent) 7%, transparent);
+  color: var(--muted);
+}
+.doc blockquote > * + * { margin-top: .6em; }
+.doc hr { border: 0; height: 1px; background: var(--divider); margin: 2.4em 0; }
+.doc hr + h2 { border-top: 0; padding-top: 0; margin-top: 0; }
+.doc img { max-width: 100%; height: auto; border: 1px solid var(--divider); box-shadow: var(--shadow); }
+.doc .table-wrap { overflow-x: auto; border: 1px solid var(--divider); }
+.doc table { width: 100%; border-collapse: collapse; font-size: .95rem; }
+.doc th, .doc td { text-align: left; padding: .6rem .8rem; border-bottom: 1px solid var(--divider); vertical-align: top; }
+.doc th { font-family: var(--font-display); font-weight: 600; letter-spacing: .06em; text-transform: uppercase; font-size: .82rem; color: var(--muted); background: var(--panel); }
+.doc tr:last-child td { border-bottom: 0; }
+}
