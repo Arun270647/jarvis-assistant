@@ -140,11 +140,11 @@ jobs:
       id-token: write        # build provenance
       attestations: write
     steps:
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@v8
         with:
           name: jarvis-windows
           path: windows
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@v8
         with:
           name: jarvis-macos
           path: macos
