@@ -429,7 +429,9 @@ def check_install(target: Path, version: str) -> None:
 
 def write_release_files(target: Path, version: str, base_url: str, notes: str) -> dict:
     digest, size = sha256_of(target), target.stat().st_size
-    (target.parent / (target.name + ".sha256")).write_text(f"{digest} *{target.name}\n", encoding="utf-8")
+    # Unix line endings, so `sha256sum -c` reads the file on any system (on Windows, \n would become \r\n).
+    (target.parent / (target.name + ".sha256")).write_text(f"{digest} *{target.name}\n", encoding="utf-8",
+                                                           newline="\n")
     url = f"{base_url.rstrip('/')}/{target.name}" if base_url else target.name
     latest = {"version": version, "notes": notes, "windows": {"url": url, "sha256": digest, "size": size}}
     (target.parent / "latest.json").write_text(json.dumps(latest, indent=2) + "\n", encoding="utf-8")
