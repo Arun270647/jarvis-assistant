@@ -1,1 +1,14 @@
-{"version": null}
+{
+  "version": "0.1.0-alpha.1",
+  "notes": "https://github.com/Arun270647/jarvis-assistant/releases/tag/v0.1.0-alpha.1",
+  "windows": {
+    "url": "https://github.com/Arun270647/jarvis-assistant/releases/download/v0.1.0-alpha.1/Jarvis-Setup-0.1.0-alpha.1-windows-x64.exe",
+    "sha256": "0b428e0ebca4fd8bab3a3d1f2ca393c2edbdacacb7ba3ebe7a59d8f566e4279a",
+    "size": 147718114
+  },
+  "macos": {
+    "url": "https://github.com/Arun270647/jarvis-assistant/releases/download/v0.1.0-alpha.1/Jarvis-0.1.0-alpha.1-macos-arm64.dmg",
+    "sha256": "85440c8fb8e779b233909d9b91a5763d6e0a0f34ea4f938c298ff8f9fac1857f",
+    "size": 421865844
+  }
+}
