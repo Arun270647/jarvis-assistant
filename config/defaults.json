@@ -204,10 +204,10 @@
     "discover": true
   },
   "help": {
-    "url": "https://jarvis-desktop-assistant.vercel.app/guide"
+    "url": "https://jarvis-assistant-oss.vercel.app/guide"
   },
   "updates": {
-    "url": "https://jarvis-desktop-assistant.vercel.app/latest.json",
+    "url": "https://jarvis-assistant-oss.vercel.app/latest.json",
     "auto_check": true
   },
   "dry_run": false,

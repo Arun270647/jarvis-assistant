@@ -1,4 +1,4 @@
-export const SITE_URL = "https://jarvis-desktop-assistant.vercel.app";
+export const SITE_URL = "https://jarvis-assistant-oss.vercel.app";
 export const REPO_URL = "https://github.com/Arun270647/jarvis-assistant";
 export const RELEASES_URL = `${REPO_URL}/releases`;
 export const BLOB_URL = `${REPO_URL}/blob/main/`;

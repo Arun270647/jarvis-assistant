@@ -10,7 +10,7 @@ All notable changes to Jarvis are recorded here. The format follows
 ## [0.1.0-alpha.1] - 2026-10-25
 
 The first public pre-release, for testing: a Windows installer and a Mac disk image, from
-https://jarvis-desktop-assistant.vercel.app/download or the release page.
+https://jarvis-assistant-oss.vercel.app/download or the release page.
 
 ### Added
 - Voice pipeline: local speech detection (Silero VAD) and recognition (faster-whisper), the AI, and spoken

@@ -51,7 +51,7 @@ was a DMG; the Windows one is now an installer.
 - The Release workflow builds the installer instead of the zip. On GitHub's throwaway Windows machine it also
   installs the result silently and starts the installed copy.
 - A new workflow (`website-latest.yml`) copies each published release's `latest.json` to the website.
-- The app's `updates.url` and `help.url` now point at https://jarvis-desktop-assistant.vercel.app.
+- The app's `updates.url` and `help.url` now point at https://jarvis-assistant-oss.vercel.app.
 - The version is `0.1.0-alpha.1`.
 
 ### How it was checked

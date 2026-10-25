@@ -2,7 +2,7 @@
 
 The Jarvis website: home, download, the getting-started guide, privacy and safety, troubleshooting and the
 changelog. It's a Next.js app (App Router, TypeScript, Tailwind CSS) on Vercel, project
-`jarvis-desktop-assistant` (root directory `website`), at https://jarvis-desktop-assistant.vercel.app.
+`jarvis-assistant-oss` (root directory `website`), at https://jarvis-assistant-oss.vercel.app.
 
 ```
 cd website

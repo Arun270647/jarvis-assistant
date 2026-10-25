@@ -2,7 +2,7 @@
 
 Jarvis comes as an installer for Windows (.exe) and as a disk image for Macs with Apple silicon (.dmg), each with
 its own Python inside, so you don't need to install anything else. Download them from the website
-(https://jarvis-desktop-assistant.vercel.app/download) or the
+(https://jarvis-assistant-oss.vercel.app/download) or the
 [release page](https://github.com/Arun270647/jarvis-assistant/releases), run it from source (below), or build it
 yourself ([CONTRIBUTING.md](../CONTRIBUTING.md#building-the-windows-installer)). Once it's running, the setup
 wizard takes over ([GETTING_STARTED.md](GETTING_STARTED.md)).
