@@ -94,7 +94,9 @@ provider from the command line with `python -m src.agent check` (options in
 5. ~~Repository, documentation and CI~~ (done)
 6. ~~macOS: platform layer, Mac tools, permission screens, Jarvis.app~~ (built; testing on real Macs is still to
    come)
-7. First release (unsigned Windows zip and a disk image with the ad-hoc signed Mac app, with SHA-256 sums)
+7. Testing on clean Windows PCs and Macs, and with people who haven't seen Jarvis before
+8. Website: downloads, a getting-started guide and help pages
+9. First public release (unsigned Windows zip and a disk image with the ad-hoc signed Mac app, with SHA-256 sums)
 
 The work log, with what was built and how it was verified, is in [works_done.md](works_done.md), and
 user-visible changes are in [CHANGELOG.md](CHANGELOG.md).
