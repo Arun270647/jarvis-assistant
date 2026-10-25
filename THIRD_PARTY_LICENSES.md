@@ -72,6 +72,8 @@ Installed by `requirements.txt` ("yes" in the last column) and what those requir
 | uiautomation | 2.0.29 | Apache 2.0 | https://github.com/yinkaisheng/Python-UIAutomation-for-Windows | yes |
 | uvicorn | 0.54.0 | BSD-3-Clause | https://uvicorn.dev/ |  |
 
+Left out of the Windows installer and the Mac app (a source install still gets them): av (PyAV, which faster-whisper imports only to read audio files; its wheels bundle FFmpeg with GPL encoders, so the downloads carry a stand-in instead) and hf-xet (an optional download accelerator).
+
 ### Only on macOS
 
 | Package | Version | License | Project | In requirements.txt |
@@ -112,9 +114,9 @@ Installed only when the user chooses them, from their own sources, and never shi
 | Kokoro-82M voice model and voices (ONNX export from kokoro-onnx) | Apache-2.0 |
 | Piper voices | per voice, see each voice's model card (linked in Settings › Models) |
 
-## Bundled in the Windows zip
+## Bundled in the Windows installer
 
-The zip (packaging/build_windows.py) also carries its own Python, so Jarvis needs nothing else installed:
+The installer (packaging/build_windows.py) also carries its own Python, so Jarvis needs nothing else installed:
 
 | Component | License |
 |---|---|

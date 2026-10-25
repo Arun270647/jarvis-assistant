@@ -79,27 +79,31 @@ keeps every other version where it is; add `--upgrade-package <name>` to move on
 Dependabot's weekly pull requests for Python packages change `requirements.txt` only, so their tests fail until
 the lock is regenerated. Apply the new versions with the commands above in your own pull request.
 
-## Building the Windows zip
+## Building the Windows installer
 
-On Windows, with the Visual Studio C++ build tools installed (for `cl` and `rc`), in the Python environment you
-develop in (the build runs the updater's tests with it, so it needs `requirements.lock` installed):
+On Windows, with the Visual Studio C++ build tools (for `cl` and `rc`) and [Inno Setup 6](https://jrsoftware.org/isinfo.php)
+installed (set `INNO_SETUP` to its folder if it isn't in the usual place), in the Python environment you develop
+in:
 
 ```
 python packaging/build_windows.py
 ```
 
-It builds `build\windows\Jarvis` and writes `dist\Jarvis-<version>-windows-x64.zip`, its `.sha256` file and
-`latest.json`. The zip holds:
+It prepares `build\windows\Jarvis` and writes `dist\Jarvis-Setup-<version>-windows-x64.exe`, its `.sha256` file
+and `latest.json`. The folder holds:
 
 - `runtime`: python.org's embeddable Python (pinned with its SHA-256 in `packaging/runtime.json`), pip, and
   `requirements.lock` installed with hashes. Parts of Qt that Jarvis never loads are left out (the build follows
-  the DLL imports of the Qt modules the app uses).
+  the DLL imports of the Qt modules the app uses), and so are the packages' test suites and PyAV; the packages
+  ship compiled only.
 - `app`: the files from `git ls-files` that Jarvis reads at run time.
-- `Jarvis.exe` and `Jarvis-Updater.exe`, compiled from `packaging/windows/`.
+- `Jarvis.exe`, compiled from `packaging/windows/launcher.c`.
 
-Before zipping, the build runs the updater's tests (`tests/test_packaging.py`), checks that the runtime imports
-every package, that Qt WebEngine renders a page and that the app reports its version. `--reuse-runtime` skips
-the slow part when only the app changed. The zip is about 300 MB.
+Before compiling the installer (`packaging/windows/jarvis.iss`), the build checks that the runtime imports every
+package, that Qt WebEngine renders a page and that the app reports its version. `--check-install` then installs the
+result silently and starts the installed copy (the release workflow does this on GitHub's throwaway machines; on
+your own PC it registers a real install). `--reuse-runtime` skips the slow part when only the app changed. The
+installer is about 150 MB.
 
 ## Building the Mac app
 
@@ -131,11 +135,11 @@ of it. Intel Macs aren't built: ONNX Runtime has no wheels for them.
 ## Releasing
 
 1. Set the version in `src/version.py` and move the `[Unreleased]` notes in CHANGELOG.md under it.
-2. Tag the commit `v<version>` and push the tag. The Release workflow builds the Windows zip and the Mac disk
+2. Tag the commit `v<version>` and push the tag. The Release workflow builds the Windows installer and the Mac disk
    image on GitHub and drafts a release with both, their SHA-256 sums and one `latest.json`. Versions with
    letters (`0.1.0-alpha.1`) are marked as pre-releases.
-3. Check the draft, download both files once, then publish it. Copy `latest.json` to the website
-   ([website/README.md](website/README.md)).
+3. Check the draft, download both files once, then publish it. Publishing copies its `latest.json` to the website
+   (`.github/workflows/website-latest.yml`), which the download page and installed copies read.
 
 To try the whole path without a tag, run **Actions › Release › Run workflow** with **rehearse** ticked: it drafts
 a release named `rehearsal-<run number>`. Delete it afterwards (`gh release delete rehearsal-<n> --cleanup-tag

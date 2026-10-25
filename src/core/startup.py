@@ -1,6 +1,6 @@
 """Start Jarvis when the user signs in (Settings › Start-up), through src.platform.
 
-Windows: a shortcut in the Startup folder that starts the app as the floating orb: Jarvis.exe in the Windows zip,
+Windows: a shortcut in the Startup folder that starts the app as the floating orb: Jarvis.exe when installed,
 pythonw with jarvis_gui.pyw when run from source. macOS: a LaunchAgent that opens Jarvis.app (or runs python with
 jarvis_gui.pyw from source).
 """
@@ -18,7 +18,7 @@ ICON = APP_ROOT / "src" / "gui" / "assets" / "jarvis.ico"     # scripts/make_log
 
 
 def launch_command(root: Optional[Path] = None) -> dict:
-    """How a shortcut starts this copy of Jarvis (root: a Jarvis folder from the zip or a Jarvis.app, by default
+    """How a shortcut starts this copy of Jarvis (root: a Windows Jarvis folder or a Jarvis.app, by default
     this one)."""
     root = root or paths.install_root()
     if sys.platform == "darwin":

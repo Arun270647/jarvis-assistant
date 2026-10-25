@@ -41,7 +41,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from build_windows import (APP_FILES, CACHE, DIST, ROOT, TOP_FILES, WEB_PROBE, app_version, fetch,  # noqa: E402
-                           folder_size, log, run, sha256_of, tracked_files)
+                           folder_size, log, run, sha256_of, slim, tracked_files)
 
 WORK = ROOT / "build" / "macos"
 APP = WORK / "Jarvis.app"
@@ -143,6 +143,8 @@ def prune(runtime: Path) -> int:
     for f in (qt / "Qt" / "translations").rglob("*") if (qt / "Qt" / "translations").is_dir() else []:
         if f.is_file() and f.name != "en-US.pak":
             f.unlink()
+    for f in list(lib.rglob("qtwebengine_devtools_resources*.pak")):   # Jarvis never opens the web inspector
+        f.unlink(missing_ok=True)
     frameworks = {p.name[:-len(".framework")]: p for p in lib.glob("*.framework")}
     process = next(lib.glob("QtWebEngineCore.framework/**/QtWebEngineProcess.app/Contents/MacOS/QtWebEngineProcess"),
                    None)
@@ -337,6 +339,7 @@ def main(argv=None) -> int:
         shutil.rmtree(APP, ignore_errors=True)
         python = build_runtime(pins)
     log(f"pruned {prune(RESOURCES / 'runtime') / 1e6:.0f} MB that Jarvis never loads")
+    log(f"slimmed site-packages by {slim(_site(RESOURCES / 'runtime'), python) / 1e6:.0f} MB")
     log(f"copied {copy_app()} app files")
     compile_launcher(RESOURCES / "runtime")
     write_bundle_files(version)

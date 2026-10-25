@@ -10,7 +10,7 @@ click / hold Space ─► VAD ─► Whisper (local) ─► AI model (your choic
                                         typed text joins here ───┘
 ```
 
-> **Status: in development, not released yet.** The downloads (a zip for Windows and a disk image for Macs with Apple
+> **Status: in development, not released yet.** The downloads (an installer for Windows and a disk image for Macs with Apple
 > silicon, each with its own Python, no installer and no administrator rights needed) come with the first
 > release. Until then you run it from source, or build it yourself, and a setup wizard walks you through the
 > rest.
@@ -96,7 +96,8 @@ provider from the command line with `python -m src.agent check` (options in
    come)
 7. Testing on clean Windows PCs and Macs, and with people who haven't seen Jarvis before
 8. Website: downloads, a getting-started guide and help pages
-9. First public release (unsigned Windows zip and a disk image with the ad-hoc signed Mac app, with SHA-256 sums)
+9. First public release (an unsigned Windows installer and a disk image with the ad-hoc signed Mac app, with
+   SHA-256 sums)
 
 The work log, with what was built and how it was verified, is in [works_done.md](works_done.md), and
 user-visible changes are in [CHANGELOG.md](CHANGELOG.md).

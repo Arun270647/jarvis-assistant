@@ -1,25 +1,26 @@
-"""Build the Windows download: dist/Jarvis-<version>-windows-x64.zip, its SHA-256 and latest.json.
+"""Build the Windows download: dist/Jarvis-Setup-<version>-windows-x64.exe, its SHA-256 and latest.json.
 
-    python packaging/build_windows.py                          # build/windows/Jarvis, then the zip in dist/
-    python packaging/build_windows.py --base-url URL           # latest.json points at URL/<zip name>
+    python packaging/build_windows.py                          # build/windows/Jarvis, then the installer in dist/
+    python packaging/build_windows.py --base-url URL           # latest.json points at URL/<installer name>
     python packaging/build_windows.py --reuse-runtime          # keep build/windows/Jarvis/runtime (faster)
+    python packaging/build_windows.py --check-install          # also install it silently and start it (CI)
 
-Needs Windows, Python 3.11+ with requirements.lock installed to run this script (it runs tests/test_packaging.py),
-internet (python.org and PyPI) and the Visual Studio C++ build tools (cl and rc, found with vswhere) for the two small
-programs. What goes in the zip:
+Needs Windows, Python 3.11+ with requirements.lock installed to run this script, internet (python.org and PyPI), the
+Visual Studio C++ build tools (cl and rc, found with vswhere) for the launcher, and Inno Setup 6 (ISCC; found on
+PATH, in INNO_SETUP or in its usual folders) for the installer. What the installer puts in
+%LOCALAPPDATA%\\Programs\\Jarvis (packaging/windows/jarvis.iss):
 
-    Jarvis/
-        Jarvis.exe            packaging/windows/launcher.c: starts runtime/pythonw.exe app/jarvis_gui.pyw
-        Jarvis-Updater.exe    packaging/windows/updater.c: swaps in a downloaded update after Jarvis quits
-        runtime/              python.org's embeddable CPython (packaging/runtime.json, checked by SHA-256), with
-                              site switched on and app/ on its path, pip (add-ons are pip-installed at run time),
-                              and requirements.lock installed with its hashes
-        app/                  the code and the shipped files Jarvis reads at run time (APP_FILES), nothing else
-        LICENSE  NOTICE  THIRD_PARTY_LICENSES.md  READ ME FIRST.txt
+    Jarvis.exe            packaging/windows/launcher.c: starts runtime/pythonw.exe app/jarvis_gui.pyw
+    runtime/              python.org's embeddable CPython (packaging/runtime.json, checked by SHA-256), with site
+                          switched on and app/ on its path, pip (add-ons are pip-installed at run time), and
+                          requirements.lock installed with its hashes, slimmed (slim())
+    app/                  the code and the shipped files Jarvis reads at run time (APP_FILES), nothing else
+    LICENSE  NOTICE  THIRD_PARTY_LICENSES.md
 
-Before zipping: the updater must pass its tests (tests/test_packaging.py), the runtime must import every core
-package, Qt WebEngine must render a page, and the app must report its version. Nothing is signed (Jarvis has no
-signing budget); the release page publishes the SHA-256 instead.
+Before the installer: the runtime must import every core package, Qt WebEngine must render a page, and the app must
+report its version. With --check-install the installer then installs into build/windows/install-check (registered
+like a real install, so it's meant for CI's throwaway machines) and the installed copy must report its version.
+Nothing is signed (Jarvis has no signing budget); the release page publishes the SHA-256 instead.
 """
 import argparse
 import fnmatch
@@ -72,14 +73,6 @@ app.exec()
 if result != {"loaded": True, "js": "web object"}:
     sys.exit(f"Qt WebEngine check failed: {result}")
 print("Qt WebEngine renders pages")
-"""
-READ_ME_FIRST = """Jarvis {version}
-
-1. If you haven't yet, right-click the zip, choose Extract All, then Extract.
-2. Open the extracted Jarvis folder and double-click Jarvis.exe.
-3. Windows may say "Windows protected your PC", because Jarvis isn't signed. Click More info, then Run anyway.
-
-The setup guide is app\\docs\\GETTING_STARTED.md in this folder.
 """
 RC_TEMPLATE = """#include <winver.h>
 1 ICON "{icon}"
@@ -215,6 +208,18 @@ def pe_imports(path: Path) -> set:
 QT_MODULES = ["QtCore", "QtGui", "QtWidgets", "QtNetwork", "QtWebChannel", "QtWebEngineCore", "QtWebEngineWidgets"]
 QT_PLUGINS = ["platforms", "styles", "imageformats", "iconengines", "tls", "networkinformation",
               "platforminputcontexts", "generic"]
+# Third-party files Jarvis never loads, left out of both builds (slim()). PyAV goes too: faster-whisper imports it
+# only to read audio files, Jarvis hands it microphone audio, and its wheels bundle FFmpeg with GPL encoders (x264,
+# x265) that an Apache-2.0 download can't carry. A stand-in (AV_STANDIN) keeps faster-whisper's import working.
+DROP_PACKAGES = ["av", "av.libs", "hf_xet"]             # hf_xet: an optional download accelerator for huggingface_hub
+DROP_FOLDERS = ["tests", "test"]                        # the packages' own test suites
+ONNX_TOOLS = ["transformers", "tools", "quantization"]  # ONNX Runtime's model-conversion tooling
+PYWIN32_EXTRAS = ["pythonwin", "PyWin32.chm", "adodbapi", "isapi"]      # the Pythonwin editor, help, IIS and ADO parts
+KEEP_SOURCE = {"pip", "PySide6", "shiboken6"}           # shipped as .py: pip installs add-ons, Qt's own helpers
+AV_STANDIN = ("# Stand-in for PyAV, which Jarvis's builds leave out (packaging/build_windows.py, DROP_PACKAGES):\n"
+              "# faster-whisper imports av to read audio files, and Jarvis gives it audio arrays instead.\n\n\n"
+              "def __getattr__(name):\n"
+              "    raise AttributeError(f\"PyAV isn't part of Jarvis (asked for av.{name})\")\n")
 QT_KEEP = ["QtWebEngineProcess.exe", "opengl32sw.dll", "d3dcompiler_47.dll", "msvcp*.dll", "vcruntime*.dll",
            "concrt*.dll", "pyside6.abi3.dll", "*.py", "*.json"]
 
@@ -234,8 +239,8 @@ def prune(runtime: Path) -> int:
     for f in (qt / "translations").rglob("*") if (qt / "translations").is_dir() else []:
         if f.is_file() and f.name != "en-US.pak":
             f.unlink()
-    for f in (qt / "resources").glob("*.debug.*"):
-        f.unlink()
+    for f in list((qt / "resources").glob("*.debug.*")) + list((qt / "resources").glob("*devtools*")):
+        f.unlink()                                      # DevTools' pages: Jarvis never opens the web inspector
     needed, todo = set(), [qt / f"{m}.pyd" for m in QT_MODULES] + [qt / "QtWebEngineProcess.exe"] + \
         [p for p in (qt / "plugins").rglob("*.dll")]
     local = {p.name.lower(): p for p in qt.glob("*.dll")}
@@ -258,7 +263,37 @@ def prune(runtime: Path) -> int:
     for f in site.rglob("*.pyi"):
         f.unlink()
     shutil.rmtree(site / "claude_agent_sdk" / "_bundled", ignore_errors=True)
+    for name in PYWIN32_EXTRAS:
+        path = site / name
+        shutil.rmtree(path, ignore_errors=True) if path.is_dir() else path.unlink(missing_ok=True)
     return before - folder_size(runtime)
+
+
+def slim(site: Path, python: Path) -> int:
+    """Leave out of site-packages what Jarvis never loads (DROP_PACKAGES with a stand-in for PyAV, the packages'
+    test suites, ONNX Runtime's tooling), then ship the rest compiled only: each module as a .pyc in place of its
+    .py (KEEP_SOURCE excepted), without __pycache__ folders. That halves the files and leaves nothing to compile
+    at the first start. Tracebacks from these packages still give file and line. Used by both builds; python is
+    the runtime's own interpreter, so the .pyc files match it."""
+    before = folder_size(site)
+    for name in DROP_PACKAGES:
+        shutil.rmtree(site / name, ignore_errors=True)
+        for info in site.glob(f"{name}-*.dist-info"):
+            shutil.rmtree(info)
+    (site / "av").mkdir()
+    (site / "av" / "__init__.py").write_text(AV_STANDIN, encoding="utf-8")
+    for folder in sorted((d for d in site.rglob("*") if d.is_dir() and d.name in DROP_FOLDERS), key=lambda d: len(d.parts)):
+        shutil.rmtree(folder, ignore_errors=True)
+    for name in ONNX_TOOLS:
+        shutil.rmtree(site / "onnxruntime" / name, ignore_errors=True)
+    keep = "|".join(sorted(KEEP_SOURCE))
+    run([str(python), "-m", "compileall", "-b", "-q", "-j0", "-x", rf"[\\/]({keep})[\\/]", str(site)])
+    for f in site.rglob("*.py"):
+        if f.relative_to(site).parts[0] not in KEEP_SOURCE and f.with_suffix(".pyc").is_file():
+            f.unlink()
+    for cache in [d for d in site.rglob("__pycache__") if d.relative_to(site).parts[0] not in KEEP_SOURCE]:
+        shutil.rmtree(cache, ignore_errors=True)
+    return before - folder_size(site)
 
 
 def tracked_files() -> list:
@@ -290,14 +325,13 @@ def vcvars() -> Path:
 
 
 def compile_programs(version: str) -> None:
-    """Jarvis.exe and Jarvis-Updater.exe: static C runtime, GUI subsystem, icon, version and manifest."""
+    """Jarvis.exe: static C runtime, GUI subsystem, icon, version and manifest."""
     out = WORK / "programs"
     shutil.rmtree(out, ignore_errors=True)
     out.mkdir(parents=True)
     icon = str(ROOT / "src" / "gui" / "assets" / "jarvis.ico").replace("\\", "\\\\")
     steps = [f'call "{vcvars()}" >nul']
-    for source, name, description in (("launcher.c", "Jarvis.exe", "Jarvis"),
-                                      ("updater.c", "Jarvis-Updater.exe", "Jarvis updater")):
+    for source, name, description in (("launcher.c", "Jarvis.exe", "Jarvis"),):
         stem = Path(name).stem
         (out / f"{stem}.rc").write_text(RC_TEMPLATE.format(icon=icon, numbers=version_numbers(version),
                                                            description=description, version=version, name=name),
@@ -308,17 +342,14 @@ def compile_programs(version: str) -> None:
                      f'user32.lib shell32.lib')
     script = out / "compile.cmd"
     script.write_text("@echo off\r\n" + "\r\n".join(f"{s} || exit /b 1" for s in steps) + "\r\n", encoding="utf-8")
-    log("compiling Jarvis.exe and Jarvis-Updater.exe")
+    log("compiling Jarvis.exe")
     run(["cmd", "/d", "/c", str(script)], cwd=out)
-    for name in ("Jarvis.exe", "Jarvis-Updater.exe"):
-        shutil.copy2(out / name, STAGE / name)
+    shutil.copy2(out / "Jarvis.exe", STAGE / "Jarvis.exe")
 
 
-def top_files(version: str) -> None:
+def top_files() -> None:
     for name in TOP_FILES:
         shutil.copy2(ROOT / name, STAGE / name)
-    (STAGE / "READ ME FIRST.txt").write_text(READ_ME_FIRST.format(version=version).replace("\n", "\r\n"),
-                                             encoding="utf-8", newline="")
 
 
 def check(version: str) -> None:
@@ -345,21 +376,55 @@ def folder_size(path: Path) -> int:
     return sum(f.stat().st_size for f in path.rglob("*") if f.is_file())
 
 
-def make_zip(version: str) -> Path:
+def iscc() -> Path:
+    """Inno Setup's compiler: on PATH, in the INNO_SETUP folder, or where Inno Setup 6 installs itself."""
+    found = shutil.which("ISCC")
+    folders = [os.environ.get("INNO_SETUP", "")] + [str(Path(os.environ.get(v, "")) / sub / "Inno Setup 6")
+                                                    for v, sub in (("ProgramFiles(x86)", ""), ("ProgramFiles", ""),
+                                                                   ("LOCALAPPDATA", "Programs"))]
+    for candidate in [found] + [str(Path(f) / "ISCC.exe") for f in folders if f]:
+        if candidate and Path(candidate).is_file():
+            return Path(candidate)
+    sys.exit("Inno Setup 6 is needed for the installer (ISCC.exe not found; set INNO_SETUP to its folder).")
+
+
+def installer_name(version: str) -> str:
+    return f"Jarvis-Setup-{version}-windows-x64"
+
+
+def make_installer(version: str) -> Path:
+    """Compile packaging/windows/jarvis.iss around the prepared folder: one solid LZMA2 archive in a setup program."""
     DIST.mkdir(exist_ok=True)
-    target = DIST / f"Jarvis-{version}-windows-x64.zip"
-    stamp = int(run(["git", "log", "-1", "--format=%ct"], cwd=ROOT).strip() or 0)
-    date_time = __import__("time").gmtime(max(stamp, 315532800))[:6]     # the commit's time: same input, same zip
-    files = sorted(p for p in STAGE.rglob("*") if p.is_file())
-    log(f"zipping {len(files)} files ({folder_size(STAGE) / 1e6:.0f} MB)")
-    with zipfile.ZipFile(target, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as z:
-        for path in files:
-            info = zipfile.ZipInfo("Jarvis/" + path.relative_to(STAGE).as_posix(), date_time)
-            info.compress_type = zipfile.ZIP_DEFLATED
-            info.external_attr = 0o644 << 16
-            with open(path, "rb") as f:
-                z.writestr(info, f.read(), compresslevel=9)
+    target = DIST / (installer_name(version) + ".exe")
+    target.unlink(missing_ok=True)
+    files = sum(1 for p in STAGE.rglob("*") if p.is_file())
+    log(f"compiling the installer around {files} files ({folder_size(STAGE) / 1e6:.0f} MB)")
+    defines = {"AppVersion": version, "AppNumbers": version_numbers(version).replace(",", "."),
+               "SourceDir": str(STAGE), "OutputDir": str(DIST), "OutputName": installer_name(version),
+               "IconFile": str(ROOT / "src" / "gui" / "assets" / "jarvis.ico"),
+               "SizeKB": str(folder_size(STAGE) // 1024)}
+    run([str(iscc()), "/Q"] + [f"/D{k}={v}" for k, v in defines.items()] + [str(WINDOWS / "jarvis.iss")], timeout=3600)
     return target
+
+
+def check_install(target: Path, version: str) -> None:
+    """Install silently, the way the updater does, and start the installed copy far enough to report its version."""
+    folder = WORK / "install-check"
+    shutil.rmtree(folder, ignore_errors=True)
+    run([str(target), "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", f"/DIR={folder}"], timeout=900)
+    for rel in ("Jarvis.exe", "runtime/pythonw.exe", "app/jarvis_gui.pyw", "LICENSE"):
+        if not (folder / rel).is_file():
+            sys.exit(f"the installer didn't install {rel}")
+    env = {k: v for k, v in os.environ.items() if not k.startswith(("PYTHON", "JARVIS"))}
+    reported = run([str(folder / "runtime" / "python.exe"), str(folder / "app" / "jarvis_gui.pyw"), "--version"],
+                   env=env, cwd=WORK).strip()
+    if reported != version:
+        sys.exit(f"the installed app reports version {reported!r}, expected {version!r}")
+    import winreg
+    with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Uninstall\Jarvis") as key:
+        if Path(winreg.QueryValueEx(key, "InstallLocation")[0]) != folder:
+            sys.exit("the Settings > Apps entry doesn't point at the installed copy")
+    log(f"installed silently, the installed copy reports {reported}, and Settings > Apps lists it")
 
 
 def write_release_files(target: Path, version: str, base_url: str, notes: str) -> dict:
@@ -373,11 +438,13 @@ def write_release_files(target: Path, version: str, base_url: str, notes: str) -
 
 def main(argv=None) -> int:
     if sys.platform != "win32":
-        sys.exit("The Windows zip is built on Windows.")
+        sys.exit("The Windows installer is built on Windows.")
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--base-url", default="", help="where the zip will be downloaded from (for latest.json)")
+    ap.add_argument("--base-url", default="", help="where the installer will be downloaded from (for latest.json)")
     ap.add_argument("--notes", default="", help="release notes address or text for latest.json")
     ap.add_argument("--reuse-runtime", action="store_true", help="keep an existing build/windows/Jarvis/runtime")
+    ap.add_argument("--check-install", action="store_true",
+                    help="install the result silently into build/windows/install-check and start it (for CI)")
     args = ap.parse_args(argv)
 
     version = app_version()
@@ -386,16 +453,18 @@ def main(argv=None) -> int:
     if not (args.reuse_runtime and (STAGE / "runtime" / "python.exe").exists()):
         build_runtime(pins)
     log(f"pruned {prune(STAGE / 'runtime') / 1e6:.0f} MB that Jarvis never loads")
+    runtime = STAGE / "runtime"
+    log(f"slimmed site-packages by {slim(runtime / 'Lib' / 'site-packages', runtime / 'python.exe') / 1e6:.0f} MB")
     for item in STAGE.iterdir() if STAGE.exists() else []:
         if item.name != "runtime":
             shutil.rmtree(item) if item.is_dir() else item.unlink()
     log(f"copied {copy_app()} app files")
     compile_programs(version)
-    log("testing the updater on a fake Jarvis folder")
-    run([sys.executable, "-m", "unittest", "tests.test_packaging"], cwd=ROOT)
-    top_files(version)
+    top_files()
     check(version)
-    target = make_zip(version)
+    target = make_installer(version)
+    if args.check_install:
+        check_install(target, version)
     latest = write_release_files(target, version, args.base_url, args.notes)
     log(f"{target} ({latest['windows']['size'] / 1e6:.0f} MB, SHA-256 {latest['windows']['sha256']})")
     return 0

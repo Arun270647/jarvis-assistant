@@ -8,7 +8,7 @@ needs it, the model downloader installs it from PyPI with pip into its own folde
 app folder or its requirements; an update leaves it alone, and "delete my data" removes it with the models.
 
 A copy already importable from Jarvis's own Python (a developer who ran pip install kokoro-onnx) counts as
-installed. pip runs in the app's own Python (in the Windows zip, runtime\\python.exe, which includes pip).
+installed. pip runs in the app's own Python (on Windows, the Jarvis folder's runtime\\python.exe, which includes pip).
 """
 import importlib
 import importlib.util

@@ -615,7 +615,7 @@ class Bridge(QObject):
 
     @Slot(bool, bool)
     def installForMe(self, desktop: bool, remove_copy: bool) -> None:
-        """Install for me: copy to %LOCALAPPDATA%\Programs\Jarvis (or Jarvis.app to Applications) in the background
+        """Install for me: copy to %LOCALAPPDATA%\\Programs\\Jarvis (or Jarvis.app to Applications) in the background
         (about a gigabyte), then quit so the installed copy can start."""
         def run():
             from src.app import install

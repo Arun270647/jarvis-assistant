@@ -162,6 +162,9 @@ def render() -> str:
     for name in sorted(dists):
         d = dists[name]
         lines.append(f"| {name} | {d.version} | {cell(license_of(d))} | {homepage(d)} | {'yes' if name in core else ''} |")
+    lines += ["", "Left out of the Windows installer and the Mac app (a source install still gets them): av (PyAV, "
+              "which faster-whisper imports only to read audio files; its wheels bundle FFmpeg with GPL encoders, so "
+              "the downloads carry a stand-in instead) and hf-xet (an optional download accelerator)."]
     other = other_os_packages()
     missing = [n for n in missing if not any(n == name for pkgs in other.values() for name, _ in pkgs)]
     if missing:
@@ -195,9 +198,9 @@ def render() -> str:
         "| Kokoro-82M voice model and voices (ONNX export from kokoro-onnx) | Apache-2.0 |",
         "| Piper voices | per voice, see each voice's model card (linked in Settings › Models) |",
         "",
-        "## Bundled in the Windows zip",
+        "## Bundled in the Windows installer",
         "",
-        "The zip (packaging/build_windows.py) also carries its own Python, so Jarvis needs nothing else installed:",
+        "The installer (packaging/build_windows.py) also carries its own Python, so Jarvis needs nothing else installed:",
         "",
         "| Component | License |",
         "|---|---|",

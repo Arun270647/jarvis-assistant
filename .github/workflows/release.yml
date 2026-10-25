@@ -1,7 +1,8 @@
 name: Release
 
-# A tag v* builds the Windows zip and the Mac disk image (Apple silicon), then drafts a GitHub Release with both, their
-# SHA-256 sums and one latest.json (the updater's feed). Versions with letters (0.1.0-alpha.1, 0.1.0.dev0) are marked as
+# A tag v* builds the Windows installer and the Mac disk image (Apple silicon), then drafts a GitHub Release with both,
+# their SHA-256 sums and one latest.json (the updater's feed; publishing the release copies it to the website, see
+# website-latest.yml). Versions with letters (0.1.0-alpha.1, 0.1.0.dev0) are marked as
 # pre-releases. Publishing the draft is the maintainer's step.
 # Started by hand (Actions › Release › Run workflow), it builds both and keeps them as downloadable artifacts; with
 # "rehearse" ticked it also drafts a release named rehearsal-<run number> to check the whole path without a tag
@@ -64,20 +65,27 @@ jobs:
           python-version: "3.13"
           cache: pip
           cache-dependency-path: requirements.lock
-      - name: Install the locked packages (the build runs the updater's tests with this Python)
+      - name: Install the locked packages
         run: |
           python -m pip install --upgrade pip
           pip install --require-hashes -r requirements.lock
-      - name: Build the zip (runtime, app, launcher, updater; checks included)
+      - name: Inno Setup 6 (the installer's compiler)
+        shell: pwsh
+        run: |
+          if (-not (Get-Command ISCC -ErrorAction SilentlyContinue) -and
+              -not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) {
+            choco install innosetup --no-progress -y
+          }
+      - name: Build the installer (runtime, app, launcher; checks, then a silent install of the result)
         run: >
-          python packaging/build_windows.py
+          python packaging/build_windows.py --check-install
           --base-url "https://github.com/${{ github.repository }}/releases/download/${{ needs.meta.outputs.tag }}"
           --notes "https://github.com/${{ github.repository }}/releases/tag/${{ needs.meta.outputs.tag }}"
       - uses: actions/upload-artifact@v7
         with:
           name: jarvis-windows
           path: |
-            dist/*.zip
+            dist/*.exe
             dist/*.sha256
             dist/latest.json
           retention-days: 14
@@ -144,7 +152,7 @@ jobs:
         uses: actions/attest-build-provenance@v4
         with:
           subject-path: |
-            windows/*.zip
+            windows/*.exe
             macos/*.dmg
       - name: Draft the release
         env:
@@ -154,13 +162,13 @@ jobs:
           VERSION: ${{ needs.meta.outputs.version }}
           PRERELEASE: ${{ needs.meta.outputs.prerelease }}
         run: |
-          win=$(ls windows/*.zip | head -n1); mac=$(ls macos/*.dmg | head -n1)
+          win=$(ls windows/*.exe | head -n1); mac=$(ls macos/*.dmg | head -n1)
           win_sha=$(cut -d' ' -f1 "$win.sha256"); mac_sha=$(cut -d' ' -f1 "$mac.sha256")
           cat > notes.md <<EOF
           ### Windows
-          Download **$(basename "$win")**, right-click it, choose **Extract All**, then open **Jarvis.exe** in the extracted folder.
+          Download **$(basename "$win")** and open it. It installs Jarvis for you only (no administrator rights), adds it to the Start Menu and opens it.
 
-          Jarvis isn't code-signed, so Windows may say "Windows protected your PC" the first time: click **More info**, then **Run anyway**.
+          Jarvis isn't code-signed, so Windows may say "Windows protected your PC": click **More info**, then **Run anyway**.
           To check the download, run \`Get-FileHash $(basename "$win")\` in PowerShell and compare it with this SHA-256:
 
           \`$win_sha\`

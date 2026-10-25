@@ -7,7 +7,10 @@ All notable changes to Jarvis are recorded here. The format follows
 
 ## [Unreleased]
 
-Nothing has been released yet. The first release will be `0.1.0-alpha.1`, with:
+## [0.1.0-alpha.1] - 2026-10-25
+
+The first public pre-release, for testing: a Windows installer and a Mac disk image, from
+https://jarvis-desktop-assistant.vercel.app/download or the release page.
 
 ### Added
 - Voice pipeline: local speech detection (Silero VAD) and recognition (faster-whisper), the AI, and spoken
@@ -23,10 +26,12 @@ Nothing has been released yet. The first release will be `0.1.0-alpha.1`, with:
 - Agentic tasks with plans, independently verified success checks, and pause, resume and retry.
 - Desktop app with a floating orb, tray icon, global hotkey, setup wizard, error messages with fix buttons,
   update check and uninstall.
-- Windows download: a zip with its own Python, so nothing else needs installing. Jarvis.exe starts it (and says
-  so if it's still inside the zip), Install for me adds it to the Start Menu and Settings › Apps without
-  administrator rights, and updates download in the background and install with Restart to update (the old
-  version comes back if anything fails). Releases aren't code-signed; each one lists its SHA-256.
+- Windows download: an installer (`Jarvis-Setup-<version>-windows-x64.exe`) with its own Python, so nothing else
+  needs installing. It installs for the current user without administrator rights and adds Jarvis to the Start
+  Menu and Settings › Apps. Updates download in the background and install with Restart to update, which runs the
+  new installer silently. Releases aren't code-signed; each one lists its SHA-256.
+- Smaller downloads: the third-party packages ship compiled only and without their test suites, and PyAV is left
+  out (faster-whisper only needs it to read audio files; its wheels bundle FFmpeg with GPL encoders).
 - macOS (Apple silicon, macOS 13 or later): Jarvis.app on a disk image (.dmg: drag it onto Applications) with
   its own Python, signed ad hoc and not notarized
   (System Settings › Privacy & Security › Open Anyway the first time). The Keychain for keys, a login item for

@@ -1,7 +1,7 @@
 """Where Jarvis keeps its files.
 
 - The app folder (APP_ROOT) holds the code and the shipped config/ (defaults.json, profile_defaults.json).
-  It is never written at run time, so an update can replace it. In the Windows zip it is Jarvis\\app, next to
+  It is never written at run time, so an update can replace it. On Windows it is Jarvis\\app, next to
   Jarvis.exe and the Python runtime; on macOS it is Jarvis.app/Contents/Resources/app. install_root() is that
   Jarvis folder or Jarvis.app.
 - The user's data folder, home(): config.json (only the settings that differ from the defaults),
@@ -71,7 +71,7 @@ def log_dir() -> Path:
 
 
 def install_root() -> Optional[Path]:
-    """The Jarvis folder of the Windows zip (Jarvis.exe, runtime/, app/) or Jarvis.app on macOS
+    """The Windows Jarvis folder (Jarvis.exe, runtime/, app/) or Jarvis.app on macOS
     (Contents/Resources/runtime and app) when running from it; None from source."""
     if APP_ROOT.name != "app":
         return None

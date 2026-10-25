@@ -1,6 +1,7 @@
-"""Install for me (the setup wizard's last screen and Settings › About; the Windows zip and Jarvis.app).
+"""Install for me (the setup wizard's last screen and Settings › About; the Windows Jarvis folder and Jarvis.app).
 
-Windows: copies the Jarvis folder from wherever the zip was extracted (usually Downloads) to
+Windows: the installer already puts Jarvis in %LOCALAPPDATA%\\Programs\\Jarvis, so this only matters for a Jarvis
+folder run from somewhere else (a copy, or a build). It copies that folder to
 %LOCALAPPDATA%\\Programs\\Jarvis, adds a Start Menu shortcut (and a Desktop one if asked) and an entry in Settings ›
 Apps, points the start-up shortcut at the new copy, then starts the installed copy once this one has quit. No
 administrator rights are needed.
@@ -11,7 +12,7 @@ can't update itself; the installed copy can, and so can one opened straight from
 read-only (Install for me then ejects the image and deletes the .dmg). macOS already let the user open this app, so
 the installed copy has the download's quarantine flag removed and opens without asking again.
 
-The extracted copy is deleted afterwards if the user agrees. The settings, memories and models live in the user's
+The other copy is deleted afterwards if the user agrees. The settings, memories and models live in the user's
 data folders, so the installed copy starts with everything already set up.
 """
 import os

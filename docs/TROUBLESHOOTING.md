@@ -24,14 +24,14 @@ fixes it. This page lists those messages and a few problems that don't show a ba
 
 ## Problems without a message
 
-**"Windows protected your PC" when opening Jarvis.exe.** Jarvis isn't code-signed, so SmartScreen warns the first
-time. Click **More info**, then **Run anyway**. To be sure the file is genuine, compare its SHA-256 with the one on
-the release page ([INSTALL.md](INSTALL.md#install-from-the-zip)).
+**"Windows protected your PC" when opening the installer.** Jarvis isn't code-signed, so SmartScreen warns. Click
+**More info**, then **Run anyway**. To be sure the file is genuine, compare its SHA-256 with the one on the release
+page ([INSTALL.md](INSTALL.md#install-on-windows)).
 
 **Mac: "Jarvis can't be opened" or "Apple could not verify Jarvis".** Jarvis isn't notarized by Apple (that needs
 a paid developer account). Open **System Settings › Privacy & Security**, scroll down to the message about Jarvis,
 click **Open Anyway**, then **Open**. Right-clicking the app and choosing Open no longer skips this since macOS 15.
-To be sure the app is genuine, compare the zip's SHA-256 with the one on the release page
+To be sure the app is genuine, compare the disk image's SHA-256 with the one on the release page
 ([INSTALL.md](INSTALL.md#install-on-a-mac)).
 
 **Mac: "Jarvis is damaged and can't be opened".** The download was cut short or changed on the way. Delete it,
@@ -49,12 +49,9 @@ said no, turn it on in **System Settings › Privacy & Security › Automation �
 **Mac: Claude Code isn't found.** The setup wizard installs it into `~/.local/bin`. If you installed it some
 other way, make sure `claude` works in Terminal; Jarvis also looks in Homebrew's folders.
 
-**"Please extract the zip first".** Jarvis.exe was opened from inside the zip, or from a temporary folder. Close
-the message, right-click the zip, choose **Extract All**, then open Jarvis.exe in the extracted folder.
-
-**"The update didn't install: …".** Jarvis put the old version back, so it keeps working. The message says what
-was in the way, often a file another program had open. Restart the PC and try **Settings › About › Check for
-updates** again. If it keeps failing, download the new zip and extract it over the old Jarvis folder.
+**"The update didn't install: …".** The message says what was in the way, often a file another program had
+open. Restart the computer and try **Settings › About › Check for updates** again. If it keeps failing, download
+the new version from the website and install it over the old one: your settings, memories and models stay.
 
 **It hears me, but nothing happens.** Look at the Activity view. If a tool was **denied**, its group may be off
 (Settings › Tools and permissions › What it may do) or the tool is set to deny. If it **timed out**, nobody

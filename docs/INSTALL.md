@@ -1,9 +1,11 @@
 # Installing Jarvis
 
-Jarvis comes as a zip for Windows and as a disk image (.dmg) for Macs with Apple silicon, each with its own Python inside, so
-you don't need to install anything else. The first release isn't published yet: until then, run it from source
-(below) or build it yourself ([CONTRIBUTING.md](../CONTRIBUTING.md#building-the-windows-zip)). Once it's running,
-the setup wizard takes over ([GETTING_STARTED.md](GETTING_STARTED.md)).
+Jarvis comes as an installer for Windows (.exe) and as a disk image for Macs with Apple silicon (.dmg), each with
+its own Python inside, so you don't need to install anything else. Download them from the website
+(https://jarvis-desktop-assistant.vercel.app/download) or the
+[release page](https://github.com/Arun270647/jarvis-assistant/releases), run it from source (below), or build it
+yourself ([CONTRIBUTING.md](../CONTRIBUTING.md#building-the-windows-installer)). Once it's running, the setup
+wizard takes over ([GETTING_STARTED.md](GETTING_STARTED.md)).
 
 ## What you need
 
@@ -18,25 +20,21 @@ the setup wizard takes over ([GETTING_STARTED.md](GETTING_STARTED.md)).
 - One way to reach an AI model: a Claude account (the default, through Claude Code), an API key for another
   provider, or a local model in Ollama or LM Studio. See [PROVIDERS.md](PROVIDERS.md).
 
-## Install from the zip
+## Install on Windows
 
-1. Download `Jarvis-<version>-windows-x64.zip` (about 300 MB).
-2. Right-click it, choose **Extract All**, then **Extract**. Jarvis can't start from inside the zip; if you try,
-   it says so.
-3. Open the extracted **Jarvis** folder and double-click **Jarvis.exe**.
-4. Windows may say "Windows protected your PC". Jarvis isn't code-signed (it's free and has no budget for a
+1. Download `Jarvis-Setup-<version>-windows-x64.exe` (about 150 MB) and open it.
+2. Windows may say "Windows protected your PC". Jarvis isn't code-signed (it's free and has no budget for a
    certificate), so SmartScreen warns the first time. Click **More info**, then **Run anyway**.
-5. At the end of the setup wizard, **Install for me** copies Jarvis to `%LOCALAPPDATA%\Programs\Jarvis`, adds it
-   to the Start Menu and to Settings › Apps, and deletes the extracted copy. No administrator rights are needed.
-   **Keep it here** leaves it where it is (a portable copy); Settings › About offers Install for me later too.
+3. Click **Install**. Jarvis installs for you only, in `%LOCALAPPDATA%\Programs\Jarvis`, without administrator
+   rights. It adds itself to the Start Menu (and the desktop, if you tick that) and to Settings › Apps, then opens.
 
-**Check the download.** The release page lists the zip's SHA-256. In PowerShell, in your Downloads folder, run
-`Get-FileHash Jarvis-<version>-windows-x64.zip` and compare the result with it. If they differ, delete the file
-and download it again.
+**Check the download.** The release page lists the installer's SHA-256. In PowerShell, in your Downloads folder,
+run `Get-FileHash Jarvis-Setup-<version>-windows-x64.exe` and compare the result with it. If they differ, delete
+the file and download it again.
 
-The zip contains `Jarvis.exe` (a small launcher), `Jarvis-Updater.exe`, `runtime` (Python 3.13 with the packages
-Jarvis uses) and `app` (Jarvis itself). Your settings, memories and models are not in that folder, so updating
-or moving it keeps them.
+The Jarvis folder holds `Jarvis.exe` (a small launcher), `runtime` (Python 3.13 with the packages Jarvis uses) and
+`app` (Jarvis itself). Your settings, memories and models are not in that folder, so an update or a reinstall
+keeps them. You can delete the installer once Jarvis is running.
 
 ## Install on a Mac
 
@@ -143,10 +141,10 @@ System Settings › General › Login Items).
 
 ## Updating
 
-The zip and the Mac app update themselves. Once the download site is live, Jarvis checks for a new version when
-it starts (Settings › About turns this off), downloads it in the background, checks its SHA-256 and shows
-**Restart to update**. Jarvis then closes, the updater puts the new version in place and starts it again. If
-something goes wrong, the updater puts the old version back and Jarvis says why. On a Mac this works when
+Jarvis updates itself. It checks for a new version when it starts (Settings › About turns this off), downloads it
+in the background, checks its SHA-256 and shows **Restart to update**. Jarvis then closes, the new version is
+installed in its place and Jarvis starts again; on Windows the new installer runs silently, on a Mac the new app
+replaces the old one (which comes back if anything fails). Jarvis says what happened. On a Mac this works when
 Jarvis is in an Applications folder; a copy that macOS runs straight from Downloads offers the download instead.
 
 ### Updating a source install
@@ -161,7 +159,7 @@ Your settings carry over: Jarvis upgrades its settings file by itself when the f
 ## Uninstalling
 
 Settings › About › **Uninstall Jarvis** removes the shortcuts, the entry in Settings › Apps and, if you tick it,
-your data, models and saved keys. The zip's Jarvis folder is deleted once Jarvis has closed. Settings › Apps ›
+your data, models and saved keys. The Jarvis folder is deleted once Jarvis has closed. Settings › Apps ›
 Jarvis › **Uninstall** opens the same page. On a Mac the same button removes the login item, Jarvis.app itself
 once it has closed, and with the box ticked your data, models and the keys in the Keychain. A source install
 doesn't delete its own folder: delete the `jarvis-assistant` folder yourself afterwards.

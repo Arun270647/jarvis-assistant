@@ -34,3 +34,4 @@ mobile/ios/
 mobile/.expo/
 *.keystore
 *.jks
+.claude/worktrees/

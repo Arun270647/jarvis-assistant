@@ -790,7 +790,7 @@
       const installBox = h("div", { id: "install-box" });
       call("aboutInfo").then(raw => {
         if (!raw) return; const a = JSON.parse(raw);
-        const running = a.install && a.install.installed ? "installed copy" : a.installed ? `from ${a.install && a.install.from || "the zip's folder"}` : "from source";
+        const running = a.install && a.install.installed ? "installed copy" : a.installed ? `from ${a.install && a.install.from || "its own folder"}` : "from source";
         [["Version", a.version], ["Settings and memories", a.data], ["Models", a.models], ["Running", running]]
           .forEach(([k, v]) => info.appendChild(h("div", { class: "kv-row" }, h("span", { class: "k", text: k }), h("span", { class: "v", text: v }))));
         if (!a.updates_url) updateLine.textContent = "Update checks start once the download site is set up.";

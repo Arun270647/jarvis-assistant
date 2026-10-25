@@ -1,20 +1,17 @@
-"""The Windows build's parts (packaging/): the PE import reader that decides which Qt files ship, and the compiled
-updater, run for real on a fake Jarvis folder: it swaps in the new version and keeps the old one, and when a file is
-locked it puts everything back. The updater tests need packaging/build_windows.py to have compiled it (they are
-skipped otherwise; the build runs them)."""
+"""The Windows build's parts (packaging/): the PE import reader that decides which Qt files ship, the slimming of
+site-packages shared with the Mac build (run on a fake site-packages with this Python), and the installer script's
+promises: per-user, no uninstaller of its own, and the same shortcuts and Settings > Apps entry that Jarvis's
+uninstall removes."""
 import shutil
 import subprocess
 import sys
 import tempfile
-import time
 import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "packaging"))
 import build_windows  # noqa: E402
-
-UPDATER = build_windows.WORK / "programs" / "Jarvis-Updater.exe"
 
 
 class PeImportTests(unittest.TestCase):
@@ -31,57 +28,74 @@ class PeImportTests(unittest.TestCase):
         self.assertEqual(build_windows.version_numbers("0.1.0.dev0"), "0,1,0,0")
 
 
-@unittest.skipUnless(sys.platform == "win32" and UPDATER.exists(), "needs the updater from packaging/build_windows.py")
-class UpdaterTests(unittest.TestCase):
+class SlimTests(unittest.TestCase):
     def setUp(self):
-        self.dir = Path(tempfile.mkdtemp(prefix="jarvis-updater-test-"))
-        self.addCleanup(shutil.rmtree, self.dir, True)
-        self.install = self.fake_jarvis(self.dir / "Jarvis", "old")
-        self.fake_jarvis(self.install / ".update" / "Jarvis", "new")
-        self.result = self.dir / "result.txt"
+        self.site = Path(tempfile.mkdtemp(prefix="jarvis-site-"))
+        self.addCleanup(shutil.rmtree, self.site, True)
+        files = {
+            "av/__init__.py": "import av._core\n", "av.libs/avcodec.dll": "", "av-19.0.dist-info/METADATA": "",
+            "hf_xet/__init__.py": "", "numpy/__init__.py": "VALUE = 42\n", "numpy/tests/test_x.py": "this isn't python",
+            "onnxruntime/__init__.py": "", "onnxruntime/transformers/big.py": "", "pip/__init__.py": "",
+            "pip/__pycache__/__init__.cpython-313.pyc": "", "plain.py": "def answer():\n    return 42\n",
+        }
+        for rel, text in files.items():
+            (self.site / rel).parent.mkdir(parents=True, exist_ok=True)
+            (self.site / rel).write_text(text, encoding="utf-8")
 
-    def fake_jarvis(self, folder: Path, marker: str) -> Path:
-        """A Jarvis folder whose Jarvis.exe is a copy of the updater: started without arguments it exits at once,
-        so the relaunch opens nothing."""
-        for rel in ("runtime/pythonw.exe", "app/jarvis_gui.pyw", "LICENSE"):
-            (folder / rel).parent.mkdir(parents=True, exist_ok=True)
-            (folder / rel).write_text(marker, encoding="utf-8")
-        shutil.copy2(UPDATER, folder / "Jarvis.exe")
-        shutil.copy2(UPDATER, folder / "Jarvis-Updater.exe")
-        return folder
+    def slim(self):
+        return build_windows.slim(self.site, Path(sys.executable))         # this Python stands in for the runtime's
 
-    def run_updater(self, timeout: float = 90) -> str:
-        quit_jarvis = subprocess.Popen([sys.executable, "-c", "pass"])      # stands in for Jarvis, which has quit
-        quit_jarvis.wait()                  # its handle stays open, so the process id isn't reused meanwhile
-        copy = self.dir / "Jarvis-Updater-copy.exe"
-        shutil.copy2(UPDATER, copy)
-        subprocess.run([str(copy), "--install", str(self.install), "--pid", str(quit_jarvis.pid),
-                        "--result", str(self.result)], timeout=timeout)
-        deadline = time.time() + 10
-        while not self.result.exists() and time.time() < deadline:
-            time.sleep(0.1)
-        return self.result.read_text(encoding="utf-8-sig").strip()
+    def test_leaves_out_what_jarvis_never_loads(self):
+        self.slim()
+        for gone in ("av.libs", "av-19.0.dist-info", "hf_xet", "numpy/tests", "onnxruntime/transformers"):
+            self.assertFalse((self.site / gone).exists(), gone)
 
-    def test_swaps_in_the_new_version_and_keeps_the_old_one(self):
-        self.assertEqual(self.run_updater(), "updated")
-        self.assertEqual((self.install / "app" / "jarvis_gui.pyw").read_text(encoding="utf-8"), "new")
-        self.assertEqual((self.install / "runtime" / "pythonw.exe").read_text(encoding="utf-8"), "new")
-        self.assertEqual((self.install / ".old" / "app" / "jarvis_gui.pyw").read_text(encoding="utf-8"), "old")
-        self.assertEqual(list((self.install / ".update" / "Jarvis").iterdir()), [], "every item moved")
+    def test_ships_compiled_modules_without_their_source(self):
+        self.slim()
+        self.assertFalse((self.site / "plain.py").exists())
+        self.assertTrue((self.site / "plain.pyc").is_file())
+        self.assertFalse(list(self.site.rglob("numpy/__pycache__")))
+        self.assertTrue((self.site / "pip" / "__init__.py").is_file(), "pip keeps its source")
+        out = subprocess.run([sys.executable, "-c", "import plain, numpy; print(plain.answer(), numpy.VALUE)"],
+                             cwd=self.site, capture_output=True, text=True, check=True)
+        self.assertEqual(out.stdout.split(), ["42", "42"])
 
-    def test_a_locked_file_puts_everything_back(self):
-        with open(self.install / "runtime" / "pythonw.exe", "rb"):          # in use: runtime can't move
-            result = self.run_updater()
-        self.assertTrue(result.startswith("failed: couldn't replace runtime"), result)
-        self.assertIn("Nothing was changed", result)
-        for rel in ("app/jarvis_gui.pyw", "runtime/pythonw.exe", "LICENSE"):
-            self.assertEqual((self.install / rel).read_text(encoding="utf-8"), "old", rel)
-            self.assertEqual((self.install / ".update" / "Jarvis" / rel).read_text(encoding="utf-8"), "new", rel)
+    def test_pyav_stand_in_imports_but_has_nothing(self):
+        self.slim()
+        code = ("import av\nprint(hasattr(av, 'open'))\ntry:\n    from av import open\nexcept ImportError as e:\n"
+                "    print('ImportError')\n")
+        out = subprocess.run([sys.executable, "-c", code], cwd=self.site, capture_output=True, text=True, check=True)
+        self.assertEqual(out.stdout.split(), ["False", "ImportError"])
 
-    def test_an_incomplete_update_is_refused(self):
-        (self.install / ".update" / "Jarvis" / "runtime" / "pythonw.exe").unlink()
-        self.assertEqual(self.run_updater(), "failed: the downloaded update is incomplete.")
-        self.assertEqual((self.install / "app" / "jarvis_gui.pyw").read_text(encoding="utf-8"), "old")
+
+class InstallerScriptTests(unittest.TestCase):
+    """packaging/windows/jarvis.iss keeps the promises src/app/install.py and uninstall.py rely on."""
+
+    def setUp(self):
+        self.iss = (ROOT / "packaging" / "windows" / "jarvis.iss").read_text(encoding="utf-8")
+
+    def test_installs_for_this_user_only_without_an_uninstaller_of_its_own(self):
+        for line in ("PrivilegesRequired=lowest", r"DefaultDirName={userpf}\Jarvis", "Uninstallable=no",
+                     "DisableDirPage=yes"):
+            self.assertIn(line, self.iss)
+
+    def test_uses_the_shortcuts_and_apps_entry_that_jarvis_uninstall_removes(self):
+        from src.app import install, uninstall
+        self.assertIn(r'Name: "{userprograms}\Jarvis"', self.iss)
+        self.assertEqual(install.start_menu_shortcut().name, "Jarvis.lnk")
+        self.assertIn(f'Subkey: "{uninstall.UNINSTALL_KEY}"', self.iss)
+        self.assertIn('ValueData: """{app}\\Jarvis.exe"" --uninstall"', self.iss)
+
+    def test_an_update_replaces_the_app_and_runtime_folders(self):
+        self.assertIn(r'Type: filesandordirs; Name: "{app}\app"', self.iss)
+        self.assertIn(r'Type: filesandordirs; Name: "{app}\runtime"', self.iss)
+
+    def test_installer_name_matches_the_updater(self):
+        import re
+        from src.app import updates  # noqa: F401  (the updater reads the version back from this name)
+        name = build_windows.installer_name("0.1.0-alpha.1") + ".exe"
+        self.assertEqual(name, "Jarvis-Setup-0.1.0-alpha.1-windows-x64.exe")
+        self.assertEqual(re.search(r"Jarvis-Setup-(.+)-windows", name).group(1), "0.1.0-alpha.1")
 
 
 if __name__ == "__main__":

@@ -17,9 +17,9 @@ at claude.ai). No Claude plan? See
 
 ## 1. Install
 
-1. Download the Jarvis zip from the website.
-2. Open your **Downloads** folder, right-click the zip and choose **Extract All**, then **Extract**.
-3. Open the extracted **Jarvis** folder and double-click **Jarvis.exe**.
+1. Download Jarvis for Windows from the website (an .exe file).
+2. Open it from your **Downloads** folder.
+3. Click **Install**. Jarvis installs for you only and needs no administrator password.
 4. If Windows says "Windows protected your PC", click **More info**, then **Run anyway**. Jarvis is free and
    isn't code-signed, so Windows asks this once.
 

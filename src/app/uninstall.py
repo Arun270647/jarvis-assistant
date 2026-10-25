@@ -5,8 +5,8 @@ plan(delete_data) lists exactly what will go, so the confirmation can show it; r
   entry (Install for me creates the last three, on Windows);
 - with "delete my data": the saved keys and passwords (Credential Manager, or the Keychain) and the data, models
   and cache folders;
-- a copy from the Windows zip or Jarvis.app (installed or not) also removes its Jarvis folder or app; a copy run
-  from source never deletes itself.
+- the installed Windows copy or Jarvis.app also removes its Jarvis folder or app; a copy run from source never
+  deletes itself.
 Folders still in use (the database, the log) are deleted by a small script that waits for Jarvis to exit.
 A folder is only deleted if it is clearly Jarvis's: never a drive root, the user's home folder or a folder
 that contains the app.
@@ -24,12 +24,12 @@ UNINSTALL_KEY = r"Software\Microsoft\Windows\CurrentVersion\Uninstall\Jarvis"
 
 
 def installed_copy() -> bool:
-    """True for a copy from the Windows zip (installed or not), false when running from source."""
+    """True for the Windows Jarvis folder or Jarvis.app, false when running from source."""
     return paths.install_root() is not None
 
 
 def app_folder() -> Optional[Path]:
-    """The Jarvis folder to delete after exit: the zip's folder (Jarvis.exe, runtime, app) or Jarvis.app (where the
+    """The Jarvis folder to delete after exit: the Windows one (Jarvis.exe, runtime, app) or Jarvis.app (where the
     user keeps it, not the read-only copy macOS may run), never source code."""
     from src.app.install import is_jarvis_app, is_jarvis_folder, original_location
     root = paths.install_root()

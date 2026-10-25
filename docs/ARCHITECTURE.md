@@ -97,24 +97,28 @@ Words the user sees follow the system too: the page's `strings.js` fills `{pc}`,
 - API keys and passwords live in Windows Credential Manager or the macOS Keychain (`src/core/credentials.py`),
   never in files.
 
-## The Windows zip
+## The Windows installer
 
-`packaging/build_windows.py` builds it; [CONTRIBUTING.md](../CONTRIBUTING.md#building-the-windows-zip) says how.
+`packaging/build_windows.py` builds it; [CONTRIBUTING.md](../CONTRIBUTING.md#building-the-windows-installer) says
+how. The installer (`packaging/windows/jarvis.iss`, Inno Setup) copies the Jarvis folder to
+`%LOCALAPPDATA%\Programs\Jarvis` for the current user, adds the Start Menu shortcut and the Settings › Apps entry
+(whose Uninstall runs `Jarvis.exe --uninstall`), and adds no uninstaller of its own: Jarvis removes itself.
 
 - `Jarvis.exe` (`packaging/windows/launcher.c`) starts `runtime\pythonw.exe app\jarvis_gui.pyw`. It refuses to
-  start from inside the zip or a temporary folder and says how to extract the zip.
+  start from a temporary folder (a copy opened from inside an archive) and says so.
 - The runtime is python.org's embeddable Python. Its `python313._pth` file is its whole module search path
   (the standard library, its own `site-packages` and `..\app`), so nothing installed on the PC leaks in.
-- `paths.install_root()` is the Jarvis folder when the app runs from the zip, and `None` from source. Start-up
-  and Start Menu shortcuts point at `Jarvis.exe` there (`src/core/startup.py`).
-- Updates (`src/app/updates.py`): the new zip is downloaded, checked against its SHA-256 and unpacked into
-  `Jarvis\.update`. **Restart to update** starts a copy of `Jarvis-Updater.exe` (`packaging/windows/updater.c`)
-  from the temporary folder and quits. The updater waits for Jarvis to exit and moves each item into place,
-  keeping the old one in `Jarvis\.old`. If a move fails, it puts everything back. Then it starts Jarvis, which
-  reports the result and deletes `.old`.
-- Install for me (`src/app/install.py`) copies the folder to `%LOCALAPPDATA%\Programs\Jarvis`, adds the Start
-  Menu shortcut and the Settings › Apps entry (whose Uninstall runs `Jarvis.exe --uninstall`), and starts the
-  installed copy after this one quits.
+- Third-party packages ship compiled only (a `.pyc` in place of each `.py`; pip and Qt's helpers keep their
+  sources), without their test suites, and without PyAV: faster-whisper imports it only to read audio files, and
+  its wheels bundle FFmpeg with GPL encoders. A stand-in module keeps that import working (`slim()` in the build).
+- `paths.install_root()` is the Jarvis folder when the app runs from it, and `None` from source. Start-up and
+  Start Menu shortcuts point at `Jarvis.exe` there (`src/core/startup.py`).
+- Updates (`src/app/updates.py`): the new installer is downloaded into the cache folder and checked against its
+  SHA-256. **Restart to update** writes a small hidden script and quits; the script waits for Jarvis to exit, runs
+  the installer silently into the same folder (it replaces `app` and `runtime` whole), notes the result and starts
+  Jarvis, which reports it.
+- Install for me (`src/app/install.py`) still covers a copy of the folder run from somewhere else: it copies it to
+  `%LOCALAPPDATA%\Programs\Jarvis` and registers it the way the installer does.
 
 ## The Mac app
 

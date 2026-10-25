@@ -81,8 +81,8 @@ def _chosen_options(cfg: dict) -> dict:
 
 
 def _install_offer() -> dict:
-    """Install for me on the last screen: for the Windows zip run from where it was extracted, and a Jarvis.app
-    outside the Applications folder."""
+    """Install for me on the last screen: for a Windows Jarvis folder outside %LOCALAPPDATA%\\Programs (the
+    installer puts it there, so normally it isn't offered), and a Jarvis.app outside the Applications folder."""
     if sys.platform not in ("win32", "darwin"):
         return {"available": False}
     from src.app import install

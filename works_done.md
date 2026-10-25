@@ -6,6 +6,72 @@ each entry names the phase it belongs to.
 
 ---
 
+## 2026-10-25 · Releases: a Windows installer instead of the zip, smaller downloads, 0.1.0-alpha.1
+
+The maintainer asked for a plain .exe and .dmg to download, with no zip to extract. The Mac download already
+was a DMG; the Windows one is now an installer.
+
+### What changed
+
+**The Windows installer** (`packaging/windows/jarvis.iss`, compiled by `packaging/build_windows.py` with Inno Setup 6)
+- `Jarvis-Setup-<version>-windows-x64.exe` installs for the current user only, in
+  `%LOCALAPPDATA%\Programs\Jarvis`, without administrator rights. It adds the Start Menu shortcut (and a Desktop
+  one if asked) and the Settings › Apps entry, then opens Jarvis.
+- It installs the same folder as before (launcher, runtime, app), packed as one solid LZMA2 archive.
+- The installer adds no uninstaller of its own. The Apps entry runs `Jarvis.exe --uninstall`, so Jarvis's own
+  uninstall (with "delete my data") stays the only one. The shortcut names and the Apps key are the ones
+  `src/app/install.py` and `uninstall.py` already use.
+- **Updates** download the next installer, check its SHA-256 and keep it with a note of its version. On
+  **Restart to update**, a hidden script waits for Jarvis to quit, runs the installer silently into the same
+  folder and starts Jarvis again. The installer replaces `app` and `runtime` whole, so nothing of the old
+  version lingers.
+- The folder-swap updater (`packaging/windows/updater.c`) and the zip are gone. Install for me stays, for a
+  Jarvis folder run from somewhere other than the usual one.
+
+**Smaller downloads** (`slim()`, shared by both builds)
+- The third-party packages ship compiled only: a `.pyc` in place of each `.py`, with no `__pycache__` folders.
+  pip and Qt's helpers keep their sources.
+- Also left out: the packages' own test suites, ONNX Runtime's model-conversion tools, the Hugging Face download
+  accelerator, Pythonwin and the PyWin32 help file, and Qt's developer-tools pages.
+- **PyAV goes, with its FFmpeg.** faster-whisper imports it only to read audio files, and Jarvis hands it audio
+  arrays.
+  - Its wheels bundle the GPL encoders x264 and x265, which the previous downloads carried by accident: Jarvis is
+    Apache-2.0 and ships nothing GPL.
+  - A stand-in module keeps faster-whisper's import working. THIRD_PARTY_LICENSES.md says what the downloads
+    leave out.
+
+| Windows download | Before (zip) | Now (installer) |
+|---|---|---|
+| Download size | 300 MB | 148 MB |
+| Installed size | 752 MB | 586 MB |
+| Files | 16,549 | 8,135 |
+| Folders | 1,458 | 811 |
+
+**Release and website wiring**
+- The Release workflow builds the installer instead of the zip. On GitHub's throwaway Windows machine it also
+  installs the result silently and starts the installed copy.
+- A new workflow (`website-latest.yml`) copies each published release's `latest.json` to the website.
+- The app's `updates.url` and `help.url` now point at https://jarvis-desktop-assistant.vercel.app.
+- The version is `0.1.0-alpha.1`.
+
+### How it was checked
+- The full suite, 462 tests. New ones cover:
+  - `slim()` run for real on a fake site-packages: what goes, compiled-only modules import, and the PyAV
+    stand-in imports but offers nothing;
+  - the installer script's promises (per-user, no uninstaller of its own, the same shortcut and Apps entry,
+    `app` and `runtime` replaced on update);
+  - the Windows update path (the download must be a program, the version note, the hidden script's order of
+    waiting, installing silently and restarting).
+- Ruff is clean, and so is the license list.
+- A local build reusing the runtime: the import, Qt WebEngine and version checks passed, and Inno Setup made the
+  148 MB installer.
+- The slimmed runtime downloaded the tiny Whisper model (without the accelerator, over plain HTTP) and
+  transcribed audio with voice detection.
+- The silent install runs in the release workflow. Installing it by hand on a clean PC is part of the testing
+  phase.
+
+---
+
 ## 2026-10-25 · Phase 7: macOS, and releases with a Windows zip and a Mac DMG
 
 Jarvis now runs on Macs with Apple silicon (macOS 13 or later). Everything was built and tested with fakes on
