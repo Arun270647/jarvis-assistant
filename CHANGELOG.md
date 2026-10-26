@@ -7,6 +7,18 @@ All notable changes to Jarvis are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.1.0-alpha.3] - 2026-10-26
+
+### Changed
+- The Mac download is 65 MB instead of 175 MB, and Jarvis.app takes 226 MB instead of 718 MB.
+  - The window shows its pages in the WebKit that comes with macOS, so the app no longer carries Chromium
+    (Qt WebEngine) or the Qt parts only it needs. Windows keeps Qt WebEngine.
+  - Binaries are stripped of local symbols, and the `python3` command is a small program on the bundled Python
+    library instead of an 18 MB second copy.
+- The Windows installer is 143 MB: ONNX Runtime's C library, which Jarvis never loads, is left out on both systems.
+- Jarvis on the Mac needs macOS 14 (Sonoma) or later. Two libraries it uses (numpy and ONNX Runtime) need 14, so it
+  never ran on macOS 13, although the download page said it did.
+
 ## [0.1.0-alpha.2] - 2026-10-25
 
 ### Changed

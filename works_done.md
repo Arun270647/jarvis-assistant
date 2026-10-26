@@ -6,6 +6,59 @@ each entry names the phase it belongs to.
 
 ---
 
+## 2026-10-26 · 0.1.0-alpha.3: the Mac window in the system's WebKit, a 65 MB download
+
+After 0.1.0-alpha.2, Qt WebEngine (Chromium) and the Qt parts only it needs (Quick, QML, PDF, positioning) were
+still about 290 MB of the Mac app. macOS ships WebKit, so the Mac window now uses it. Windows keeps Qt WebEngine.
+
+### What changed
+- **`src/gui/webkit_view.py`:** a WKWebView (through PyObjC) inside a Qt window container, carrying the same
+  QWebChannel bridge as on Windows:
+  - `qt.webChannelTransport` posts to a script message handler, and answers go back through
+    `evaluateJavaScript`. `qwebchannel.js` is injected from Qt's resources.
+  - Only the app's own pages load. Console errors go to the log, and a crashed page process reloads.
+  - An Edit menu gives text fields ⌘C, ⌘V, ⌘Z and the rest, which Qt WebEngine handled by itself. The right-click
+    menu shows only on text fields and selected text.
+- **`src/gui/webengine_view.py`:** the Windows view, moved out of `qt_app.py`.
+- **The Mac build** keeps five Qt modules. Its render check loads an opaque and a transparent view, waits for both
+  bridges to answer and checks the Edit menu.
+- **Before the switch, on the same branch:**
+  - Chromium's language packs went (90 MB at the time).
+  - Qt's frameworks got their standard symlinks back; wheels store them as second copies.
+  - Every Mac binary is stripped of local symbols.
+  - `bin/python3` is a small program on the bundled libpython instead of an 18 MB static copy.
+  - On both systems, ONNX Runtime's C API library is left out: its Python module has the engine built in. A real
+    VAD and Whisper run without it confirmed this.
+- **macOS 14 minimum:** numpy and ONNX Runtime only ship macOS 14 wheels, so the app never ran on macOS 13.
+  The docs and the download page said 13; they now say 14.
+
+### Two crashes in the WebKit check
+- The first build aborted on an Objective-C exception. PyObjC turns a Python exception that leaves a WebKit
+  callback into one, and nothing catches it. The callbacks now catch theirs and log them.
+- The second build showed the cause: `cannot call block without a signature`. WebKit asks the navigation
+  delegate about each page load and passes a block to answer with. WebKit's blocks carry no type signature, and
+  PyObjC needs one to call a block. Its WebKit metadata has the signature, but whether that reaches a delegate
+  method written in Python couldn't be confirmed off a Mac. So `answer()` calls the block normally when PyObjC
+  knows the signature, and otherwise calls the block's invoke function through the Block ABI (ctypes). Tests on
+  any OS drive a block laid out the way WebKit's are.
+
+| | 0.1.0-alpha.2 | 0.1.0-alpha.3 |
+|---|---|---|
+| Mac disk image | 175 MB | 65 MB |
+| Jarvis.app unpacked | 718 MB | 226 MB |
+| Windows installer | 146 MB | 143 MB |
+
+### How it was checked
+- A Release run on the branch ran the whole CI first (Windows 3.11 to 3.13, macOS 3.13, the vulnerability and
+  personal-data scans), then both builds, and every check passed:
+  - **Mac:** imports; WebKit renders pages, both bridges answer, and the Edit menu has copy and paste; the launcher
+    reports the version; the signature verifies; the image mounts and the updater's `stage()` copies the app out
+    intact.
+  - **Windows:** Qt WebEngine renders, and the silent install works and shows in Settings › Apps.
+- 477 tests pass locally, and Ruff is clean.
+
+---
+
 ## 2026-10-25 · 0.1.0-alpha.2: a Mac download less than half the size
 
 The maintainer asked why the Mac disk image was about 400 MB. Measured inside the released 0.1.0-alpha.1 image
