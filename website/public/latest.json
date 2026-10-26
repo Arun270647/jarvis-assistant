@@ -1,14 +1,14 @@
 {
-  "version": "0.1.0-alpha.2",
-  "notes": "https://github.com/Arun270647/jarvis-assistant/releases/tag/v0.1.0-alpha.2",
+  "version": "0.1.0-alpha.3",
+  "notes": "https://github.com/Arun270647/jarvis-assistant/releases/tag/v0.1.0-alpha.3",
   "windows": {
-    "url": "https://github.com/Arun270647/jarvis-assistant/releases/download/v0.1.0-alpha.2/Jarvis-Setup-0.1.0-alpha.2-windows-x64.exe",
-    "sha256": "96057a851162890f88aa23d72308e8021c236b1fd5757165e859281cf82464db",
-    "size": 145974636
+    "url": "https://github.com/Arun270647/jarvis-assistant/releases/download/v0.1.0-alpha.3/Jarvis-Setup-0.1.0-alpha.3-windows-x64.exe",
+    "sha256": "9e826402918dde0e470d0d4f7dec048841c471cabb1d207b5d72143f570ceb7e",
+    "size": 143281527
   },
   "macos": {
-    "url": "https://github.com/Arun270647/jarvis-assistant/releases/download/v0.1.0-alpha.2/Jarvis-0.1.0-alpha.2-macos-arm64.dmg",
-    "sha256": "c4aa9656fef9c23d79e200ce1ff3799f256e829948dbbe13e10762e8524fd3cd",
-    "size": 175007589
+    "url": "https://github.com/Arun270647/jarvis-assistant/releases/download/v0.1.0-alpha.3/Jarvis-0.1.0-alpha.3-macos-arm64.dmg",
+    "sha256": "3c1e5818ab090dfdce22f2f60ceb2e38a6a30f24c0869d843778b2523bb4f2e4",
+    "size": 65558759
   }
 }
