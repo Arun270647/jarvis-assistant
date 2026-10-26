@@ -27,6 +27,14 @@ class PeImportTests(unittest.TestCase):
         self.assertEqual(build_windows.version_numbers("0.2.1-alpha.3"), "0,2,1,0")
         self.assertEqual(build_windows.version_numbers("0.1.0.dev0"), "0,1,0,0")
 
+    def test_a_failed_command_shows_the_start_and_end_of_long_output(self):
+        crash = "Terminating app: the reason\n" + "stack line\n" * 2000 + "abort"
+        shown = build_windows.clip(crash)
+        self.assertTrue(shown.startswith("Terminating app: the reason"))
+        self.assertTrue(shown.endswith("abort"))
+        self.assertLess(len(shown), 7000)
+        self.assertEqual(build_windows.clip("short"), "short")
+
 
 class SlimTests(unittest.TestCase):
     def setUp(self):

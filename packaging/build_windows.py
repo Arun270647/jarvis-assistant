@@ -145,8 +145,13 @@ def fetch(spec: dict) -> Path:
 def run(cmd: list, **kw) -> str:
     result = subprocess.run(cmd, capture_output=True, text=True, **kw)
     if result.returncode != 0:
-        sys.exit(f"failed ({result.returncode}): {' '.join(map(str, cmd))}\n{result.stdout[-3000:]}\n{result.stderr[-3000:]}")
+        sys.exit(f"failed ({result.returncode}): {' '.join(map(str, cmd))}\n{clip(result.stdout)}\n{clip(result.stderr)}")
     return result.stdout
+
+
+def clip(text: str, keep: int = 3000) -> str:
+    """A long output's start and end: a crash report puts the reason first and fills the rest with its stack."""
+    return text if len(text) <= 2 * keep else f"{text[:keep]}\n[…]\n{text[-keep:]}"
 
 
 def build_runtime(pins: dict) -> None:

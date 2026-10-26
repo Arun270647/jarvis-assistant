@@ -17,6 +17,8 @@ PyObjC is imported inside the functions that need it, so the scripts and the tra
 """
 import json
 import os
+import sys
+import traceback
 from pathlib import Path
 
 from PySide6.QtCore import QFile, QIODevice, Qt, QUrl
@@ -130,6 +132,12 @@ def install_edit_menu() -> None:
     main.insertItem_atIndex_(top, min(1, main.numberOfItems()))
 
 
+def _report(what: str) -> None:
+    """An exception must not leave a WebKit callback: PyObjC raises it in WebKit as an Objective-C exception, and
+    that ends the app. It goes to the log instead."""
+    print(f"[UI ERROR] handling {what}:\n{traceback.format_exc()}", file=sys.stderr, flush=True)
+
+
 def _objc_classes() -> dict:
     """The Objective-C classes WebKit calls back into, defined once (a class name can be registered only once)."""
     if _CLASSES:
@@ -140,20 +148,30 @@ def _objc_classes() -> dict:
 
     class JarvisScriptHandler(NSObject, protocols=[objc.protocolNamed("WKScriptMessageHandler")]):
         def userContentController_didReceiveScriptMessage_(self, controller, message):
-            view = getattr(self, "view", None)
-            if view is not None:
-                view.on_script_message(str(message.name()), str(message.body()))
+            try:
+                view = getattr(self, "view", None)
+                if view is not None:
+                    view.on_script_message(str(message.name()), str(message.body()))
+            except Exception:
+                _report("a message from the page")
 
     class JarvisNavigationDelegate(NSObject, protocols=[objc.protocolNamed("WKNavigationDelegate")]):
         def webView_decidePolicyForNavigationAction_decisionHandler_(self, webview, action, decision):
-            url = action.request().URL()
-            view = getattr(self, "view", None)
-            allowed = url is not None and view is not None and view.allows(str(url.absoluteString()))
+            allowed = False
+            try:
+                url = action.request().URL()
+                view = getattr(self, "view", None)
+                allowed = url is not None and view is not None and view.allows(str(url.absoluteString()))
+            except Exception:
+                _report("a page load")
             decision(1 if allowed else 0)               # WKNavigationActionPolicyAllow / Cancel
 
         def webViewWebContentProcessDidTerminate_(self, webview):
-            print("[UI WARN] WebKit's page process ended; reloading the page")
-            webview.reload()
+            try:
+                print("[UI WARN] WebKit's page process ended; reloading the page")
+                webview.reload()
+            except Exception:
+                _report("the page process ending")
 
     _CLASSES.update(handler=JarvisScriptHandler, navigation=JarvisNavigationDelegate)
     return _CLASSES
