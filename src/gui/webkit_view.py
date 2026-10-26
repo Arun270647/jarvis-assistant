@@ -15,6 +15,7 @@ Jarvis.app doesn't bundle Chromium: Qt WebEngine and the Qt parts it needs are a
 
 PyObjC is imported inside the functions that need it, so the scripts and the transport are testable on any OS.
 """
+import ctypes
 import json
 import os
 import sys
@@ -138,6 +139,24 @@ def _report(what: str) -> None:
     print(f"[UI ERROR] handling {what}:\n{traceback.format_exc()}", file=sys.stderr, flush=True)
 
 
+def call_block(block: int, value: int) -> None:
+    """Calls the block at address `block` with one NSInteger, through the Block ABI: a block starts with isa (a
+    pointer), flags and reserved (two ints), then its invoke function, which takes the block and the arguments."""
+    invoke = ctypes.c_void_p.from_address(block + ctypes.sizeof(ctypes.c_void_p) + 2 * ctypes.sizeof(ctypes.c_int))
+    ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.c_ssize_t)(invoke.value)(block, value)
+
+
+def answer(decision, policy: int) -> None:
+    """Gives WebKit's decisionHandler block its policy. PyObjC calls a block through a signature taken from the
+    block or from PyObjC's WebKit metadata. WebKit's blocks carry none, so when the metadata didn't reach the
+    delegate method ("cannot call block without a signature") the block is called directly."""
+    if getattr(decision, "__block_signature__", None) is not None:
+        decision(policy)
+    else:
+        import objc
+        call_block(objc.pyobjc_id(decision), policy)
+
+
 def _objc_classes() -> dict:
     """The Objective-C classes WebKit calls back into, defined once (a class name can be registered only once)."""
     if _CLASSES:
@@ -156,7 +175,7 @@ def _objc_classes() -> dict:
                 _report("a message from the page")
 
     # No protocols=[WKNavigationDelegate]: the formal protocol types decisionHandler as a bare block ("@?"), and
-    # PyObjC can't call a block without its signature. Undeclared, the method takes PyObjC's WebKit metadata.
+    # undeclared the method can take the block's signature from PyObjC's WebKit metadata. answer() works either way.
     class JarvisNavigationDelegate(NSObject):
         def webView_decidePolicyForNavigationAction_decisionHandler_(self, webview, action, decision):
             allowed = False
@@ -166,7 +185,10 @@ def _objc_classes() -> dict:
                 allowed = url is not None and view is not None and view.allows(str(url.absoluteString()))
             except Exception:
                 _report("a page load")
-            decision(1 if allowed else 0)               # WKNavigationActionPolicyAllow / Cancel
+            try:
+                answer(decision, 1 if allowed else 0)   # WKNavigationActionPolicyAllow / Cancel
+            except Exception:
+                _report("the answer to a page load")
 
         def webViewWebContentProcessDidTerminate_(self, webview):
             try:

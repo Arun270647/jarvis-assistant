@@ -1,12 +1,16 @@
 """The Mac window's web view (src/gui/webkit_view.py), the parts that run on any OS: the scripts it injects, the
-QWebChannel transport driven through a real QWebChannel the way qwebchannel.js drives it, the navigation rule, the
-Edit menu's table and the pages' CSS for Safari's engine. The WKWebView itself needs a Mac: the Mac build checks it
+QWebChannel transport driven through a real QWebChannel the way qwebchannel.js drives it, the navigation rule and
+the answer to WebKit's decision block, the Edit menu's table and the pages' CSS for Safari's engine. The WKWebView itself needs a Mac: the Mac build checks it
 (WEBKIT_PROBE in packaging/build_macos.py)."""
+import ctypes
 import json
 import re
+import sys
 import tempfile
+import types
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from PySide6.QtCore import QCoreApplication, QObject, Slot
 from PySide6.QtWebChannel import QWebChannel
@@ -119,6 +123,40 @@ class PageCssTests(unittest.TestCase):
         prefixed = re.findall(r"-webkit-user-select: *(\w+)", css)
         self.assertTrue(plain)
         self.assertEqual(sorted(plain), sorted(prefixed))
+
+
+INVOKE = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.c_ssize_t)
+
+
+class BlockLiteral(ctypes.Structure):
+    """A block as the Block ABI lays it out, without a signature (as WebKit's are)."""
+    _fields_ = [("isa", ctypes.c_void_p), ("flags", ctypes.c_int), ("reserved", ctypes.c_int),
+                ("invoke", INVOKE), ("descriptor", ctypes.c_void_p)]
+
+
+class DecisionBlockTests(unittest.TestCase):
+    def setUp(self):
+        self.calls = []
+        self.invoke = INVOKE(lambda block, value: self.calls.append((block, value)))
+        self.block = BlockLiteral(None, 0, 0, self.invoke, None)
+        self.address = ctypes.addressof(self.block)
+
+    def test_a_block_is_called_through_its_invoke_function(self):
+        webkit_view.call_block(self.address, 1)
+        self.assertEqual(self.calls, [(self.address, 1)])
+
+    def test_without_a_signature_the_answer_goes_through_the_invoke_function(self):
+        decision = type("Block", (), {"__block_signature__": None})()
+        fake_objc = types.SimpleNamespace(pyobjc_id=lambda obj: self.address if obj is decision else 0)
+        with mock.patch.dict(sys.modules, {"objc": fake_objc}):
+            webkit_view.answer(decision, 0)
+        self.assertEqual(self.calls, [(self.address, 0)])
+
+    def test_with_a_signature_pyobjc_calls_the_block(self):
+        decision = mock.Mock(__block_signature__=object())
+        webkit_view.answer(decision, 1)
+        decision.assert_called_once_with(1)
+        self.assertEqual(self.calls, [])
 
 
 class NavigationTests(unittest.TestCase):
