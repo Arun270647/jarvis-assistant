@@ -120,8 +120,9 @@ the `macos` entry of `dist/latest.json` (added to the Windows build's file when 
 
 - `Contents/Resources/runtime`: python-build-standalone's Python for Apple silicon (pinned with its SHA-256 in
   `packaging/runtime.json`), pip, and `requirements.lock` installed with hashes. Qt frameworks and libraries that
-  Jarvis never loads are left out (the build follows `otool -L` from the Qt modules the app uses), and so are Tk,
-  Chromium's non-English texts and ONNX Runtime's C API library. Qt's frameworks get their standard symlinks back
+  Jarvis never loads are left out (the build follows `otool -L` from the Qt modules the app uses), and so are Tk
+  and ONNX Runtime's C API library. Qt WebEngine is among them: on the Mac the pages render in the system's WebKit
+  (`src/gui/webkit_view.py`), so the app carries no Chromium. Qt's frameworks get their standard symlinks back
   (wheels store them as copies), every binary is thinned to arm64 and stripped of local symbols, and `bin/python3`
   is a small program on the bundled libpython (`packaging/macos/python.c`).
 - `Contents/Resources/app`: the files from `git ls-files` that Jarvis reads at run time, compiled to `.pyc`
@@ -130,8 +131,9 @@ the `macos` entry of `dist/latest.json` (added to the Windows build's file when 
   inside its own process, so macOS treats Jarvis.app as the app for its permissions and Dock icon.
 
 The build signs the app ad hoc (`codesign --sign -`); Jarvis has no Apple Developer Program membership, so it
-isn't notarized. Before making the disk image it checks that the runtime imports every package, that Qt WebEngine
-renders a page, that the launcher starts the app far enough to report its version, and that the signature
+isn't notarized. Before making the disk image it checks that the runtime imports every package, that pages render
+in the app's WebKit views with the bridge answering and the Edit menu in place, that the launcher starts the app far
+enough to report its version, and that the signature
 verifies. Then it mounts the image, checks the app in it again, and lets the updater's own code copy the app out
 of it. Intel Macs aren't built: ONNX Runtime has no wheels for them.
 

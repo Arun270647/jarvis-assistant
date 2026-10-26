@@ -1,4 +1,5 @@
-"""Jarvis desktop application (PySide6 + Qt WebEngine).
+"""Jarvis desktop application (PySide6; the pages render in Qt WebEngine on Windows and in the system's WebKit on
+macOS, src/gui/webengine_view.py and webkit_view.py).
 
   MainWindow   native frame (dark caption on Windows 11, dark appearance on macOS), hosts web/index.html
   OrbWindow    frameless, translucent, always-on-top floating orb (web/compact.html)
@@ -15,12 +16,9 @@ import sys
 import threading
 from pathlib import Path
 
-from PySide6.QtCore import QEvent, QObject, QRect, Qt, QTimer, QUrl
+from PySide6.QtCore import QEvent, QObject, QRect, Qt, QTimer
 from PySide6.QtGui import QAction, QColor, QGuiApplication, QIcon, QPainter, QPen
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
-from PySide6.QtWebChannel import QWebChannel
-from PySide6.QtWebEngineCore import QWebEnginePage, QWebEngineSettings
-from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWidgets import QApplication, QMainWindow, QMenu, QSystemTrayIcon, QWidget
 
 from src.app.controller import AssistantController
@@ -28,6 +26,11 @@ from src.core import config_store, logging_setup, paths
 from src.gui import native
 from src.gui.bridge import Bridge, EventHub
 from src.platform import current
+
+if sys.platform == "darwin":
+    from src.gui.webkit_view import make_view as _make_view      # macOS ships WebKit: no Chromium in Jarvis.app
+else:
+    from src.gui.webengine_view import make_view as _make_view
 
 WEB = Path(__file__).resolve().parent / "web"
 INSTANCE_KEY = "jarvis-assistant-single-instance"
@@ -61,31 +64,8 @@ def make_icon(color: str = "#94bce3", size: int = 64) -> QIcon:
     return QIcon(pm)
 
 
-class WebPage(QWebEnginePage):
-    """Routes page console messages to the log so UI errors are diagnosable."""
-
-    def javaScriptConsoleMessage(self, level, message, line, source):
-        tag = {0: "INFO", 1: "WARN", 2: "ERROR"}.get(int(level.value) if hasattr(level, "value") else int(level), "INFO")
-        print(f"[UI {tag}] {Path(source).name}:{line} {message}")
-
-
-def make_view(parent, bridge: Bridge, page_file: str, transparent: bool = False) -> QWebEngineView:
-    view = QWebEngineView(parent)
-    page = WebPage(view)
-    view.setPage(page)
-    s = page.settings()
-    s.setAttribute(QWebEngineSettings.LocalContentCanAccessFileUrls, True)
-    s.setAttribute(QWebEngineSettings.LocalContentCanAccessRemoteUrls, False)
-    view.setContextMenuPolicy(Qt.NoContextMenu)
-    if transparent:
-        page.setBackgroundColor(Qt.transparent)
-    else:
-        page.setBackgroundColor(QColor("#1d2d3d"))
-    channel = QWebChannel(page)
-    channel.registerObject("jarvis", bridge)
-    page.setWebChannel(channel)
-    view.setUrl(QUrl.fromLocalFile(str(WEB / page_file)))
-    return view
+def make_view(parent, bridge: Bridge, page_file: str, transparent: bool = False):
+    return _make_view(parent, bridge, WEB / page_file, transparent)
 
 
 class MainWindow(QMainWindow):

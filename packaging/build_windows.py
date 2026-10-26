@@ -381,7 +381,8 @@ def check(version: str) -> None:
 
 
 def folder_size(path: Path) -> int:
-    return sum(f.stat().st_size for f in path.rglob("*") if f.is_file())
+    """Bytes on disk: a symlink (the Mac frameworks' links) counts as nothing, not as what it points to."""
+    return sum(f.stat().st_size for f in path.rglob("*") if f.is_file() and not f.is_symlink())
 
 
 def iscc() -> Path:

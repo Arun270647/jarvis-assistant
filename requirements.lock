@@ -1000,6 +1000,7 @@ pyobjc-core==12.2.2 ; sys_platform == 'darwin' \
     #   pyobjc-framework-coremedia
     #   pyobjc-framework-coretext
     #   pyobjc-framework-quartz
+    #   pyobjc-framework-webkit
 pyobjc-framework-applicationservices==12.2.2 ; sys_platform == 'darwin' \
     --hash=sha256:0bcc09531d5854598fd74706d999e4ae3b7c503204d318910d02eba30e8eecef \
     --hash=sha256:1af01a271b85eae2a327e93cf3ec46de0199a1a933594f78d4c2b9b9c2240e5e \
@@ -1043,6 +1044,7 @@ pyobjc-framework-cocoa==12.2.2 ; sys_platform == 'darwin' \
     #   pyobjc-framework-coremedia
     #   pyobjc-framework-coretext
     #   pyobjc-framework-quartz
+    #   pyobjc-framework-webkit
 pyobjc-framework-coreaudio==12.2.2 ; sys_platform == 'darwin' \
     --hash=sha256:2217911fb21cd6d8002d0895f6353a15fd6ce2c4e191b3f4cb6e16ad7a428591 \
     --hash=sha256:29b6d2b0d415246348717e501b424da5ad4cfadc8bb3c465c16851446e6ff590 \
@@ -1095,6 +1097,18 @@ pyobjc-framework-quartz==12.2.2 ; sys_platform == 'darwin' \
     #   pyobjc-framework-applicationservices
     #   pyobjc-framework-avfoundation
     #   pyobjc-framework-coretext
+pyobjc-framework-webkit==12.2.2 ; sys_platform == 'darwin' \
+    --hash=sha256:0be3ed885100dd38c6b927c9a25a63f22fd624bc4c6bb3d3af14fab5dcdcfc97 \
+    --hash=sha256:147f0f18c0ddd70a1d05f88cf42a89b423b191957db6faf508cbbdb33092864c \
+    --hash=sha256:206f88451e1c3e152c72c16c2af2664646cd752a3007c9cda8029a9e3f0ec9a4 \
+    --hash=sha256:36bea435489daa20ead1390d6bf0b98659beac0fc5a281e502acc5da334ec9eb \
+    --hash=sha256:83a5c250125ecaaf680a405cf435a038e4b168d0305ba7ad14398d810a49cf87 \
+    --hash=sha256:88c896d89764675af1ef85c6bda8740e50451e31bcd1d1d2ef59323acc9916ed \
+    --hash=sha256:cf683310d9ea01bcc9e5d6b59c6cead25d2a5453f58cc2e18f41b82b1fef1d26 \
+    --hash=sha256:e4e5bba0529e791b2f249e4c1e93331cc78741577dd7bf2d4a207ecf50d20b86 \
+    --hash=sha256:e5588df2a73b377b59a994cc2a78b467e4341f4e4d28b52e8671e21a2811d3c1 \
+    --hash=sha256:ef37692f0280151bf8164a718e334a9b3cb0abfc5455be14172280de7e277505
+    # via -r requirements.txt
 pyside6==6.12.0 \
     --hash=sha256:22e2ec6407f32b61955a28f91ab55676e60017210285c28f0c381bfeed389414 \
     --hash=sha256:31a8d2893f2f28ab483b1534dde0438f27af6e234593de30425cb4729052d8f8 \

@@ -62,6 +62,7 @@ agent, tasks, policy, memory, the web page) is the same code.
 |---|---|---|
 | `src/platform` (`current()`): folders, secrets, start at login, opening files and links, permissions, media keys | `windows.py`: Credential Manager, a Startup-folder shortcut, ShellExecute, virtual keys | `macos.py`: the Keychain (keyring), a LaunchAgent, `open`, AVFoundation / Accessibility / Screen Recording checks, system-defined key events |
 | `src/gui/native.py`: the global shortcut, bringing a window to the front, the title bar | RegisterHotKey, AttachThreadInput, DWM | Carbon's RegisterEventHotKey (no permission needed), NSApp.activate, the dark appearance |
+| The page's engine: `qt_app.make_view()`, the same QWebChannel bridge (`src/gui/bridge.py`) on both | `webengine_view.py`: Qt WebEngine (Chromium) | `webkit_view.py`: the system's WebKit (WKWebView in a Qt window container); the bridge travels through a script message handler and `evaluateJavaScript`, and an Edit menu gives text fields ⌘C and ⌘V |
 | Desktop control: `src/tools/desktop_tools.py` keeps the tools and the block lists | `desktop_win.py`: UI Automation, SendInput | `desktop_mac.py`: the Accessibility API, Quartz events, CGWindowList |
 | Terminals: `src/tools/terminal_tools.py` keeps the tools and the policy | `console_helper.py`: a visible cmd.exe, typed into through its input buffer | `terminal_mac.py`: Terminal.app through AppleScript; the shell's folder and programs from `ps` and `lsof`; zsh's rules for typed lines |
 | Processes: `src/core/winproc.py` | no console windows, `.cmd` shims, `.lnk` shortcuts | plain subprocesses, `.app` bundles opened with `open -a`, the PATH an app from the Finder lacks |
@@ -130,6 +131,9 @@ says how.
   with its Info.plist texts, as the app that asks for the microphone and the other permissions.
 - The runtime is python-build-standalone's relocatable Python. The interpreter is isolated from the Mac's other
   Pythons and writes no `.pyc` files, because a change inside the app would break its ad-hoc signature.
+- The pages render in the system's WebKit (`src/gui/webkit_view.py`), not Qt WebEngine, so the app carries no
+  Chromium: Qt WebEngine and the Qt parts only it needs are about 290 MB. The pages are the same files as on
+  Windows; their CSS sticks to what Safari 17 (macOS 14) supports.
 - `paths.install_root()` is the `Jarvis.app` folder. Start at login is a LaunchAgent that runs `open -a` on it.
 - The download is a disk image (`.dmg`) with Jarvis.app and a link to Applications. Updates attach the new one
   read-only and out of sight, copy the app out with `ditto` into the cache folder and detach it; **Restart to update** runs a small shell script

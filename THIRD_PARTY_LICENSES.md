@@ -93,6 +93,7 @@ Left out of the Windows installer and the Mac app (a source install still gets t
 | pyobjc-framework-coremedia | 12.2.2 | MIT | https://github.com/ronaldoussoren/pyobjc |  |
 | pyobjc-framework-coretext | 12.2.2 | MIT | https://github.com/ronaldoussoren/pyobjc |  |
 | pyobjc-framework-quartz | 12.2.2 | MIT | https://github.com/ronaldoussoren/pyobjc | yes |
+| pyobjc-framework-webkit | 12.2.2 | MIT | https://github.com/ronaldoussoren/pyobjc | yes |
 | zipp | 4.1.2 | MIT | https://github.com/jaraco/zipp |  |
 
 ## Optional add-ons (not part of Jarvis)

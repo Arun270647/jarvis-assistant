@@ -18,4 +18,5 @@ pyobjc-framework-Cocoa>=11 ; sys_platform == "darwin"                 # app acti
 pyobjc-framework-Quartz>=11 ; sys_platform == "darwin"                # window list, mouse and keyboard events
 pyobjc-framework-ApplicationServices>=11 ; sys_platform == "darwin"   # Accessibility API (desktop control)
 pyobjc-framework-AVFoundation>=11 ; sys_platform == "darwin"          # microphone permission
+pyobjc-framework-WebKit>=11 ; sys_platform == "darwin"               # the window's web view: the system's WebKit
 keyring>=25 ; sys_platform == "darwin"                                # secrets in the Keychain

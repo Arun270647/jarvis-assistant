@@ -30,8 +30,8 @@
 
 html, body { margin: 0; height: 100%; overflow: hidden; background: var(--color-bg); }
 [hidden] { display: none !important; }
-body { font-family: var(--font-body); font-size: 14px; line-height: 1.45; color: var(--color-text); user-select: none; }
-input, textarea, select, .selectable { user-select: text; }
+body { font-family: var(--font-body); font-size: 14px; line-height: 1.45; color: var(--color-text); -webkit-user-select: none; user-select: none; }
+input, textarea, select, .selectable { -webkit-user-select: text; user-select: text; }
 a { color: var(--color-accent-300); }
 a:hover { color: var(--color-accent-200); }
 .btn-primary:hover { background: var(--color-accent-300); }
@@ -127,10 +127,10 @@ select.input option { background: var(--color-accent-900); color: var(--color-te
 .captions { width: min(760px, 100%); margin-top: 22px; min-height: 64px; display: flex; flex-direction: column; align-items: center;
   gap: 8px; text-align: center; transition: opacity .6s ease; }
 .captions.faded { opacity: 0; }
-.cap-you { font-size: 15px; line-height: 1.4; color: var(--dim-62); font-style: italic; overflow-wrap: anywhere; user-select: text; }
+.cap-you { font-size: 15px; line-height: 1.4; color: var(--dim-62); font-style: italic; overflow-wrap: anywhere; -webkit-user-select: text; user-select: text; }
 .cap-you:not(:empty)::before { content: "\201C"; }
 .cap-you:not(:empty)::after { content: "\201D"; }
-.cap-jarvis { font-size: 19px; line-height: 1.45; color: var(--color-text); overflow-wrap: anywhere; user-select: text; text-wrap: pretty;
+.cap-jarvis { font-size: 19px; line-height: 1.45; color: var(--color-text); overflow-wrap: anywhere; -webkit-user-select: text; user-select: text; text-wrap: pretty;
   max-height: 30vh; overflow-y: auto; }
 .cap-you:not(:empty), .cap-jarvis:not(:empty) { animation: jIn .25s ease-out; }
 .cap-jarvis.error { font-size: 14px; color: var(--color-neutral-300); padding: 8px 12px; border: 1px dashed var(--dim-35); }
@@ -164,7 +164,7 @@ select.input option { background: var(--color-accent-900); color: var(--color-te
 .table td { vertical-align: top; }
 .table td.num, .table th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .table .muted { color: var(--dim-55); }
-.table .wrap { overflow-wrap: anywhere; user-select: text; }
+.table .wrap { overflow-wrap: anywhere; -webkit-user-select: text; user-select: text; }
 .clamp { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .row-actions { display: flex; gap: 4px; justify-content: flex-end; white-space: nowrap; }
 .btn-sm { font-size: 12px; padding: 3px 8px; }
@@ -187,7 +187,7 @@ select.input option { background: var(--color-accent-900); color: var(--color-te
   border: 1px solid var(--color-divider); box-shadow: var(--shadow-md); }
 .save-bar .msg-line { font-size: 13px; color: var(--dim-78); }
 .log-panel { height: 300px; overflow: auto; margin: 0; padding: 10px 12px; font: 11.5px/1.45 Consolas, "Cascadia Mono", monospace;
-  background: color-mix(in srgb, var(--color-accent-900) 55%, #000); border: 1px solid var(--color-divider); color: var(--dim-78); white-space: pre-wrap; user-select: text; }
+  background: color-mix(in srgb, var(--color-accent-900) 55%, #000); border: 1px solid var(--color-divider); color: var(--dim-78); white-space: pre-wrap; -webkit-user-select: text; user-select: text; }
 .log-panel .WARNING { color: var(--color-accent-200); }
 .log-panel .ERROR, .log-panel .CRITICAL { color: #fff; background: color-mix(in srgb, var(--color-neutral-100) 10%, transparent); }
 .mem-form { display: grid; grid-template-columns: minmax(0, 1fr) 140px auto auto; gap: 8px; align-items: center; }
@@ -236,7 +236,7 @@ select.input option { background: var(--color-accent-900); color: var(--color-te
 .step-ico.failed { border-style: dashed; background: color-mix(in srgb, var(--color-neutral-100) 20%, transparent); }
 .step-ico.skipped { opacity: .4; }
 .checks .chk { display: grid; grid-template-columns: 54px minmax(0, 1fr); align-items: start; gap: 8px; padding: 6px 0; font-size: 13px; border-bottom: 1px solid color-mix(in srgb, var(--color-neutral-100) 6%, transparent); }
-.checks pre { margin: 4px 0 0; white-space: pre-wrap; font: 11px/1.4 Consolas, monospace; color: var(--dim-62); max-height: 120px; overflow: auto; user-select: text; }
+.checks pre { margin: 4px 0 0; white-space: pre-wrap; font: 11px/1.4 Consolas, monospace; color: var(--dim-62); max-height: 120px; overflow: auto; -webkit-user-select: text; user-select: text; }
 .timeline { display: flex; flex-direction: column; }
 .tl { display: grid; grid-template-columns: 92px 104px minmax(0, 1fr); gap: 10px; padding: 5px 0; font-size: 12.5px; border-bottom: 1px solid color-mix(in srgb, var(--color-neutral-100) 5%, transparent); animation: jIn .2s ease-out; }
 .tl .t { color: var(--dim-35); font-variant-numeric: tabular-nums; }
@@ -244,7 +244,7 @@ select.input option { background: var(--color-accent-900); color: var(--color-te
 .tl.kind-tool_failed .k, .tl.kind-check_fail .k, .tl.kind-failed .k, .tl.kind-blocked .k { color: var(--color-neutral-100); }
 .tl.kind-tool_failed .m, .tl.kind-check_fail .m { color: var(--color-neutral-200); }
 .tl.kind-completed .k, .tl.kind-check_pass .k, .tl.kind-plan .k, .tl.kind-accepted .k { color: var(--color-accent-300); }
-.tl .m { min-width: 0; overflow-wrap: anywhere; word-break: break-word; user-select: text; }
+.tl .m { min-width: 0; overflow-wrap: anywhere; word-break: break-word; -webkit-user-select: text; user-select: text; }
 .tl.kind-tool .m { color: var(--dim-78); }
 
 /* ── permission dialog ─────────────────────────────────── */

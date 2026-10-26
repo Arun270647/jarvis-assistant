@@ -20,13 +20,15 @@ file. What goes in the app:
         Resources/app/        the code and the shipped files Jarvis reads at run time, compiled to .pyc
         Resources/jarvis.icns, LICENSE, NOTICE, THIRD_PARTY_LICENSES.md
 
-Before the disk image: the runtime must import every core package, Qt WebEngine must render a page, the app must
-report its version through the real launcher, and the signature must verify. After it: the image must mount and
-hold a signed app that reports its version, and the updater's own code must copy the app out of it intact. The
-image is LZMA-compressed (ULMO). The app is signed ad hoc (codesign --sign -),
-which Apple silicon needs to run it at all; it isn't notarized (no Apple Developer Program), so the first start
-needs System Settings › Privacy & Security › Open Anyway. No hardened runtime: only notarization requires it, and
-without it Qt WebEngine's JavaScript engine needs no extra entitlements.
+The pages render in the system's WebKit (src/gui/webkit_view.py), so Qt WebEngine (Chromium) isn't in the app.
+
+Before the disk image: the runtime must import every core package, pages must render in the app's WebKit views with
+the bridge answering and the Edit menu in place (WEBKIT_PROBE), the app must report its version through the real
+launcher, and the signature must verify. After it: the image must mount and hold a signed app that reports its
+version, and the updater's own code must copy the app out of it intact. The image is LZMA-compressed (ULMO). The app
+is signed ad hoc (codesign --sign -), which Apple silicon needs to run it at all; it isn't notarized (no Apple
+Developer Program), so the first start needs System Settings › Privacy & Security › Open Anyway. No hardened
+runtime: only notarization requires it.
 """
 import argparse
 import json
@@ -42,8 +44,8 @@ import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from build_windows import (APP_FILES, CACHE, DIST, QT_BINDINGS_EXTRA, QT_MODULES, ROOT, TOP_FILES,  # noqa: E402
-                           WEB_PROBE, app_version, fetch, folder_size, log, run, sha256_of, slim, tracked_files)
+from build_windows import (APP_FILES, CACHE, DIST, ROOT, TOP_FILES, app_version, fetch,  # noqa: E402
+                           folder_size, log, run, sha256_of, slim, tracked_files)
 
 WORK = ROOT / "build" / "macos"
 APP = WORK / "Jarvis.app"
@@ -55,11 +57,53 @@ MIN_MACOS = "14.0"                              # numpy and onnxruntime ship mac
 DMG_FORMAT = "ULMO"                             # LZMA (macOS 10.15+): the smallest download hdiutil can make
 ARCH = "arm64"                                  # PySide6's wheels are universal (Intel too): thinned to this
 CORE_IMPORTS = ["sounddevice", "numpy", "faster_whisper", "ctranslate2", "onnxruntime", "claude_agent_sdk",
-                "anthropic", "openai", "jsonschema", "platformdirs", "PySide6.QtWidgets", "PySide6.QtWebEngineWidgets",
-                "PySide6.QtWebChannel", "objc", "AppKit", "Quartz", "ApplicationServices", "AVFoundation", "keyring",
+                "anthropic", "openai", "jsonschema", "platformdirs", "PySide6.QtWidgets",
+                "PySide6.QtWebChannel", "WebKit", "objc", "AppKit", "Quartz", "ApplicationServices", "AVFoundation", "keyring",
                 "PIL", "pip"]
+# The Qt modules the Mac app imports: its pages render in the system's WebKit (src/gui/webkit_view.py), so Qt
+# WebEngine, and the Qt Quick, QML, PDF and positioning frameworks only it needs, stay out of Jarvis.app.
+QT_MODULES = ["QtCore", "QtGui", "QtWidgets", "QtNetwork", "QtWebChannel"]
 QT_PLUGINS = ["platforms", "styles", "imageformats", "iconengines", "tls", "networkinformation", "generic",
-              "permissions"]                    # QT_MODULES and QT_BINDINGS_EXTRA: build_windows.py
+              "permissions"]                    # (no platforminputcontexts: only the virtual keyboard)
+# The app's WebKit views (src/gui/webkit_view.py), an opaque one as in the window and a transparent one as in the orb,
+# load a page whose script calls a Python slot through the QWebChannel bridge: proves WebKit, the injected
+# qwebchannel.js, the transport and Qt all work in the built app. Then the Edit menu must offer copy and paste.
+WEBKIT_PROBE = """
+import sys, tempfile
+from pathlib import Path
+sys.path.insert(0, sys.argv[1])
+from PySide6.QtCore import QObject, QTimer, Slot
+from PySide6.QtWidgets import QApplication
+app = QApplication([])
+from AppKit import NSApplication
+from Foundation import NSStringFromSelector
+from src.gui.webkit_view import WebKitView
+answers = []
+class Probe(QObject):
+    @Slot(str)
+    def hello(self, text):
+        answers.append(text)
+        if len(answers) == 2:
+            app.quit()
+page = Path(tempfile.mkdtemp()) / "probe.html"
+page.write_text("<html><head><title>webkit</title></head><body><script>new QWebChannel(qt.webChannelTransport, "
+                "function (ch) { ch.objects.jarvis.hello(document.title + ' bridge'); });</script></body></html>",
+                encoding="utf-8")
+probes = [Probe(), Probe()]
+views = [WebKitView(None, probes[0], page), WebKitView(None, probes[1], page, transparent=True)]
+for view in views:
+    view.resize(320, 200)
+    view.show()
+QTimer.singleShot(60000, app.quit)
+app.exec()
+if answers != ["webkit bridge"] * 2:
+    sys.exit(f"WebKit check failed: {answers}")
+edit = NSApplication.sharedApplication().mainMenu().itemWithTitle_("Edit")
+keys = {(NSStringFromSelector(i.action()), i.keyEquivalent()) for i in edit.submenu().itemArray()} if edit else set()
+if not {("copy:", "c"), ("paste:", "v"), ("selectAll:", "a")} <= keys:
+    sys.exit(f"the Edit menu lacks copy, paste or select all: {sorted(keys)}")
+print("WebKit renders pages, the bridge answers, and the Edit menu has copy and paste")
+"""
 MICROPHONE_TEXT = ("Jarvis listens when you click the orb or press its shortcut, to hear what you ask. Nothing is "
                    "recorded in the background.")
 AUTOMATION_TEXT = ("Jarvis controls Terminal when you ask it to open a terminal window or type into one, and "
@@ -130,33 +174,25 @@ def macho_links(path: Path) -> list:
 
 def prune(runtime: Path) -> int:
     """Remove what Jarvis never loads: Qt frameworks and loose libraries the app's Qt modules don't link (followed
-    through otool; the loose ones are FFmpeg for Qt Multimedia), the Python bindings of Qt modules the app doesn't
-    import, QML, translations other than WebEngine's English, Qt's tools, type stubs, and the Agent SDK's copy of
-    Claude Code (the wizard installs Claude Code from Anthropic instead)."""
+    through otool; the loose ones are FFmpeg for Qt Multimedia, and Qt WebEngine goes this way too), the Python
+    bindings of Qt modules the app doesn't import, QML, Qt's translations (Jarvis is in English), Qt's tools, type
+    stubs, and the Agent SDK's copy of Claude Code (the wizard installs Claude Code from Anthropic instead)."""
     site = _site(runtime)
     qt, before = site / "PySide6", folder_size(runtime)
     lib = qt / "Qt" / "lib"
-    for name in ("Qt/qml", "Qt/metatypes", "include", "typesystems", "glue", "scripts", "doc", "examples",
-                 "Assistant.app", "Designer.app", "Linguist.app"):
+    for name in ("Qt/qml", "Qt/metatypes", "Qt/translations", "include", "typesystems", "glue", "scripts", "doc",
+                 "examples", "Assistant.app", "Designer.app", "Linguist.app"):
         shutil.rmtree(qt / name, ignore_errors=True)
     plugins = qt / "Qt" / "plugins"
     for folder in plugins.iterdir() if plugins.is_dir() else []:
         if folder.name not in QT_PLUGINS:
             shutil.rmtree(folder)
-    for f in (qt / "Qt" / "translations").rglob("*") if (qt / "Qt" / "translations").is_dir() else []:
-        if f.is_file() and f.name != "en-US.pak":
-            f.unlink()
-    for f in list(lib.rglob("qtwebengine_devtools_resources*.pak")):   # Jarvis never opens the web inspector
-        f.unlink(missing_ok=True)
-    for f in list(lib.rglob("qtwebengine_locales/*.pak")):  # Chromium's own texts: English only, as on Windows
-        if f.name != "en-US.pak":
-            f.unlink()
     frameworks = {p.name[:-len(".framework")]: p for p in lib.glob("*.framework")}
     dylibs = {p.name: p for p in lib.glob("*.dylib")}
-    process = next(lib.glob("QtWebEngineCore.framework/**/QtWebEngineProcess.app/Contents/MacOS/QtWebEngineProcess"),
-                   None)
-    bindings = set(QT_MODULES + QT_BINDINGS_EXTRA)
-    todo = [qt / f"{m}.abi3.so" for m in bindings] + list(plugins.rglob("*.dylib")) + ([process] if process else [])
+    for f in plugins.glob("imageformats/libqpdf*"):    # PDFs as images: the only thing that would need Qt PDF
+        f.unlink()
+    bindings = set(QT_MODULES)
+    todo = [qt / f"{m}.abi3.so" for m in bindings] + list(plugins.rglob("*.dylib"))
     needed, needed_dylibs = set(), set()
     while todo:
         for link in macho_links(todo.pop()):
@@ -333,8 +369,8 @@ def sign() -> None:
 
 
 def check(version: str, python: Path) -> None:
-    """The runtime imports every core package from its own folders, Qt WebEngine renders, and the real launcher
-    starts the app far enough to report its version."""
+    """The runtime imports every core package from its own folders, WebKit renders the pages (WEBKIT_PROBE), and the
+    real launcher starts the app far enough to report its version."""
     env = {k: v for k, v in os.environ.items() if not k.startswith(("PYTHON", "JARVIS"))}
     probe = ("import sys, importlib\n"
              f"for name in {CORE_IMPORTS!r}:\n"
@@ -345,8 +381,8 @@ def check(version: str, python: Path) -> None:
     # -B: nothing may write .pyc files into the signed app.
     log(run([str(python), "-I", "-B", "-c", probe], env=env, cwd=WORK).strip())
     run([str(python), "-I", "-B", "-m", "pip", "--version"], env=env, cwd=WORK)
-    web = dict(env, QT_QPA_PLATFORM="offscreen", QTWEBENGINE_CHROMIUM_FLAGS="--disable-gpu")
-    log(run([str(python), "-I", "-B", "-c", WEB_PROBE], env=web, cwd=WORK, timeout=180).strip())
+    log(run([str(python), "-I", "-B", "-c", WEBKIT_PROBE, str(RESOURCES / "app")], env=env, cwd=WORK,
+            timeout=180).strip())
     reported = run([str(CONTENTS / "MacOS" / "Jarvis"), "--version"], env=env, cwd=WORK).strip()
     if reported != version:
         sys.exit(f"the app reports version {reported!r}, expected {version!r}")
