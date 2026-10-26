@@ -155,7 +155,9 @@ def _objc_classes() -> dict:
             except Exception:
                 _report("a message from the page")
 
-    class JarvisNavigationDelegate(NSObject, protocols=[objc.protocolNamed("WKNavigationDelegate")]):
+    # No protocols=[WKNavigationDelegate]: the formal protocol types decisionHandler as a bare block ("@?"), and
+    # PyObjC can't call a block without its signature. Undeclared, the method takes PyObjC's WebKit metadata.
+    class JarvisNavigationDelegate(NSObject):
         def webView_decidePolicyForNavigationAction_decisionHandler_(self, webview, action, decision):
             allowed = False
             try:
