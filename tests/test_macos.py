@@ -362,6 +362,35 @@ class MacBuildTests(unittest.TestCase):
     def test_dmg_name(self):
         self.assertEqual(self.b.dmg_name("0.2.0-beta.1"), "Jarvis-0.2.0-beta.1-macos-arm64.dmg")
 
+    def fake_app(self) -> Path:
+        app = Path(tempfile.mkdtemp()) / "Jarvis.app"
+        self.addCleanup(shutil.rmtree, app.parent, True)
+        site = app / "Contents" / "Resources" / "runtime" / "lib" / "python3.13" / "site-packages"
+        (site / "ctranslate2" / ".dylibs").mkdir(parents=True)
+        (site / "ctranslate2" / "_ext.cpython-313-darwin.so").write_bytes(b"\xcf\xfa\xed\xfe" + b"\0" * 28)
+        (site / "ctranslate2" / ".dylibs" / "libctranslate2.dylib").write_bytes(b"\xcf\xfa\xed\xfe" + b"\0" * 28)
+        (site / "ctranslate2" / "__init__.py").write_text("", encoding="utf-8")
+        dwarf = site / "objc" / "_objc.so.dSYM" / "Contents" / "Resources" / "DWARF"
+        dwarf.mkdir(parents=True)
+        (dwarf / "_objc.so").write_bytes(b"\xcf\xfa\xed\xfe" + b"\0" * 28)
+        return app
+
+    def test_every_library_is_signed_and_checked_on_its_own(self):
+        # 0.1.0-alpha.3: strip left ctranslate2's wheel signature stale, --deep didn't re-sign it under Resources,
+        # and macOS 27 ended the app when Whisper loaded.
+        app = self.fake_app()
+        calls = []
+        with mock.patch.object(self.b, "APP", app), mock.patch.object(self.b, "run", side_effect=calls.append), \
+                mock.patch.object(self.b.subprocess, "run"):
+            self.b.strip_binaries()
+            self.b.sign()
+        self.assertFalse(list(app.rglob("*.dSYM")), "debug symbols go")
+        signed = [Path(c[-1]).name for c in calls if c[:2] == ["codesign", "--force"] and "--deep" not in c]
+        checked = [Path(c[-1]).name for c in calls if c[:2] == ["codesign", "--verify"] and "--deep" not in c]
+        self.assertEqual(sorted(signed), ["_ext.cpython-313-darwin.so", "libctranslate2.dylib"])
+        self.assertEqual(sorted(checked), sorted(signed))
+        self.assertIn("--deep", calls[2], "the libraries are signed before the app")
+
     def test_runtime_is_pinned(self):
         pins = json.loads((Path(__file__).resolve().parents[1] / "packaging" / "runtime.json").read_text(encoding="utf-8"))
         mac = pins["macos_python"]

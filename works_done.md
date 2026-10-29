@@ -6,6 +6,31 @@ each entry names the phase it belongs to.
 
 ---
 
+## 2026-10-29 · 0.1.0-alpha.4: the Mac app no longer quits when it starts listening
+
+A tester's Mac (MacBook Pro M3, macOS 27.0.1) ran 0.1.0-alpha.3 from the disk image: the app opened, signed in
+with Claude, set up the microphone and then quit. The crash report: `EXC_BAD_ACCESS (SIGKILL (Code Signature
+Invalid))`, termination `CODESIGNING, Invalid Page`, on a Python thread inside `dlopen` of a library that wasn't
+loaded yet. sounddevice, numpy and the rest were already in; ctranslate2 (faster-whisper) and ONNX Runtime were not.
+
+### Cause
+- Checked the embedded signature of every Mach-O file in the released disk image (page hashes against each
+  CodeDirectory, with a small script, since codesign doesn't run on Windows): 112 good, 25 stale. Among them
+  ctranslate2's `_ext` module and `libctranslate2`, and Pillow's modules and libraries; also two unsigned
+  `.dSYM` debug files from PyObjC.
+- Those wheels came signed ad hoc by delocate. `strip -x` (since alpha.3) rewrites a file and renews only the
+  linker's own signature, so these kept a signature that no longer matched. `codesign --deep` signs nested code
+  only in the standard places (Frameworks, PlugIns), not the libraries under Resources/runtime, and the app's own
+  seal hashes them as plain files, so `codesign --verify --deep --strict` passed and the build's import checks on
+  macOS 15 passed. macOS 27 ends the app when it maps one, here as Whisper loaded.
+
+### What changed
+- **`packaging/build_macos.py`:** `sign()` signs every Mach-O file on its own before the app, then verifies each
+  one on its own after it; `strip_binaries()` also takes out `.dSYM` folders.
+- **Test:** `MacBuildTests.test_every_library_is_signed_and_checked_on_its_own` (fails on the old script).
+
+---
+
 ## 2026-10-26 · 0.1.0-alpha.3: the Mac window in the system's WebKit, a 65 MB download
 
 After 0.1.0-alpha.2, Qt WebEngine (Chromium) and the Qt parts only it needs (Quick, QML, PDF, positioning) were

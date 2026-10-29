@@ -7,6 +7,14 @@ All notable changes to Jarvis are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.1.0-alpha.4] - 2026-10-29
+
+### Fixed
+- On the Mac, Jarvis quit as soon as it started listening, on macOS 27 (and possibly other versions). Some of its
+  libraries, including the speech recognizer's, still carried signatures that no longer matched their contents
+  after the build made them smaller, and macOS ends an app that loads such a library. Every library in the app is
+  now signed and checked on its own.
+
 ## [0.1.0-alpha.3] - 2026-10-26
 
 ### Changed

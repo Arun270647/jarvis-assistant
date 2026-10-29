@@ -307,16 +307,25 @@ def link_framework_copies(lib: Path) -> None:
             binary.symlink_to(Path("Versions") / "Current" / framework.stem)
 
 
-def strip_binaries() -> int:
-    """Local symbols out of every Mach-O file (strip -x keeps the global ones other libraries and Python link to);
-    ONNX Runtime alone carries 27 MB of them. Done before signing, which strip would undo."""
-    before = folder_size(APP)
+def macho_files() -> list:
+    found = []
     for path in APP.rglob("*"):
         if path.is_symlink() or not path.is_file():
             continue
         with open(path, "rb") as f:
-            if f.read(4) != b"\xcf\xfa\xed\xfe":
-                continue
+            if f.read(4) == b"\xcf\xfa\xed\xfe":
+                found.append(path)
+    return found
+
+
+def strip_binaries() -> int:
+    """Local symbols out of every Mach-O file (strip -x keeps the global ones other libraries and Python link to);
+    ONNX Runtime alone carries 27 MB of them. Done before signing, which strip would undo. The .dSYM debug symbols
+    some wheels ship (PyObjC) go too."""
+    before = folder_size(APP)
+    for dsym in [p for p in APP.rglob("*.dSYM") if p.is_dir()]:
+        shutil.rmtree(dsym)
+    for path in macho_files():
         subprocess.run(["strip", "-x", str(path)], capture_output=True)     # a file strip can't handle stays as is
     return before - folder_size(APP)
 
@@ -363,9 +372,19 @@ def thin() -> int:
 
 
 def sign() -> None:
+    """Every Mach-O file first, then the app. --deep signs only nested code in the standard places (Frameworks,
+    PlugIns), not the libraries under Resources/runtime: those keep the signature their wheel came with, which strip
+    leaves stale when it isn't the linker's own (ctranslate2's and Pillow's, from delocate). The app's seal still
+    verifies, but macOS 27 ends the app the moment it loads such a library (0.1.0-alpha.3, when Whisper loaded)."""
     log("signing ad hoc")
+    binaries = macho_files()
+    for path in binaries:
+        run(["codesign", "--force", "--sign", "-", str(path)])
     run(["codesign", "--force", "--deep", "--sign", "-", "--identifier", BUNDLE_ID, str(APP)])
     run(["codesign", "--verify", "--deep", "--strict", str(APP)])
+    for path in binaries:
+        run(["codesign", "--verify", "--strict", str(path)])
+    log(f"signed and verified {len(binaries)} binaries one by one")
 
 
 def check(version: str, python: Path) -> None:
