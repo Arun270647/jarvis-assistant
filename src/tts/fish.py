@@ -116,7 +116,7 @@ class FishTTS:
         if self.mode == "cloud":
             self._start_cloud()
         elif self.mode == "local":
-            threading.Thread(target=self._start_local, name="fish-start", daemon=True).start()
+            threading.Thread(target=self._start_local_safely, name="fish-start", daemon=True).start()
         else:
             self._fail(f"Unknown Fish Audio mode {self.mode!r} (tts.fish.mode: cloud or local)")
 
@@ -129,6 +129,12 @@ class FishTTS:
         self._url = (self.cfg.get("api_url") or CLOUD_URL).rstrip("/") + "/v1/tts"
         self._ready.set()
         threading.Thread(target=self._warm_cache, name="fish-cache", daemon=True).start()
+
+    def _start_local_safely(self):
+        try:
+            self._start_local()
+        except Exception as e:                   # never leave the engine waiting on a thread that died
+            self._fail(f"fish-speech could not start: {type(e).__name__}: {e}")
 
     def _start_local(self):
         python, repo, ckpt = (self.cfg.get(k, "") for k in ("python", "repo", "checkpoint"))

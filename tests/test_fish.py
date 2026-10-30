@@ -80,7 +80,8 @@ class FakeVoice:
 
 FAKE_SERVER = textwrap.dedent('''
     import json, os, sys, wave, io
-    from http.server import BaseHTTPRequestHandler, HTTPServer
+    import socketserver
+    from http.server import BaseHTTPRequestHandler
     host, port = sys.argv[sys.argv.index("--listen") + 1].split(":")
     log = os.environ["FAKE_FISH_LOG"]
     with open(log + ".args", "w") as f:
@@ -101,7 +102,8 @@ FAKE_SERVER = textwrap.dedent('''
             data = wav()
             self.send_response(200); self.send_header("Content-Type", "audio/wav")
             self.send_header("Content-Length", str(len(data))); self.end_headers(); self.wfile.write(data)
-    HTTPServer((host, int(port)), H).serve_forever()
+    # TCPServer, not HTTPServer: HTTPServer looks up the host's full name, which can stall for a minute on macOS
+    socketserver.TCPServer((host, int(port)), H).serve_forever()
 ''')
 
 
@@ -216,7 +218,7 @@ class FishEngineTests(unittest.TestCase):
         clip.write_bytes(wav_bytes(samples=400))
         return {"mode": "local", "python": sys.executable, "repo": str(repo), "checkpoint": str(ckpt), "device": "cpu",
                 "reference_audio": str(clip), "reference_text": "Allow me to introduce myself.",
-                "startup_timeout_s": 30, "sentence_timeout_s": 10}
+                "startup_timeout_s": 60, "sentence_timeout_s": 10}
 
     def test_local_fish_speech_clones_the_reference_clip(self):
         local = self.local_setup()
