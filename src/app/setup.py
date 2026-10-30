@@ -79,8 +79,8 @@ def _key_saved(service: Optional[str]) -> bool:
     """Whether an option that speaks through an online service ("needs_key": "fish") has its API key."""
     if service != "fish":
         return False
-    from src.tts import fish
-    return bool(fish.api_key()[0])
+    from src.core import fish_key
+    return bool(fish_key.api_key()[0])
 
 
 def _chosen_options(cfg: dict) -> dict:

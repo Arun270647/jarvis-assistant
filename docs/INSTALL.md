@@ -109,7 +109,7 @@ AI.
 
 ## Voices
 
-- **Kokoro** is the default: natural voices that run on the processor. Its engine uses espeak-ng and
+- **Kokoro**: natural voices that run on the processor, offline. It speaks when no voice is chosen. Its engine uses espeak-ng and
   phonemizer, which are GPL-3.0, so Jarvis doesn't include it. Picking a Kokoro voice in the wizard or in
   Settings › Models downloads the voice model and installs the engine from PyPI into the models folder. For a
   source install you can also put it in your environment: `.venv\Scripts\python -m pip install -e .[kokoro]`.
@@ -118,7 +118,7 @@ AI.
 - **Chatterbox** sounds the most natural, but needs PyTorch (several GB) and is slow without an NVIDIA graphics
   card. It gets its own Python environment: `.venv\Scripts\python scripts\setup_chatterbox.py --cuda --use`
   (leave out `--cuda` without an NVIDIA card).
-- **Fish Audio** is listed first in the wizard: the "Jarvis" voice from
+- **Fish Audio** is listed first and recommended in the wizard: the "Jarvis" voice from
   [fish.audio](https://fish.audio/m/29c31f6e158c4c8f84c14f9f3d8ba008/), spoken by Fish Audio's cloud, so it sounds
   exactly as on its page. It needs internet and a Fish Audio API key (fish.audio › API keys), which you paste in
   the wizard or in Settings › Voice; Fish Audio charges that key's account per character (new accounts get free

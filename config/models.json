@@ -265,8 +265,8 @@
       "recommend": [
         {
           "when": "always",
-          "option": "kokoro-af_heart",
-          "reason": "natural, and quick on the processor"
+          "option": "fish-jarvis",
+          "reason": "the Jarvis voice, exactly as on fish.audio (needs your Fish Audio API key)"
         }
       ],
       "options": [

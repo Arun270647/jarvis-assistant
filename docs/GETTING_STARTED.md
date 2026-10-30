@@ -61,8 +61,10 @@ When Jarvis opens for the first time, a short setup guides you. Just follow the 
 
 4. **Microphone**: pick your microphone if it isn't already chosen, click **Test** and say "Hello Jarvis".
    The bar shows your voice level. If Windows blocks the microphone, click **Open privacy settings**.
-5. **Voice**: press **▶** to hear the voices and pick the one you like. Tick **Don't speak, just show text** if
-   you prefer reading.
+5. **Voice**: press **▶** to hear the voices and pick the one you like. The first one, **Fish Audio · Jarvis**, is
+   chosen for you: it is spoken by Fish Audio's online service, so paste your Fish Audio API key under it (click
+   **Get a key** to make one at fish.audio; Fish Audio charges that account per character, and new accounts get
+   free credits). The others run on your computer. Tick **Don't speak, just show text** if you prefer reading.
 
    ![Pick a voice](images/setup-voice.png)
 
@@ -80,19 +82,21 @@ ready.
 
 ### What gets downloaded
 
-All of these are free and run on your own computer. You can change them later in **Settings › Models**.
+These are free and run on your own computer, except the recommended voice (Fish Audio's online service, with your
+own API key). You can change them later in **Settings › Models**.
 
 | What | What it does | Default | Size | Official page |
 |---|---|---|---|---|
 | Speech detection | Notices when you start and stop talking | Silero VAD | 2 MB | https://github.com/snakers4/silero-vad |
 | Speech recognition | Turns your voice into text | Whisper *small* (*medium* with an NVIDIA graphics card and its CUDA libraries) | 486 MB (1.5 GB) | https://huggingface.co/Systran/faster-whisper-small |
-| Voice | Reads answers aloud | Kokoro · Heart (one download holds all the Kokoro voices) | 354 MB, plus about 25 MB for the Kokoro engine | https://huggingface.co/hexgrad/Kokoro-82M |
+| Voice | Reads answers aloud | Fish Audio · Jarvis (online, nothing to download), or Kokoro · Heart on your computer (one download holds all the Kokoro voices) | 0 MB (Kokoro: 354 MB, plus about 25 MB for its engine) | https://fish.audio/m/29c31f6e158c4c8f84c14f9f3d8ba008/ |
 
 **Slow or no internet at setup?** Click **ⓘ** on a row › **Download manually**: your browser downloads the
 file. Then click **I already have this file** and pick it. Jarvis checks the file is the right one before using
 it. Downloads that stop halfway continue where they stopped.
 
-Until the voice has downloaded, Jarvis speaks with the voice built into Windows. You can also keep that one: it
+Until the voice has downloaded, or while the Fish Audio voice has no API key or no internet, Jarvis speaks with the
+voice built into Windows. You can also keep that one: it
 needs no download, but sounds more robotic.
 
 The Kokoro voices need the Kokoro engine. It uses espeak-ng and phonemizer, which are open source under the

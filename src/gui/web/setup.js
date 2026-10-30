@@ -346,9 +346,9 @@
     audio.addEventListener("ended", () => { W.orbPhase = "idle"; });
     const quiet = h("input", { type: "checkbox" }); quiet.checked = !W.speak;
     quiet.addEventListener("change", () => { W.speak = !quiet.checked; });
-    const chosen = g && g.options.find(o => o.id === W.voice);
+    const at = g ? g.options.findIndex(o => o.id === W.voice && o.needs_key === "fish") : -1;
+    if (at >= 0) cards.splice(at + 1, 0, fishKey(g.options[at]));      // the key field right under its voice
     page("Pick a voice", null, [h("div", { class: "voices" }, cards), audio, h("div", { class: "help", id: "voice-note", role: "status" }),
-      chosen && chosen.needs_key === "fish" ? fishKey(chosen) : null,
       h("label", { class: "check" }, quiet, "Don't speak, just show text")],
       [primary("Continue", async () => { if (await save("voice", { option: W.voice, speak: W.speak })) next(); })]);
   }

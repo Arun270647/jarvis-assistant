@@ -7,10 +7,12 @@ All notable changes to Jarvis are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.1.0-alpha.5] - 2026-10-30
+
 ### Added
-- A Fish Audio voice, listed first on the wizard's voice page: the "Jarvis" voice from fish.audio, spoken by Fish
-  Audio's cloud with your own Fish Audio API key (paid per use by Fish Audio; the key is kept in the system's secret
-  store). Settings › Voice takes any other fish.audio voice id, or runs fish-speech, Fish Audio's open-source engine,
+- A Fish Audio voice, listed first and recommended on the wizard's voice page: the "Jarvis" voice from fish.audio,
+  spoken by Fish Audio's cloud with your own Fish Audio API key, which you paste right under it (paid per use by
+  Fish Audio; the key is kept in the system's secret store). Settings › Voice takes any other fish.audio voice id, or runs fish-speech, Fish Audio's open-source engine,
   on your PC to clone a clip you give it (`scripts/setup_fish.py`). Kokoro speaks when there is no key or internet.
 
 ## [0.1.0-alpha.4] - 2026-10-29

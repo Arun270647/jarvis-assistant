@@ -20,7 +20,7 @@ THIRD_PARTY_LICENSES.md. Notably:
 
 Optional components that the user chooses to install are not part of this distribution and keep their own
 licenses: the Kokoro voice engine (kokoro-onnx, MIT, with phonemizer and espeak-ng, both GPL-3.0-or-later),
-installed from PyPI into the models folder when a Kokoro voice is chosen (the setup wizard recommends one); the Piper
+installed from PyPI into the models folder when a Kokoro voice is chosen; the Piper
 voice engine (piper-tts, GPL-3.0-or-later), installed the same way when a Piper voice is chosen; Chatterbox (chatterbox-tts, MIT) with PyTorch, installed into a separate environment by
 scripts/setup_chatterbox.py; and fish-speech (Fish Audio Research License, non-commercial) with its model weights,
 installed into a separate environment by scripts/setup_fish.py. The Fish Audio cloud voice is Fish Audio's service,

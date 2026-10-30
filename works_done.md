@@ -6,6 +6,47 @@ each entry names the phase it belongs to.
 
 ---
 
+## 2026-10-30 · 0.1.0-alpha.5: the Fish Audio "Jarvis" voice, recommended in the setup wizard
+
+The maintainer picked the "Jarvis" voice on fish.audio (https://fish.audio/m/29c31f6e158c4c8f84c14f9f3d8ba008/)
+for Jarvis and asked for it first on the wizard's voice page.
+
+### What was decided
+- Fish Audio doesn't let anyone download its voices. An identical voice comes only from Fish Audio's cloud API, so
+  the default mode sends each sentence there with the voice's id and the user's own API key (each user pays Fish
+  Audio; Jarvis ships no key). The open fish-speech weights are smaller than the cloud model, so the local mode
+  sounds close, not identical.
+- Fish Audio's data for that voice shows it was made from one clip (JARVIS_START_UP.mp3, marked unlicensed).
+  Jarvis does not download that clip: the cloud mode uses the voice where Fish Audio hosts it, under Fish Audio's
+  terms, and the local mode clones only a clip the user supplies.
+- fish-speech and its weights are non-commercial (Fish Audio Research License, CC-BY-NC-SA-4.0), so like Kokoro
+  and Piper it is an add-on the user installs (`scripts/setup_fish.py`), never shipped.
+
+### What changed
+- **`src/tts/fish.py`:** the engine. Cloud mode: `POST https://api.fish.audio/v1/tts` with `reference_id`, WAV
+  out; local mode: fish-speech's own API server (`tools.api_server`, pinned at v2.0.0-beta, commit 3578e4e7) on
+  127.0.0.1, hidden, with the clip sent as a reference. Both send fish-speech's ServeTTSRequest. The next sentence
+  is made while one plays; fixed phrases and prepared greetings are cached; Kokoro, else the system voice, speaks
+  without a key, while fish-speech loads or after a failed request.
+- **`src/core/fish_key.py`:** the key in the OS secret store (JARVIS/TTS/fish) or FISH_API_KEY, apart from the
+  engine so the wizard checks it without loading the audio libraries (found when rendering the wizard on a
+  machine without PortAudio: the model list failed to build).
+- **Wizard and Settings:** "Fish Audio · Jarvis" is the first and recommended voice, with the key field right
+  under it; Settings › Voice has the mode, voice id, cloud model, clip and key.
+- **`scripts/setup_fish.py`:** downloads fish-speech's source at the pinned commit, makes its environment in
+  models/fish, downloads S1-mini (gated: Hugging Face token) or S2-Pro, copies the clip and saves the settings.
+
+### Verified
+- `tests/test_fish.py` (18 tests): the cloud request (URL, key, model header, voice id), no key and failed
+  sentences going to the fallback, the phrase cache, streamed WAV parsing, a fake fish-speech server started the
+  way the real one is (arguments, reference clip in the body), the wizard order and recommendation, and the setup
+  script's steps, settings and archive extraction.
+- The wizard's voice page rendered in Chromium with the real `setup.state()`: Fish Audio · Jarvis first and
+  selected, the key field under it, saving a key calls the bridge.
+- Not tried against the real Fish Audio API (no key in the build environment) or a real fish-speech install.
+
+---
+
 ## 2026-10-29 · 0.1.0-alpha.4: the Mac app no longer quits when it starts listening
 
 A tester's Mac (MacBook Pro M3, macOS 27.0.1) ran 0.1.0-alpha.3 from the disk image: the app opened, signed in

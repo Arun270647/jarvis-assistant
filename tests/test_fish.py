@@ -264,10 +264,12 @@ class FishSettingsTests(unittest.TestCase):
     def test_wizard_shows_whether_the_key_is_saved(self):
         from src.app import setup
         facts = {"os": "windows", "gpu": None, "vram_gb": 0, "ram_gb": 16, "cpu_cores": 8}
-        with mock.patch.object(fish, "api_key", return_value=("k", "saved")):
+        from src.core import fish_key
+        with mock.patch.object(fish_key, "api_key", return_value=("k", "saved")):
             tts = next(g for g in setup.state(facts=facts)["groups"] if g["id"] == "tts")
         self.assertEqual(tts["options"][0]["id"], "fish-jarvis")
         self.assertTrue(tts["options"][0]["key_saved"])
+        self.assertEqual((tts["recommended"], tts["selected"]), ("fish-jarvis", "fish-jarvis"), "preselected")
         self.assertFalse(tts["options"][1]["key_saved"])
 
     def test_defaults_and_engine_choice(self):

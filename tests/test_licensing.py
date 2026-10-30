@@ -67,7 +67,7 @@ class KokoroAddOnTests(unittest.TestCase):
         kokoro = [o for o in tts["options"] if o.get("config", {}).get("tts.engine") == "kokoro"]
         self.assertTrue(kokoro)
         self.assertTrue(all(o.get("addon") == "kokoro" for o in kokoro))
-        self.assertEqual([r["option"] for r in tts["recommend"]], ["kokoro-af_heart"], "the wizard recommends Kokoro")
+        self.assertEqual([r["option"] for r in tts["recommend"]], ["fish-jarvis"], "the wizard recommends Fish Audio")
 
     def test_the_default_settings_load_the_file_the_catalogue_downloads(self):
         defaults = json.loads((ROOT / "config" / "defaults.json").read_text(encoding="utf-8"))["tts"]

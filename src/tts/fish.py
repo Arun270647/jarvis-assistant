@@ -35,41 +35,13 @@ import numpy as np
 import sounddevice as sd
 
 from src.core import paths, winproc
+from src.core.fish_key import api_key
 from src.tts import split_sentences
 
 CLOUD_URL = "https://api.fish.audio"
 CLOUD_MODELS = ("s2.1-pro", "s2.1-pro-free", "s2-pro", "s1")
 DEFAULT_VOICE_ID = "29c31f6e158c4c8f84c14f9f3d8ba008"     # "Jarvis" on fish.audio
 CACHE_DIR = paths.cache_dir() / "tts" / "fish"
-KEY_TARGET = "JARVIS/TTS/fish"
-KEY_USER = "api-key"
-KEY_ENV = "FISH_API_KEY"
-
-
-# ---------------------------------------------------------------------- the API key (cloud mode)
-
-def api_key() -> tuple:
-    """(key, source): source is "saved" (secret store), "env:FISH_API_KEY" or None when there is no key."""
-    from src.core import credentials
-    key = credentials.read(KEY_TARGET)
-    if key:
-        return key, "saved"
-    if os.environ.get(KEY_ENV):
-        return os.environ[KEY_ENV], f"env:{KEY_ENV}"
-    return None, None
-
-
-def save_api_key(key: str) -> None:
-    from src.core import credentials
-    key = (key or "").strip()
-    if not key:
-        raise ValueError("Empty API key")
-    credentials.write(KEY_TARGET, KEY_USER, key)
-
-
-def forget_api_key() -> None:
-    from src.core import credentials
-    credentials.delete(KEY_TARGET)
 
 
 # ---------------------------------------------------------------------- audio

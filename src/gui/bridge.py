@@ -442,8 +442,8 @@ class Bridge(QObject):
                 from src.tts import preview_engine
                 _, option = models.find(option_id)
                 if option.get("needs_key") == "fish":
-                    from src.tts import fish
-                    if not fish.api_key()[0]:
+                    from src.core import fish_key
+                    if not fish_key.api_key()[0]:
                         self.app.hub.emit_event({"type": "voice_sample", "option": option_id, "url": "", "needs_key": True})
                         return
                 if models.status(option)["state"] not in ("installed", "builtin"):
@@ -457,22 +457,22 @@ class Bridge(QObject):
     @Slot(result=str)
     def fishKeyStatus(self) -> str:
         """Where the Fish Audio API key comes from: "saved", "env:FISH_API_KEY" or null."""
-        from src.tts import fish
-        return _dumps({"source": fish.api_key()[1]})
+        from src.core import fish_key
+        return _dumps({"source": fish_key.api_key()[1]})
 
     @Slot(str, result=str)
     def fishSaveKey(self, key: str) -> str:
-        from src.tts import fish
+        from src.core import fish_key
         try:
-            fish.save_api_key(key)
+            fish_key.save_api_key(key)
             return _dumps({"ok": True})
         except Exception as e:
             return _dumps({"ok": False, "error": str(e)})
 
     @Slot(result=bool)
     def fishForgetKey(self) -> bool:
-        from src.tts import fish
-        fish.forget_api_key()
+        from src.core import fish_key
+        fish_key.forget_api_key()
         return True
 
     @Slot(str)

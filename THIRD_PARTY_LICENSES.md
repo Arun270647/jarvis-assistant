@@ -102,7 +102,7 @@ Installed only when the user chooses them, from their own sources, and never shi
 
 | Add-on | License | Installed when |
 |---|---|---|
-| kokoro-onnx (Kokoro voice engine) with phonemizer, espeakng-loader (espeak-ng), joblib, cloudpickle, dlinfo | MIT (kokoro-onnx), GPL-3.0-or-later (phonemizer, espeak-ng), BSD-3-Clause (joblib, cloudpickle), MIT (dlinfo) | a Kokoro voice is chosen (the wizard's recommendation); from PyPI into `models/addons/kokoro` |
+| kokoro-onnx (Kokoro voice engine) with phonemizer, espeakng-loader (espeak-ng), joblib, cloudpickle, dlinfo | MIT (kokoro-onnx), GPL-3.0-or-later (phonemizer, espeak-ng), BSD-3-Clause (joblib, cloudpickle), MIT (dlinfo) | a Kokoro voice is chosen; from PyPI into `models/addons/kokoro` |
 | piper-tts (Piper voice engine) and pathvalidate | GPL-3.0-or-later (piper-tts), MIT (pathvalidate) | a Piper voice is chosen; from PyPI into `models/addons/piper` |
 | chatterbox-tts and PyTorch | MIT (chatterbox-tts), BSD-3-Clause (PyTorch) | `scripts/setup_chatterbox.py`; into its own environment in the models folder |
 | fish-speech with PyTorch, and the S1-mini or S2-Pro weights | Fish Audio Research License (fish-speech, S2-Pro; non-commercial), CC-BY-NC-SA-4.0 (S1-mini), BSD-3-Clause (PyTorch) | `scripts/setup_fish.py`; from GitHub and Hugging Face into its own environment in `models/fish` |
