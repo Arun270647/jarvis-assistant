@@ -534,14 +534,28 @@
           this.select("stt.compute_type", ["int8", "int8_float16", "float16", "float32"], "Compute type", "int8 keeps VRAM low on the 4 GB card."),
           this.number("stt.beam_size", "Beam size"))));
 
+      const fishPw = h("input", { class: "input", type: "password", placeholder: "Fish Audio API key", autocomplete: "new-password", spellcheck: "false", "aria-label": "Fish Audio API key" });
+      const fishLine = h("div", { class: "help", role: "status", text: "" });
       root.appendChild(this.section("Voice", null,
         h("div", { class: "grid-2" },
           this.toggle("tts.enabled", "Speak replies aloud"),
-          this.select("tts.engine", [["kokoro", "Kokoro (the default)"], ["chatterbox", "Chatterbox-Turbo"], ["piper", "Piper"], ["system", t("{voice}")]], "Voice engine", t("Kokoro sounds natural and runs on the processor. Chatterbox sounds the most natural but is slow without an NVIDIA card (Kokoro speaks while it loads). Piper is the quickest. The {voice} needs no download. Kokoro and Piper install their engine the first time you download one of their voices in Models below.")),
+          this.select("tts.engine", [["fish", "Fish Audio"], ["kokoro", "Kokoro (the default)"], ["chatterbox", "Chatterbox-Turbo"], ["piper", "Piper"], ["system", t("{voice}")]], "Voice engine", t("Fish Audio speaks a fish.audio voice from its cloud (your API key, paid per use) or clones a clip with fish-speech on this computer. Kokoro sounds natural and runs on the processor. Chatterbox sounds the most natural but is slow without an NVIDIA card (Kokoro speaks while it loads). Piper is the quickest. The {voice} needs no download. Kokoro and Piper install their engine the first time you download one of their voices in Models below.")),
           this.select("tts.kokoro.voice", o.kokoro_voices || [], "Kokoro voice", "The first letter is the accent (a: American, b: British) and the second is f or m. Download Kokoro in Models below to get all its voices."),
           this.number("tts.kokoro.speed", "Kokoro speed", "1 is normal; 0.5 to 2.", 0.1, true),
           this.select("tts.system.voice", [["", t("{os} default")]].concat((o.system_voices || []).map(v => [v, v])), t("{voice}"), "Also used whenever the chosen voice can't start."),
-          this.select("tts.piper.voice", o.voices || [], "Piper voice", "Voices in the piper folder of the models folder."))));
+          this.select("tts.piper.voice", o.voices || [], "Piper voice", "Voices in the piper folder of the models folder.")),
+        h("div", { class: "grid-2" },
+          this.select("tts.fish.mode", [["cloud", "Fish Audio cloud (exact voice)"], ["local", "fish-speech on this computer"]], "Fish Audio: where", "The cloud needs internet and your API key. Locally, fish-speech clones the clip below; install it with scripts/setup_fish.py."),
+          this.text("tts.fish.voice_id", "Fish Audio voice id", "The code in the voice's address: fish.audio/m/<id>/. The default, 29c31f6e…, is the voice listed first in Models."),
+          this.select("tts.fish.cloud_model", [["s2.1-pro", "S2.1 Pro (Fish Audio's default)"], ["s2.1-pro-free", "S2.1 Pro, free developer tier"], ["s2-pro", "S2 Pro"], ["s1", "S1"]], "Fish Audio cloud model"),
+          this.text("tts.fish.reference_audio", "Clip to clone (fish-speech)", "A clean 10–30 second WAV or MP3 of the voice, used only on this computer."),
+          this.text("tts.fish.reference_text", "What the clip says", "Its exact words make the copy closer.")),
+        h("div", { class: "toolbar" }, fishPw,
+          h("button", { class: "btn btn-primary btn-sm", onclick: async () => { const r = JSON.parse(await call("fishSaveKey", fishPw.value)); fishPw.value = ""; fishLine.textContent = r.ok ? t("settings.key_saved") : "Not saved: " + r.error; }, text: "Save Fish Audio key" }),
+          h("button", { class: "btn btn-secondary btn-sm", onclick: () => call("openUrl", "https://fish.audio/app/api-keys/"), text: "Get a key" }),
+          h("button", { class: "btn btn-ghost btn-sm", onclick: async () => { await call("fishForgetKey"); fishLine.textContent = "Fish Audio key removed."; }, text: "Forget key" })),
+        fishLine));
+      call("fishKeyStatus").then(raw => { if (!raw) return; const k = JSON.parse(raw).source; if (!fishLine.textContent) fishLine.textContent = k === "saved" ? t("settings.key_saved") : k ? `Fish Audio key from ${k.replace("env:", "")}.` : "No Fish Audio API key saved: the cloud voice can't speak until you add one."; });
 
       root.appendChild(this.section("Models", "The AI models that hear and speak, on this computer. Changes apply when the assistant restarts.",
         h("div", { id: "models-body" }, h("div", { class: "empty", text: "Loading…" }))));

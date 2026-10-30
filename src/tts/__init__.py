@@ -8,6 +8,9 @@ tts.engine picks the voice:
     (Kokoro by default) speaks while it loads or if it fails.
   - "piper": Piper, in-process: local, CPU-only, no VRAM (tts.piper). Its engine is an add-on (GPL-3.0,
     not shipped) like Kokoro's.
+  - "fish": Fish Audio (src/tts/fish.py, tts.fish): its cloud API with a fish.audio voice id and the user's API
+    key, or the fish-speech engine on this computer cloning a reference clip (scripts/setup_fish.py).
+    tts.fish.fallback (Kokoro by default) speaks without a key, while fish-speech loads or if a request fails.
   - "system": the voice built into Windows (src/tts/system.py): nothing to download.
 If the chosen engine can't start (a voice not downloaded yet, for example), tts.fallback ("system" by
 default, or "none") speaks instead, so a fresh install can always talk.
@@ -160,7 +163,7 @@ class PiperTTS(TTSEngine):
             return None
 
 
-ENGINES = ("kokoro", "chatterbox", "piper", "system")
+ENGINES = ("fish", "kokoro", "chatterbox", "piper", "system")
 
 
 def build_engine(engine: str, cfg: dict) -> TTSEngine:
@@ -184,7 +187,24 @@ def build_engine(engine: str, cfg: dict) -> TTSEngine:
             except Exception as e:
                 print(f"[TTS] {backup} fallback unavailable: {str(e).splitlines()[0]}")
         return ChatterboxTTS(cfg, fallback=fallback)
+    if engine == "fish":
+        from src.tts.fish import FishTTS
+        return FishTTS(cfg, fallback=_fallback(cfg, (tts_cfg.get("fish", {}) or {}).get("fallback", "kokoro"), "fish"))
     raise ValueError(f"No voice engine called {engine!r}")
+
+
+def _fallback(cfg: dict, backup: str, engine: str) -> Optional[TTSEngine]:
+    """The engine that speaks for engine when it can't: backup, else the system voice (None for "none")."""
+    if backup == "none":
+        return None
+    for name in dict.fromkeys((backup, "system")):
+        if name not in ENGINES or name == engine:
+            continue
+        try:
+            return build_engine(name, cfg)
+        except Exception as e:
+            print(f"[TTS] {name} fallback unavailable: {str(e).splitlines()[0]}")
+    return None
 
 
 def preview_engine(settings: dict, cfg: dict) -> TTSEngine:

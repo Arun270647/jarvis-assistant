@@ -271,6 +271,23 @@
       ],
       "options": [
         {
+          "id": "fish-jarvis",
+          "name": "Fish Audio · Jarvis",
+          "summary": "Calm and authoritative. Online: needs your Fish Audio API key.",
+          "about": "The \"Jarvis\" voice from fish.audio, spoken by Fish Audio's cloud, so it sounds exactly as on its page. {name}'s replies are sent to Fish Audio to be voiced, and Fish Audio charges your API key's account per character (new accounts get free credits). Make a key at fish.audio › API keys and paste it here; it is kept in your system's secret store. Without a key or internet, Kokoro or the {os} voice speaks instead. Settings › Voice can switch it to fish-speech on this computer instead (scripts/setup_fish.py).",
+          "license": "Fish Audio terms of service; paid per use",
+          "license_url": "https://fish.audio/terms/",
+          "page": "https://fish.audio/m/29c31f6e158c4c8f84c14f9f3d8ba008/",
+          "size_mb": 0,
+          "files": [],
+          "needs_key": "fish",
+          "config": {
+            "tts.engine": "fish",
+            "tts.fish.mode": "cloud",
+            "tts.fish.voice_id": "29c31f6e158c4c8f84c14f9f3d8ba008"
+          }
+        },
+        {
           "id": "system",
           "name": "System voice",
           "summary": "Built into {os}. Always works, sounds more robotic.",

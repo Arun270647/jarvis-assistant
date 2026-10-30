@@ -441,6 +441,11 @@ class Bridge(QObject):
                 from src.core import models
                 from src.tts import preview_engine
                 _, option = models.find(option_id)
+                if option.get("needs_key") == "fish":
+                    from src.tts import fish
+                    if not fish.api_key()[0]:
+                        self.app.hub.emit_event({"type": "voice_sample", "option": option_id, "url": "", "needs_key": True})
+                        return
                 if models.status(option)["state"] not in ("installed", "builtin"):
                     self.app.hub.emit_event({"type": "voice_sample", "option": option_id, "url": option.get("sample") or ""})
                     return
@@ -448,6 +453,27 @@ class Bridge(QObject):
             except Exception as e:
                 print(f"[SETUP] Could not play {option_id}: {e}")
         threading.Thread(target=run, name="hear-voice", daemon=True).start()
+
+    @Slot(result=str)
+    def fishKeyStatus(self) -> str:
+        """Where the Fish Audio API key comes from: "saved", "env:FISH_API_KEY" or null."""
+        from src.tts import fish
+        return _dumps({"source": fish.api_key()[1]})
+
+    @Slot(str, result=str)
+    def fishSaveKey(self, key: str) -> str:
+        from src.tts import fish
+        try:
+            fish.save_api_key(key)
+            return _dumps({"ok": True})
+        except Exception as e:
+            return _dumps({"ok": False, "error": str(e)})
+
+    @Slot(result=bool)
+    def fishForgetKey(self) -> bool:
+        from src.tts import fish
+        fish.forget_api_key()
+        return True
 
     @Slot(str)
     def hearName(self, name: str) -> None:

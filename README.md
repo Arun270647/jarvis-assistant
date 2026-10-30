@@ -18,8 +18,8 @@ click / hold Space ─► VAD ─► Whisper (local) ─► AI model (your choic
 ## What works today
 
 - **Local ears and voice**: Silero VAD and faster-whisper (GPU or CPU) for speech recognition; Kokoro voices
-  by default (natural, and quick on the processor), or the system voice (Windows or macOS), Piper voices or
-  Chatterbox. Without a
+  by default (natural, and quick on the processor), or the system voice (Windows or macOS), Piper voices,
+  Chatterbox, or a Fish Audio voice (Fish Audio's cloud with your API key, or fish-speech on your PC). Without a
   microphone or voice, Jarvis still works by typing.
 - **Your choice of AI** (Settings › AI): Claude through your own Claude account (the default), the
   Anthropic API, OpenAI, OpenRouter, Groq, Google Gemini, Ollama or LM Studio on your PC, or any other

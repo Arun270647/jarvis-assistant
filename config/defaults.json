@@ -182,6 +182,28 @@
       "cache_phrases": [
         "{name} is back."
       ]
+    },
+    "fish": {
+      "mode": "cloud",
+      "voice_id": "29c31f6e158c4c8f84c14f9f3d8ba008",
+      "cloud_model": "s2.1-pro",
+      "api_url": "https://api.fish.audio",
+      "latency": "balanced",
+      "python": "",
+      "repo": "",
+      "checkpoint": "",
+      "device": "cuda",
+      "half": true,
+      "reference_audio": "",
+      "reference_text": "",
+      "temperature": 0.7,
+      "top_p": 0.7,
+      "startup_timeout_s": 600,
+      "sentence_timeout_s": 60,
+      "fallback": "kokoro",
+      "cache_phrases": [
+        "{name} is back."
+      ]
     }
   },
   "coding_agent": {

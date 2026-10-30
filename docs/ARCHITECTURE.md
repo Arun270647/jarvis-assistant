@@ -32,7 +32,7 @@ typed text ───────────────────────
 3. **Acting.** Every tool call goes through `PolicyExecutor.execute()`. It validates the arguments, applies
    permissions and the safety rules, asks for approval through `ApprovalBroker`, runs the handler with a time
    limit, masks secrets, and records the call. Nothing else in the code performs actions on the PC.
-4. **Answering.** The reply is spoken by `src/tts` (Kokoro by default; Piper, Chatterbox or the system voice)
+4. **Answering.** The reply is spoken by `src/tts` (Kokoro by default; Fish Audio, Piper, Chatterbox or the system voice)
    and shown in the window.
 
 Multi-step goals become **tasks** (`src/agent/tasks.py`). A task has a plan, success checks that are verified

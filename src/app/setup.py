@@ -66,12 +66,21 @@ def catalogue_view(name: str, facts: dict, cfg: dict) -> list:
                             "status": st["state"], "have": st["have"], "total": st["total"],
                             "addon_missing": bool(st.get("addon")) and not st.get("addon_installed"),
                             "shared": shared,                  # other options that use the same download
+                            "needs_key": o.get("needs_key") or "", "key_saved": _key_saved(o.get("needs_key")),
                             "recommended": rec.get(g["id"], {}).get("option") == o["id"]})
         out.append({"id": g["id"], "icon": g.get("icon"), "title": models.text(g["title"], name),
                     "explain": models.text(g["explain"], name), "options": options,
                     "recommended": rec.get(g["id"], {}).get("option"), "reason": rec.get(g["id"], {}).get("reason", ""),
                     "selected": chosen.get(g["id"]) or rec.get(g["id"], {}).get("option")})
     return out
+
+
+def _key_saved(service: Optional[str]) -> bool:
+    """Whether an option that speaks through an online service ("needs_key": "fish") has its API key."""
+    if service != "fish":
+        return False
+    from src.tts import fish
+    return bool(fish.api_key()[0])
 
 
 def _chosen_options(cfg: dict) -> dict:

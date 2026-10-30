@@ -341,14 +341,28 @@
       h("span", { class: "option-name", text: o.name }),
       h("button", { class: "btn btn-ghost btn-sm", title: "Play a sample", "aria-label": `Play a sample of ${o.name}`,
         onclick: e => { e.preventDefault(); const n = $("voice-note"); if (n) n.textContent = ""; call("hearVoice", o.id, T.name); }, text: "▶" }),
-      h("span", { class: "help", text: o.summary + (!o.size_mb ? " · nothing to download" : o.status === "installed" ? " · downloaded"
-        : ` · ${o.size_mb} MB` + (o.shared ? `, one download for this and ${o.shared} more` : "")) })));
+      h("span", { class: "help", text: o.summary + (o.needs_key ? (o.key_saved ? " · key saved" : "") : !o.size_mb ? " · nothing to download"
+        : o.status === "installed" ? " · downloaded" : ` · ${o.size_mb} MB` + (o.shared ? `, one download for this and ${o.shared} more` : "")) })));
     audio.addEventListener("ended", () => { W.orbPhase = "idle"; });
     const quiet = h("input", { type: "checkbox" }); quiet.checked = !W.speak;
     quiet.addEventListener("change", () => { W.speak = !quiet.checked; });
+    const chosen = g && g.options.find(o => o.id === W.voice);
     page("Pick a voice", null, [h("div", { class: "voices" }, cards), audio, h("div", { class: "help", id: "voice-note", role: "status" }),
+      chosen && chosen.needs_key === "fish" ? fishKey(chosen) : null,
       h("label", { class: "check" }, quiet, "Don't speak, just show text")],
       [primary("Continue", async () => { if (await save("voice", { option: W.voice, speak: W.speak })) next(); })]);
+  }
+
+  function fishKey(o) {                          // the Fish Audio voice speaks from Fish Audio's cloud with the user's key
+    const pw = h("input", { class: "input", type: "password", placeholder: "Paste your Fish Audio API key", autocomplete: "new-password", spellcheck: "false", "aria-label": "Fish Audio API key" });
+    const line = h("div", { class: "help", role: "status", text: o.key_saved ? "✓ Your Fish Audio API key is saved." : `Without a key, ${T.name} uses another voice until you add one in Settings › Voice.` });
+    return h("div", { class: "field" }, h("label", { text: "Fish Audio API key" }),
+      h("div", { class: "toolbar" }, pw,
+        h("button", { class: "btn btn-primary btn-sm", onclick: async () => {
+          const r = JSON.parse(await call("fishSaveKey", pw.value)); pw.value = "";
+          if (r.ok) { o.key_saved = true; line.textContent = "✓ Key saved. Press ▶ to hear the voice."; } else line.textContent = "Not saved: " + r.error; }, text: "Save key" }),
+        link("Get a key", () => call("openUrl", "https://fish.audio/app/api-keys/"))),
+      line);
   }
 
   // ───────────────────────────── 5. About you
@@ -458,7 +472,7 @@
         break; }
       case "voice_sample": if (W.screen !== "voice") break;
         if (ev.url && W.sample) { W.sample.src = ev.url; W.sample.play(); W.orbPhase = "speaking"; }
-        else { const n = $("voice-note"); if (n) n.textContent = "You can hear this voice once it has downloaded."; }
+        else { const n = $("voice-note"); if (n) n.textContent = ev.needs_key ? "Save your Fish Audio API key below to hear this voice." : "You can hear this voice once it has downloaded."; }
         break;
       case "phase": W.orbPhase = ev.phase; if (W.screen === "try") { W.tryState = { listening: "Listening…", transcribing: "Listening…", thinking: "Thinking…", executing: "Working…", speaking: "Speaking…", loading: "Starting up…" }[ev.phase] || ""; const s = $("try-state"); if (s) s.textContent = W.tryState; } break;
       case "reply": if (W.screen === "try" && !ev.greeting) { W.tried = ev.text; render(); } break;

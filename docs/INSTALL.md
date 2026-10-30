@@ -118,6 +118,19 @@ AI.
 - **Chatterbox** sounds the most natural, but needs PyTorch (several GB) and is slow without an NVIDIA graphics
   card. It gets its own Python environment: `.venv\Scripts\python scripts\setup_chatterbox.py --cuda --use`
   (leave out `--cuda` without an NVIDIA card).
+- **Fish Audio** is listed first in the wizard: the "Jarvis" voice from
+  [fish.audio](https://fish.audio/m/29c31f6e158c4c8f84c14f9f3d8ba008/), spoken by Fish Audio's cloud, so it sounds
+  exactly as on its page. It needs internet and a Fish Audio API key (fish.audio › API keys), which you paste in
+  the wizard or in Settings › Voice; Fish Audio charges that key's account per character (new accounts get free
+  credits, and the `s2.1-pro-free` model in Settings › Voice is its free developer tier). Replies are sent to Fish
+  Audio to be voiced. Any other fish.audio voice works too: put its id (the code in its address) in Settings ›
+  Voice. Without a key or internet, Kokoro (or the system voice) speaks instead.
+  - **On your PC instead**: fish-speech, Fish Audio's open-source engine, can run locally and clone a clip you
+    give it: `.venv\Scripts\python scripts\setup_fish.py --cuda --hf-token <token> --reference clip.wav
+    --reference-text "What the clip says." --use`. It needs PyTorch, a strong NVIDIA card and a Hugging Face
+    account (the S1-mini weights, 3.6 GB, are gated: accept their terms first). The open model is smaller than
+    Fish Audio's cloud one, so the voice is close rather than identical, and fish-speech and its weights are for
+    non-commercial use only. Use a clip of a voice you have the right to copy.
 - **The system voice** is built in and needs nothing: the Windows voice, or on a Mac the voices of the `say`
   command (more in System Settings › Accessibility › Spoken Content).
 
